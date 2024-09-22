@@ -1,6 +1,9 @@
 use color_eyre::Result;
 use crossterm::event::KeyEvent;
-use ratatui::prelude::Rect;
+use ratatui::{
+    layout::Rect,
+    widgets::{Block, BorderType},
+};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{debug, info};
@@ -50,7 +53,7 @@ impl App {
 
     pub async fn run(&mut self) -> Result<()> {
         let mut tui = Tui::new()?
-            // .mouse(true) // uncomment this line to enable mouse support
+            .mouse(true)
             .tick_rate(self.tick_rate)
             .frame_rate(self.frame_rate);
         tui.enter()?;
@@ -164,8 +167,17 @@ impl App {
 
     fn render(&mut self, tui: &mut Tui) -> Result<()> {
         tui.draw(|frame| {
+            let app_border = Block::bordered()
+                .title(format!(" 📦 crate-seek v{} ", env!("CARGO_PKG_VERSION")))
+                .title_style(self.config.styles[&Mode::Home]["title"])
+                .border_type(BorderType::Double);
+
+            frame.render_widget(&app_border, frame.area());
+
+            let area = app_border.inner(frame.area());
+
             for component in self.components.iter_mut() {
-                if let Err(err) = component.draw(frame, frame.area()) {
+                if let Err(err) = component.draw(frame, area) {
                     let _ = self
                         .action_tx
                         .send(Action::Error(format!("Failed to draw: {:?}", err)));

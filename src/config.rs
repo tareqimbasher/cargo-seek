@@ -426,6 +426,18 @@ fn parse_color(s: &str) -> Option<Color> {
         Some(Color::Indexed(14))
     } else if s == "bold white" {
         Some(Color::Indexed(15))
+    } else if s == "lightred" {
+        Some(Color::LightRed)
+    } else if s == "lightgreen" {
+        Some(Color::LightGreen)
+    } else if s == "lightyellow" {
+        Some(Color::LightYellow)
+    } else if s == "lightblue" {
+        Some(Color::LightBlue)
+    } else if s == "lightmagenta" {
+        Some(Color::LightMagenta)
+    } else if s == "lightcyan" {
+        Some(Color::LightCyan)
     } else if s == "black" {
         Some(Color::Indexed(0))
     } else if s == "red" {
@@ -507,7 +519,7 @@ mod tests {
             c.keybindings
                 .get(&Mode::Home)
                 .unwrap()
-                .get(&parse_key_sequence("<q>").unwrap_or_default())
+                .get(&parse_key_sequence("<Ctrl-c>").unwrap_or_default())
                 .unwrap(),
             &Action::Quit
         );

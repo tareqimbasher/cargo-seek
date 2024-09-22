@@ -1,3 +1,4 @@
+use crate::components::home::SearchResults;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
@@ -12,4 +13,8 @@ pub enum Action {
     ClearScreen,
     Error(String),
     Help,
+    FocusNext,
+    FocusPrevious,
+    Search(String, u32),
+    RenderSearchResults(SearchResults, u32),
 }

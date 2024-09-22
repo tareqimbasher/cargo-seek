@@ -3,7 +3,7 @@ name = "crate-seek"
 version = "0.1.0"
 edition = "2021"
 description = "Search and install cargo crates"
-authors = ["Tareq Imbasher <tareq@meccasoft.com>"]
+authors = ["Tareq Imbasher <https://github.com/tareqimbasher/crate-seek>"]
 build = "build.rs"
 repository = "https://github.com/tareqimbasher/crate-seek"
 
@@ -11,7 +11,8 @@ repository = "https://github.com/tareqimbasher/crate-seek"
 
 [dependencies]
 better-panic = "0.3.0"
-clap = { version = "4.4.5", features = [
+chrono = { version = "0.4.38", features = ["serde"] }
+clap = { version = "4.5.18", features = [
     "derive",
     "cargo",
     "wrap_help",
@@ -29,19 +30,22 @@ human-panic = "2.0.1"
 json5 = "0.4.1"
 lazy_static = "1.5.0"
 libc = "0.2.158"
-pretty_assertions = "1.4.0"
+pretty_assertions = "1.4.1"
 ratatui = { version = "0.28.1", features = ["serde", "macros"] }
-serde = { version = "1.0.208", features = ["derive"] }
-serde_json = "1.0.125"
+reqwest = { version = "0.12.7", features = ["blocking"] }
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.128"
 signal-hook = "0.3.17"
 strip-ansi-escapes = "0.2.0"
 strum = { version = "0.26.3", features = ["derive"] }
-tokio = { version = "1.39.3", features = ["full"] }
-tokio-util = "0.7.11"
+throbber-widgets-tui = "0.7.0"
+tokio = { version = "1.40.0", features = ["full"] }
+tokio-util = "0.7.12"
 tracing = "0.1.40"
 tracing-error = "0.2.0"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "serde"] }
+tui-input = "0.10.1"
 
 [build-dependencies]
 anyhow = "1.0.86"
-vergen-gix = { version = "1.0.0", features = ["build", "cargo"] }
+vergen-gix = { version = "1.0.2", features = ["build", "cargo"] }
