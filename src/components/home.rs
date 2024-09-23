@@ -4,6 +4,8 @@ use crate::{action::Action, config::Config, http_client};
 use chrono::{DateTime, Utc};
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use lazy_static::lazy_static;
+use num_format::{Locale, ToFormattedString};
 use ratatui::layout::Alignment;
 use ratatui::text::{Line, Text};
 use ratatui::widgets::block::Title;
@@ -15,9 +17,17 @@ use ratatui::{
     Frame,
 };
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
+use sys_locale::get_locale;
 use tokio::sync::mpsc::UnboundedSender;
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
+
+lazy_static! {
+    // TODO maybe remove 1 or both libs?
+    static ref LOCALE_STR: String = get_locale().unwrap_or(String::from("en-US"));
+    static ref LOCALE: Locale = Locale::from_str(LOCALE_STR.as_str()).unwrap_or(Locale::en);
+}
 
 #[derive(Default, PartialEq)]
 enum Focus {
@@ -30,8 +40,6 @@ enum Focus {
 struct Meta {
     #[serde(default)]
     page: u32,
-    next_page: Option<String>,
-    prev_page: Option<String>,
     total: u32,
 }
 
@@ -60,30 +68,14 @@ impl SearchResults {
         self.meta.total.div_ceil(100)
     }
 
-    // fn has_next_page(&self) -> bool {
-    //     let so_far = self.meta.page * 100;
-    //     so_far + 100 <= self.meta.total
-    // }
-    //
-    // fn has_prev_page(&self) -> bool {
-    //     self.meta.page > 1
-    // }
+    fn has_next_page(&self) -> bool {
+        let so_far = self.meta.page * 100;
+        so_far + 100 <= self.meta.total
+    }
 
-    // fn go_to_next_page(&self, query: String, command_tx: UnboundedSender<Action>) {
-    //     if self.has_next_page() {
-    //         command_tx
-    //             .send(Action::Search(query, self.meta.page + 1))
-    //             .unwrap()
-    //     }
-    // }
-
-    // fn go_to_prev_page(&self, query: String, command_tx: UnboundedSender<Action>) {
-    //     if self.has_prev_page() {
-    //         command_tx
-    //             .send(Action::Search(query, self.meta.page - 1))
-    //             .unwrap()
-    //     }
-    // }
+    fn has_prev_page(&self) -> bool {
+        self.meta.page > 1
+    }
 
     fn go_back_pages(&self, pages: u32, query: String, command_tx: UnboundedSender<Action>) {
         let requested_page = if pages >= self.meta.page {
@@ -133,6 +125,16 @@ impl SearchResults {
             .unwrap()
     }
 
+    fn get_selected(&self) -> Option<&SearchItem> {
+        if let Some(ix) = self.state.selected() {
+            if let Some(item) = self.crates.get(ix) {
+                return Some(item);
+            }
+        }
+
+        None
+    }
+
     fn select_next(&mut self) {
         self.state.select_next();
     }
@@ -152,19 +154,28 @@ impl SearchResults {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SearchItem {
-    pub exact_match: bool,
+    pub id: String,
     pub name: String,
-    pub newest_version: String,
-    pub max_version: String,
-    pub max_stable_version: Option<String>,
-    pub description: String,
-    pub downloads: i64,
-    pub recent_downloads: i64,
+    pub description: Option<String>,
     pub homepage: Option<String>,
     pub documentation: Option<String>,
     pub repository: Option<String>,
+    pub max_version: String,
+    pub max_stable_version: Option<String>,
+    pub downloads: u64,
+    pub recent_downloads: Option<u64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub exact_match: bool,
+}
+
+impl SearchItem {
+    fn version(&self) -> &str {
+        match &self.max_stable_version {
+            Some(v) => v,
+            None => self.max_version.as_str(),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -176,6 +187,7 @@ pub struct Home {
     spinner_state: throbber_widgets_tui::ThrobberState,
     command_tx: Option<UnboundedSender<Action>>,
     config: Config,
+    hide_usage: bool,
 }
 
 impl Home {
@@ -258,7 +270,7 @@ impl Home {
             .iter()
             .map(|i| {
                 let name = i.name.as_str();
-                let version = i.newest_version.as_str();
+                let version = i.version();
 
                 let space_between = area.width as usize - (name.len() + version.len()) - correction;
                 let line = format!("{}{}{}", name, " ".repeat(space_between), version);
@@ -308,54 +320,181 @@ impl Home {
     }
 
     fn render_right(&mut self, frame: &mut Frame, area: Rect) {
-        let mut selected: Option<&SearchItem> = None;
-        let mut crate_details: Option<Paragraph> = None;
+        let selected = self.search_results.get_selected();
 
-        if let Some(ix) = self.search_results.state.selected() {
-            if let Some(item) = self.search_results.crates.get(ix) {
-                selected = Some(item);
+        if self.hide_usage && selected.is_some() {
+            let item = selected.unwrap();
 
-                let text = Text::from(vec![
-                    Line::from(vec![
-                        item.name.as_str().green(),
-                        " ".into(),
-                        item.newest_version.as_str().yellow().bold(),
-                    ]),
-                    Line::from(vec![
-                        "Description: ".into(),
-                        item.description.as_str().blue(),
-                    ]),
-                    Line::from(vec![
-                        "Downloads: ".into(),
-                        item.downloads.to_string().green(),
-                    ]),
-                ]);
-
-                crate_details = Some(
-                    Paragraph::new(text)
-                        .wrap(Wrap { trim: true })
-                        .scroll((1, 0)),
-                );
-            }
-        }
-
-        let right_block = Block::default()
-            .title(if let Some(item) = selected {
-                format!(" {} ", item.name)
+            let updated_diff = Utc::now().signed_duration_since(item.updated_at);
+            let updated_relative = if updated_diff.num_days() > 1 {
+                format!("{} days ago", updated_diff.num_days())
+            } else if updated_diff.num_hours() > 1 {
+                format!("{} hours ago", updated_diff.num_hours())
+            } else if updated_diff.num_seconds() > 1 {
+                format!("{} minutes ago", updated_diff.num_minutes())
             } else {
-                " Usage ".to_string()
-            })
-            .title_style(self.config.styles[&Mode::Home]["title"])
-            .padding(Padding::uniform(1))
-            .borders(Borders::ALL);
+                format!("{} seconds ago", updated_diff.num_seconds())
+            };
 
-        frame.render_widget(&right_block, area);
+            // TODO Why isn't it taking it from lazy static?
+            let locale = Locale::from_str(LOCALE_STR.as_str()).unwrap_or(Locale::en);
 
-        match crate_details {
-            None => {}
-            Some(p) => {
-                frame.render_widget(p, right_block.inner(area));
-            }
+            let text = Text::from(vec![
+                Line::from(vec![
+                    format!("{:<25}", "Description:").yellow().bold(),
+                    item.description.clone().unwrap_or_default().bold(),
+                ]),
+                Line::default(),
+                Line::from(vec![
+                    format!("{:<25}", "Version:").yellow().bold(),
+                    item.version().into(),
+                ]),
+                Line::from(vec![
+                    format!("{:<25}", "Latest Version:").yellow().bold(),
+                    item.max_version.to_string().into(),
+                ]),
+                Line::from(vec![
+                    format!("{:<25}", "Home Page:").yellow().bold(),
+                    item.homepage.clone().unwrap_or_default().into(),
+                ]),
+                Line::from(vec![
+                    format!("{:<25}", "Documentation:").yellow().bold(),
+                    item.documentation.clone().unwrap_or_default().into(),
+                ]),
+                Line::from(vec![
+                    format!("{:<25}", "Repository:").yellow().bold(),
+                    item.repository.clone().unwrap_or_default().into(),
+                ]),
+                Line::from(vec![
+                    format!("{:<25}", "crates.io Page:").yellow().bold(),
+                    format!("https://crates.io/crates/{}", item.id).into(),
+                ]),
+                Line::from(vec![
+                    format!("{:<25}", "Downloads:").yellow().bold(),
+                    item.downloads.to_formatted_string(&locale).into(),
+                ]),
+                Line::from(vec![
+                    format!("{:<25}", "Recent Downloads:").yellow().bold(),
+                    item.recent_downloads
+                        .unwrap_or_default()
+                        .to_formatted_string(&locale)
+                        .into(),
+                ]),
+                Line::from(vec![
+                    format!("{:<25}", "Created:").yellow().bold(),
+                    item.created_at
+                        .format("%d/%m/%Y %H:%M:%S (UTC)")
+                        .to_string()
+                        .into(),
+                ]),
+                Line::from(vec![
+                    format!("{:<25}", "Updated:").yellow().bold(),
+                    format!(
+                        "{} ({})",
+                        item.updated_at.format("%d/%m/%Y %H:%M:%S (UTC)"),
+                        updated_relative
+                    )
+                    .into(),
+                ]),
+            ]);
+
+            let right_block = Block::default()
+                .title(format!(" 🧐 {} ", item.name))
+                .title_style(self.config.styles[&Mode::Home]["title"])
+                .padding(Padding::uniform(1))
+                .borders(Borders::ALL);
+
+            frame.render_widget(&right_block, area);
+
+            frame.render_widget(
+                Paragraph::new(text)
+                    .wrap(Wrap { trim: true })
+                    .scroll((0, 0)),
+                right_block.inner(area),
+            );
+        } else {
+            let text = Text::from(vec![
+                Line::from(vec![
+                    format!("{:<25}", "ENTER:").yellow().bold(),
+                    "Search".bold(),
+                ]),
+                Line::from(vec![
+                    format!("{:<25}", "a:").yellow().bold(),
+                    "Add".bold(),
+                    " (WIP)".gray()
+                ]),
+                Line::from(vec![
+                    format!("{:<25}", "i:").yellow().bold(),
+                    "Install".bold(),
+                    " (WIP)".gray()
+                ]),
+                Line::from(vec![
+                    format!("{:<25}", "Ctrl + o:").yellow().bold(),
+                    "Open docs URL".bold(),
+                    " (WIP)".gray()
+                ]),
+                Line::default(),
+                Line::from(vec!["NAVIGATION".bold()]),
+                Line::from(vec![
+                    format!("{:<25}", "TAB:").yellow().bold(),
+                    "Switch between boxes".bold(),
+                ]),
+                Line::from(vec![
+                    format!("{:<25}", "ESC:").yellow().bold(),
+                    "Go back to search; clear results".bold(),
+                ]),
+                Line::from(vec![
+                    format!("{:<25}", "Ctrl + h:").yellow().bold(),
+                    "Toggle this usage screen".bold(),
+                ]),
+                Line::from(vec![
+                    format!("{:<25}", "Ctrl + z:").yellow().bold(),
+                    "Suspend".bold(),
+                ]),
+                Line::from(vec![
+                    format!("{:<25}", "Ctrl + c:").yellow().bold(),
+                    "Quit".bold(),
+                ]),
+                Line::default(),
+                Line::from(vec!["LIST".bold()]),
+                Line::from(vec![
+                    format!("{:<25}", "Up/Down:").yellow().bold(),
+                    "Scroll in crate list".bold(),
+                ]),
+                Line::from(vec![
+                    format!("{:<25}", "Home/End:").yellow().bold(),
+                    "Go to first/last crate in list".bold(),
+                ]),
+                Line::default(),
+                Line::from(vec!["PAGING".bold()]),
+                Line::from(vec![
+                    format!("{:<25}", "Left/Right:").yellow().bold(),
+                    "Go backward/forward a page".bold(),
+                ]),
+                Line::from(vec![
+                    format!("{:<25}", "Ctrl + Left/Right:").yellow().bold(),
+                    "Go backward/forward 10 pages".bold(),
+                ]),
+                Line::from(vec![
+                    format!("{:<25}", "Ctrl + Home/End:").yellow().bold(),
+                    "Go to first/last page".bold(),
+                ]),
+            ]);
+
+            let right_block = Block::default()
+                .title(" 📖 Usage ")
+                .title_style(self.config.styles[&Mode::Home]["title"])
+                .padding(Padding::uniform(1))
+                .borders(Borders::ALL);
+
+            frame.render_widget(&right_block, area);
+
+            frame.render_widget(
+                Paragraph::new(text)
+                    .wrap(Wrap { trim: true })
+                    .scroll((0, 0)),
+                right_block.inner(area),
+            );
         }
     }
 }
@@ -372,8 +511,11 @@ impl Component for Home {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
+        let has_results = !self.search_results.crates.is_empty();
+        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+
         match key.code {
-            KeyCode::Enter => {
+            KeyCode::Enter if self.focused == Focus::Search => {
                 return Ok(Action::Search(self.input.value().to_string(), 1).into());
             }
             KeyCode::Esc => {
@@ -384,11 +526,14 @@ impl Component for Home {
                     self.focused = Focus::Search;
                 }
             }
+            KeyCode::Char('h') if ctrl => {
+                self.hide_usage = !self.hide_usage;
+            }
             // Page navigation
             KeyCode::Right
-                if !self.search_results.crates.is_empty() && self.focused == Focus::Results =>
+                if self.search_results.has_next_page() && self.focused == Focus::Results =>
             {
-                let pages = match key.modifiers.contains(KeyModifiers::CONTROL) {
+                let pages = match ctrl {
                     true => 10,
                     false => 1,
                 };
@@ -400,11 +545,9 @@ impl Component for Home {
                 );
             }
             KeyCode::Left
-                if !self.search_results.crates.is_empty() && self.focused == Focus::Results =>
+                if self.search_results.has_prev_page() && self.focused == Focus::Results =>
             {
-                self.focused = Focus::Results;
-
-                let pages = match key.modifiers.contains(KeyModifiers::CONTROL) {
+                let pages = match ctrl {
                     true => 10,
                     false => 1,
                 };
@@ -415,10 +558,7 @@ impl Component for Home {
                     self.command_tx.clone().unwrap(),
                 );
             }
-            KeyCode::Home
-                if !self.search_results.crates.is_empty()
-                    && key.modifiers.contains(KeyModifiers::CONTROL) =>
-            {
+            KeyCode::Home if ctrl && has_results => {
                 self.focused = Focus::Results;
                 self.search_results.go_to_page(
                     1,
@@ -426,10 +566,7 @@ impl Component for Home {
                     self.command_tx.clone().unwrap(),
                 );
             }
-            KeyCode::End
-                if !self.search_results.crates.is_empty()
-                    && key.modifiers.contains(KeyModifiers::CONTROL) =>
-            {
+            KeyCode::End if ctrl && has_results => {
                 self.focused = Focus::Results;
                 self.search_results.go_to_page(
                     self.search_results.pages(),
@@ -438,20 +575,18 @@ impl Component for Home {
                 );
             }
             // List navigation
-            KeyCode::Down if !self.search_results.crates.is_empty() => {
+            KeyCode::Down if has_results => {
                 self.focused = Focus::Results;
                 self.search_results.select_next();
             }
-            KeyCode::Up if !self.search_results.crates.is_empty() => {
+            KeyCode::Up if has_results => {
                 self.focused = Focus::Results;
                 self.search_results.select_previous();
             }
-            KeyCode::Home if !self.search_results.crates.is_empty() => {
-                self.focused = Focus::Results;
+            KeyCode::Home if has_results && self.focused == Focus::Results => {
                 self.search_results.select_first();
             }
-            KeyCode::End if !self.search_results.crates.is_empty() => {
-                self.focused = Focus::Results;
+            KeyCode::End if has_results && self.focused == Focus::Results => {
                 self.search_results.select_last();
             }
             KeyCode::BackTab => {
@@ -495,6 +630,11 @@ impl Component for Home {
                 _ => {}
             },
             Action::Search(query, page) => {
+                // TODO this isn't that great
+                if self.searching {
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                }
+
                 self.searching = true;
                 let tx = self.command_tx.clone();
 
@@ -523,7 +663,9 @@ impl Component for Home {
             }
             Action::RenderSearchResults(results, page) => {
                 let exact_match_ix = results.crates.iter().position(|c| c.exact_match);
+                let changed_pages = page != self.search_results.meta.page;
 
+                self.hide_usage = true;
                 self.searching = false;
                 self.search_results = results;
                 self.search_results.meta.page = page;
@@ -531,6 +673,8 @@ impl Component for Home {
                 if exact_match_ix.is_some() {
                     self.focused = Focus::Results;
                     self.search_results.state.select(exact_match_ix);
+                } else if changed_pages && self.search_results.current_page_len() > 0 {
+                    self.search_results.state.select(Some(0));
                 }
             }
             _ => {}

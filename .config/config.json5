@@ -2,7 +2,6 @@
   "keybindings": {
     "Home": {
       "<Ctrl-c>": "Quit", // Quit the application
-      "<Ctrl-d>": "Quit", // Another way to quit
       "<Ctrl-z>": "Suspend" // Suspend the application
     },
   },
