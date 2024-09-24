@@ -7,7 +7,7 @@
   },
   "styles": {
     "Home": {
-      "focus": "yellow",
+      "accent": "yellow",
       "title": "bold lightyellow",
       "throbber": "lightyellow"
     }

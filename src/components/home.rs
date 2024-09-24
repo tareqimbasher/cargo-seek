@@ -4,9 +4,10 @@ use super::Component;
 
 use chrono::{DateTime, Utc};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::style::Styled;
 use ratatui::{
     layout::{Alignment, Constraint, Flex, Layout, Rect},
-    style::{Modifier, Style, Stylize},
+    style::{Style, Stylize},
     text::{Line, Text},
     widgets::{block::Title, Block, Borders, List, ListItem, ListState, Padding, Paragraph, Wrap},
     Frame,
@@ -263,7 +264,7 @@ impl Home {
                     .title(" Search ")
                     .borders(Borders::ALL)
                     .border_style(match self.focused {
-                        Focusable::Search => self.config.styles[&Mode::Home]["focus"],
+                        Focusable::Search => self.config.styles[&Mode::Home]["accent"],
                         _ => Style::default(),
                     }),
             );
@@ -356,11 +357,11 @@ impl Home {
                     )
                     .borders(Borders::ALL)
                     .border_style(match self.focused {
-                        Focusable::Results => self.config.styles[&Mode::Home]["focus"],
+                        Focusable::Results => self.config.styles[&Mode::Home]["accent"],
                         _ => Style::default(),
                     }),
             )
-            .highlight_style(self.config.styles[&Mode::Home]["focus"].add_modifier(Modifier::BOLD))
+            .highlight_style(self.config.styles[&Mode::Home]["accent"].bold())
             .highlight_symbol("> ");
         frame.render_stateful_widget(list, area, &mut self.search_results.state);
 
@@ -380,70 +381,72 @@ impl Home {
     }
 
     fn render_usage(&self, frame: &mut Frame, area: Rect) -> AppResult<()> {
+        let prop_style = self.config.styles[&Mode::Home]["accent"].bold();
+
         let text = Text::from(vec![
             Line::from(vec![
-                format!("{:<25}", "ENTER:").yellow().bold(),
+                format!("{:<25}", "ENTER:").set_style(prop_style),
                 "Search".bold(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "a:").yellow().bold(),
+                format!("{:<25}", "a:").set_style(prop_style),
                 "Add".bold(),
                 " (WIP)".gray(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "i:").yellow().bold(),
+                format!("{:<25}", "i:").set_style(prop_style),
                 "Install".bold(),
                 " (WIP)".gray(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "Ctrl + o:").yellow().bold(),
+                format!("{:<25}", "Ctrl + o:").set_style(prop_style),
                 "Open docs URL".bold(),
                 " (WIP)".gray(),
             ]),
             Line::default(),
             Line::from(vec!["NAVIGATION".bold()]),
             Line::from(vec![
-                format!("{:<25}", "TAB:").yellow().bold(),
+                format!("{:<25}", "TAB:").set_style(prop_style),
                 "Switch between boxes".bold(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "ESC:").yellow().bold(),
+                format!("{:<25}", "ESC:").set_style(prop_style),
                 "Go back to search; clear results".bold(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "Ctrl + h:").yellow().bold(),
+                format!("{:<25}", "Ctrl + h:").set_style(prop_style),
                 "Toggle this usage screen".bold(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "Ctrl + z:").yellow().bold(),
+                format!("{:<25}", "Ctrl + z:").set_style(prop_style),
                 "Suspend".bold(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "Ctrl + c:").yellow().bold(),
+                format!("{:<25}", "Ctrl + c:").set_style(prop_style),
                 "Quit".bold(),
             ]),
             Line::default(),
             Line::from(vec!["LIST".bold()]),
             Line::from(vec![
-                format!("{:<25}", "Up/Down:").yellow().bold(),
+                format!("{:<25}", "Up/Down:").set_style(prop_style),
                 "Scroll in crate list".bold(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "Home/End:").yellow().bold(),
+                format!("{:<25}", "Home/End:").set_style(prop_style),
                 "Go to first/last crate in list".bold(),
             ]),
             Line::default(),
             Line::from(vec!["PAGING".bold()]),
             Line::from(vec![
-                format!("{:<25}", "Left/Right:").yellow().bold(),
+                format!("{:<25}", "Left/Right:").set_style(prop_style),
                 "Go backward/forward a page".bold(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "Ctrl + Left/Right:").yellow().bold(),
+                format!("{:<25}", "Ctrl + Left/Right:").set_style(prop_style),
                 "Go backward/forward 10 pages".bold(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "Ctrl + Home/End:").yellow().bold(),
+                format!("{:<25}", "Ctrl + Home/End:").set_style(prop_style),
                 "Go to first/last page".bold(),
             ]),
         ]);
@@ -476,63 +479,47 @@ impl Home {
         let left_column_width = 25;
         let updated_relative = Util::get_relative_time(krate.updated_at, Utc::now());
 
+        let prop_style = self.config.styles[&Mode::Home]["accent"].bold();
+
         let text = Text::from(vec![
             Line::from(vec![
-                format!("{:<left_column_width$}", "Description:")
-                    .yellow()
-                    .bold(),
+                format!("{:<left_column_width$}", "Description:").set_style(prop_style),
                 krate.description.clone().unwrap_or_default().bold(),
             ]),
             Line::from(vec![
-                format!("{:<left_column_width$}", "Version:")
-                    .yellow()
-                    .bold(),
+                format!("{:<left_column_width$}", "Version:").set_style(prop_style),
                 krate.version().into(),
             ]),
             Line::from(vec![
-                format!("{:<left_column_width$}", "Latest Version:")
-                    .yellow()
-                    .bold(),
+                format!("{:<left_column_width$}", "Latest Version:").set_style(prop_style),
                 krate.max_version.to_string().into(),
             ]),
             Line::from(vec![
-                format!("{:<left_column_width$}", "Home Page:")
-                    .yellow()
-                    .bold(),
+                format!("{:<left_column_width$}", "Home Page:").set_style(prop_style),
                 krate.homepage.clone().unwrap_or_default().into(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "Documentation:").yellow().bold(),
+                format!("{:<25}", "Documentation:").set_style(prop_style),
                 krate.documentation.clone().unwrap_or_default().into(),
             ]),
             Line::from(vec![
-                format!("{:<left_column_width$}", "Repository:")
-                    .yellow()
-                    .bold(),
+                format!("{:<left_column_width$}", "Repository:").set_style(prop_style),
                 krate.repository.clone().unwrap_or_default().into(),
             ]),
             Line::from(vec![
-                format!("{:<left_column_width$}", "crates.io Page:")
-                    .yellow()
-                    .bold(),
+                format!("{:<left_column_width$}", "crates.io Page:").set_style(prop_style),
                 format!("https://crates.io/crates/{}", krate.id).into(),
             ]),
             Line::from(vec![
-                format!("{:<left_column_width$}", "Downloads:")
-                    .yellow()
-                    .bold(),
+                format!("{:<left_column_width$}", "Downloads:").set_style(prop_style),
                 Util::format_number(krate.downloads).into(),
             ]),
             Line::from(vec![
-                format!("{:<left_column_width$}", "Recent Downloads:")
-                    .yellow()
-                    .bold(),
+                format!("{:<left_column_width$}", "Recent Downloads:").set_style(prop_style),
                 Util::format_number(krate.recent_downloads.unwrap_or_default()).into(),
             ]),
             Line::from(vec![
-                format!("{:<left_column_width$}", "Created:")
-                    .yellow()
-                    .bold(),
+                format!("{:<left_column_width$}", "Created:").set_style(prop_style),
                 krate
                     .created_at
                     .format("%d/%m/%Y %H:%M:%S (UTC)")
@@ -540,9 +527,7 @@ impl Home {
                     .into(),
             ]),
             Line::from(vec![
-                format!("{:<left_column_width$}", "Updated:")
-                    .yellow()
-                    .bold(),
+                format!("{:<left_column_width$}", "Updated:").set_style(prop_style),
                 format!(
                     "{} ({})",
                     krate.updated_at.format("%d/%m/%Y %H:%M:%S (UTC)"),
@@ -579,7 +564,7 @@ impl Home {
         let [property_area, button1_area, _, button2_area] =
             buttons_row_layout.areas(buttons_row1_area);
 
-        frame.render_widget(Text::from("Cargo:").yellow().bold(), property_area);
+        frame.render_widget(Text::from("Cargo:").set_style(prop_style), property_area);
         frame.render_widget(Button::new("Add").theme(BLUE), button1_area);
         frame.render_widget(Button::new("Install").theme(PURPLE), button2_area);
 
@@ -587,7 +572,7 @@ impl Home {
         let [property_area, button1_area, _, button2_area] =
             buttons_row_layout.areas(buttons_row2_area);
 
-        frame.render_widget(Text::from("Links:").yellow().bold(), property_area);
+        frame.render_widget(Text::from("Links:").set_style(prop_style), property_area);
 
         let mut button_areas = vec![button1_area, button2_area];
 
