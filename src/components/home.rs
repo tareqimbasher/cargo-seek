@@ -1,15 +1,8 @@
+use std::{fs, io::Write, process::Command};
+
 use super::Component;
-use crate::components::button::{Button, BLUE, GRAY, ORANGE, PURPLE};
-use crate::tui::Tui;
-use crate::util::Util;
-use crate::{
-    action::{Action, SearchAction},
-    app::Mode,
-    config::Config,
-    http_client,
-};
+
 use chrono::{DateTime, Utc};
-use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     layout::{Alignment, Constraint, Flex, Layout, Rect},
@@ -19,9 +12,19 @@ use ratatui::{
     Frame,
 };
 use serde::{Deserialize, Serialize};
-use std::{fs, io::Write, process::Command};
 use tokio::sync::mpsc::UnboundedSender;
 use tui_input::{backend::crossterm::EventHandler, Input};
+
+use crate::components::button::{Button, BLUE, GRAY, ORANGE, PURPLE};
+use crate::errors::{AppError, AppResult};
+use crate::tui::Tui;
+use crate::util::Util;
+use crate::{
+    action::{Action, SearchAction},
+    app::Mode,
+    config::Config,
+    http_client,
+};
 
 #[derive(Default, PartialEq, Clone, Debug, Eq, Serialize, Deserialize)]
 pub enum Focusable {
@@ -71,7 +74,12 @@ impl SearchResults {
         self.meta.page > 1
     }
 
-    fn go_prev_pages(&self, pages: u32, query: String, command_tx: UnboundedSender<Action>) {
+    fn go_prev_pages(
+        &self,
+        pages: u32,
+        query: String,
+        command_tx: UnboundedSender<Action>,
+    ) -> AppResult<()> {
         let requested_page = if pages >= self.meta.page {
             1
         } else {
@@ -79,15 +87,20 @@ impl SearchResults {
         };
 
         if requested_page == self.current_page() {
-            return;
+            return Ok(());
         }
 
-        command_tx
-            .send(Action::Search(SearchAction::Search(query, requested_page)))
-            .unwrap()
+        command_tx.send(Action::Search(SearchAction::Search(query, requested_page)))?;
+
+        Ok(())
     }
 
-    fn go_to_page(&self, page: u32, query: String, command_tx: UnboundedSender<Action>) {
+    fn go_to_page(
+        &self,
+        page: u32,
+        query: String,
+        command_tx: UnboundedSender<Action>,
+    ) -> AppResult<()> {
         let requested_page = if page >= self.pages() {
             self.pages()
         } else {
@@ -95,15 +108,20 @@ impl SearchResults {
         };
 
         if requested_page == self.current_page() {
-            return;
+            return Ok(());
         }
 
-        command_tx
-            .send(Action::Search(SearchAction::Search(query, requested_page)))
-            .unwrap()
+        command_tx.send(Action::Search(SearchAction::Search(query, requested_page)))?;
+
+        Ok(())
     }
 
-    fn go_next_pages(&self, pages: u32, query: String, command_tx: UnboundedSender<Action>) {
+    fn go_next_pages(
+        &self,
+        pages: u32,
+        query: String,
+        command_tx: UnboundedSender<Action>,
+    ) -> AppResult<()> {
         let mut requested_page = self.meta.page + pages;
 
         if requested_page > self.pages() {
@@ -111,12 +129,12 @@ impl SearchResults {
         }
 
         if requested_page == self.current_page() {
-            return;
+            return Ok(());
         }
 
-        command_tx
-            .send(Action::Search(SearchAction::Search(query, requested_page)))
-            .unwrap()
+        command_tx.send(Action::Search(SearchAction::Search(query, requested_page)))?;
+
+        Ok(())
     }
 
     fn get_selected(&self) -> Option<&Crate> {
@@ -201,20 +219,35 @@ impl Home {
         }
     }
 
-    fn reset(&mut self) {
-        self.input.reset();
-        self.search_results = SearchResults::default();
+    fn send_action(&self, action: Action) -> AppResult<()> {
+        if let Some(ref sender) = self.command_tx {
+            sender.send(action)?;
+            Ok(())
+        } else {
+            Err(AppError::CommandChannelNotInitialized(
+                std::any::type_name::<Self>().into(),
+            ))
+        }
     }
 
-    fn render_left(&mut self, frame: &mut Frame, area: Rect) {
+    fn reset(&mut self) -> AppResult<()> {
+        self.input.reset();
+        self.search_results = SearchResults::default();
+
+        Ok(())
+    }
+
+    fn render_left(&mut self, frame: &mut Frame, area: Rect) -> AppResult<()> {
         let [search, results] =
             Layout::vertical([Constraint::Length(3), Constraint::Min(5)]).areas(area);
 
-        self.render_search(frame, search);
-        self.render_results(frame, results);
+        self.render_search(frame, search)?;
+        self.render_results(frame, results)?;
+
+        Ok(())
     }
 
-    fn render_search(&mut self, frame: &mut Frame, area: Rect) {
+    fn render_search(&mut self, frame: &mut Frame, area: Rect) -> AppResult<()> {
         let spinner_len = if self.searching { 3 } else { 0 };
 
         let [search, spinner] =
@@ -266,9 +299,11 @@ impl Home {
                 &mut self.spinner_state,
             );
         }
+
+        Ok(())
     }
 
-    fn render_results(&mut self, frame: &mut Frame, area: Rect) {
+    fn render_results(&mut self, frame: &mut Frame, area: Rect) -> AppResult<()> {
         let results = &self.search_results;
 
         let correction = match results.state.selected() {
@@ -328,19 +363,23 @@ impl Home {
             .highlight_style(self.config.styles[&Mode::Home]["focus"].add_modifier(Modifier::BOLD))
             .highlight_symbol("> ");
         frame.render_stateful_widget(list, area, &mut self.search_results.state);
+
+        Ok(())
     }
 
-    fn render_right(&mut self, frame: &mut Frame, area: Rect) {
+    fn render_right(&mut self, frame: &mut Frame, area: Rect) -> AppResult<()> {
         if self.show_usage {
-            self.render_usage(frame, area);
+            self.render_usage(frame, area)?;
         } else if let Some(krate) = self.search_results.get_selected() {
-            self.render_crate_details(krate, frame, area);
+            self.render_crate_details(krate, frame, area)?;
         } else {
-            self.render_no_results(frame, area);
+            self.render_no_results(frame, area)?;
         }
+
+        Ok(())
     }
 
-    fn render_usage(&self, frame: &mut Frame, area: Rect) {
+    fn render_usage(&self, frame: &mut Frame, area: Rect) -> AppResult<()> {
         let text = Text::from(vec![
             Line::from(vec![
                 format!("{:<25}", "ENTER:").yellow().bold(),
@@ -423,9 +462,11 @@ impl Home {
                 .scroll((0, 0)),
             block.inner(area),
         );
+
+        Ok(())
     }
 
-    fn render_crate_details(&self, krate: &Crate, frame: &mut Frame, area: Rect) {
+    fn render_crate_details(&self, krate: &Crate, frame: &mut Frame, area: Rect) -> AppResult<()> {
         let main_block = Block::default()
             .title(format!(" 🧐 {} ", krate.name))
             .title_style(self.config.styles[&Mode::Home]["title"])
@@ -527,7 +568,6 @@ impl Home {
 
         frame.render_widget(details_paragraph, details_area);
 
-        // Buttons row 1
         let buttons_row_layout = Layout::horizontal([
             Constraint::Length(left_column_width as u16),
             Constraint::Length(10),
@@ -535,6 +575,7 @@ impl Home {
             Constraint::Length(10),
         ]);
 
+        // Buttons row 1
         let [property_area, button1_area, _, button2_area] =
             buttons_row_layout.areas(buttons_row1_area);
 
@@ -557,39 +598,43 @@ impl Home {
         if krate.documentation.is_some() {
             frame.render_widget(Button::new("Docs").theme(ORANGE), button_areas.remove(0));
         }
+
+        Ok(())
     }
 
-    fn render_no_results(&self, frame: &mut Frame, area: Rect) {
+    fn render_no_results(&self, frame: &mut Frame, area: Rect) -> AppResult<()> {
         let text = Text::raw("0 crates found");
         let centered = self.center(
             area,
             Constraint::Length(text.width() as u16),
             Constraint::Length(1),
-        );
+        )?;
         frame.render_widget(text, centered);
+
+        Ok(())
     }
 
-    fn center(&self, area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
+    fn center(&self, area: Rect, horizontal: Constraint, vertical: Constraint) -> AppResult<Rect> {
         let [area] = Layout::horizontal([horizontal])
             .flex(Flex::Center)
             .areas(area);
         let [area] = Layout::vertical([vertical]).flex(Flex::Center).areas(area);
-        area
+        Ok(area)
     }
 }
 
 impl Component for Home {
-    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
+    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> AppResult<()> {
         self.command_tx = Some(tx);
         Ok(())
     }
 
-    fn register_config_handler(&mut self, config: Config) -> Result<()> {
+    fn register_config_handler(&mut self, config: Config) -> AppResult<()> {
         self.config = config;
         Ok(())
     }
 
-    fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
+    fn handle_key_event(&mut self, key: KeyEvent) -> AppResult<Option<Action>> {
         let has_results = !self.search_results.crates.is_empty();
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
 
@@ -630,32 +675,20 @@ impl Component for Home {
                 return Ok(Some(Action::Search(SearchAction::NavNextPage(pages))));
             }
             KeyCode::Home if ctrl && has_results => {
-                self.command_tx
-                    .clone()
-                    .unwrap()
-                    .send(Action::Focus(Focusable::Results))?;
+                self.send_action(Action::Focus(Focusable::Results))?;
                 return Ok(Some(Action::Search(SearchAction::NavFirstPage)));
             }
             KeyCode::End if ctrl && has_results => {
-                self.command_tx
-                    .clone()
-                    .unwrap()
-                    .send(Action::Focus(Focusable::Results))?;
+                self.send_action(Action::Focus(Focusable::Results))?;
                 return Ok(Some(Action::Search(SearchAction::NavLastPage)));
             }
             // List navigation
             KeyCode::Down if has_results => {
-                self.command_tx
-                    .clone()
-                    .unwrap()
-                    .send(Action::Focus(Focusable::Results))?;
+                self.send_action(Action::Focus(Focusable::Results))?;
                 return Ok(Some(Action::Search(SearchAction::SelectNext)));
             }
             KeyCode::Up if has_results => {
-                self.command_tx
-                    .clone()
-                    .unwrap()
-                    .send(Action::Focus(Focusable::Results))?;
+                self.send_action(Action::Focus(Focusable::Results))?;
                 return Ok(Some(Action::Search(SearchAction::SelectPrev)));
             }
             KeyCode::Home if has_results && self.focused == Focusable::Results => {
@@ -680,7 +713,7 @@ impl Component for Home {
         Ok(None)
     }
 
-    fn update(&mut self, action: Action, tui: &mut Tui) -> Result<Option<Action>> {
+    fn update(&mut self, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
         match action {
             Action::Tick => {
                 // add any logic here that should run on every tick
@@ -711,52 +744,45 @@ impl Component for Home {
                 self.show_usage = !self.show_usage;
             }
             Action::RenderReadme(markdown) => {
-                tui.exit()?;
-
-                let mut temp_file =
-                    tempfile::NamedTempFile::new().expect("failed to create temp file");
-
-                write!(temp_file, "{}", markdown).expect("failed to write to temp file");
-
+                let mut temp_file = tempfile::NamedTempFile::new()?;
+                write!(temp_file, "{}", markdown)?;
                 let original_path = temp_file.path().to_path_buf();
-                let new_path = original_path.parent().unwrap().join("rseek_readme_tmp.md");
-                fs::rename(&original_path, &new_path)?;
 
-                // TODO Check if glow doesn't exist use mdcat for example. And if neither exists, open url
-                // TODO Windows: dunce
-                let mut glow = Command::new("glow")
-                    .arg("-p")
-                    .arg(&new_path)
-                    .spawn()
-                    .expect("failed to execute mdcat");
+                if let Some(parent) = original_path.parent() {
+                    let new_path = parent.join("rseek_readme_tmp.md");
+                    fs::rename(&original_path, &new_path)?;
 
-                let _ = glow.wait().expect("failed to wait on less");
+                    tui.exit()?;
 
-                if new_path.exists() {
-                    fs::remove_file(new_path).ok();
+                    // TODO Check if glow doesn't exist use mdcat for example. And if neither exists, open url
+                    // TODO Windows: dunce
+                    let mut glow = Command::new("glow").arg("-p").arg(&new_path).spawn()?;
+
+                    let _ = glow.wait()?;
+
+                    if new_path.exists() {
+                        fs::remove_file(new_path).ok();
+                    }
+
+                    tui.enter()?;
+                    tui.terminal.clear()?;
+                } else {
+                    fs::remove_file(original_path).ok();
                 }
-
-                tui.enter()?;
-                tui.terminal.clear()?;
             }
             Action::Search(action) => {
                 match action {
                     SearchAction::Search(term, page) => {
-                        // TODO this isn't that great
-                        if self.searching {
-                            std::thread::sleep(std::time::Duration::from_secs(1));
+                        if let Some(tx) = self.command_tx.clone() {
+                            self.searching = true;
+
+                            tokio::spawn(async move {
+                                let result = http_client::INSTANCE.search(term, page).await;
+
+                                tx.send(Action::Search(SearchAction::Render(result, page)))
+                                    .unwrap();
+                            });
                         }
-
-                        self.searching = true;
-                        let tx = self.command_tx.clone();
-
-                        tokio::spawn(async move {
-                            let result = http_client::INSTANCE.search(term, page).await;
-
-                            tx.unwrap()
-                                .send(Action::Search(SearchAction::Render(result, page)))
-                                .unwrap();
-                        });
                     }
                     SearchAction::Render(results, page) => {
                         let exact_match_ix = results.crates.iter().position(|c| c.exact_match);
@@ -768,44 +794,39 @@ impl Component for Home {
                         self.search_results.meta.page = page;
 
                         if exact_match_ix.is_some() {
-                            self.command_tx
-                                .clone()
-                                .unwrap()
-                                .send(Action::Focus(Focusable::Results))?;
-
                             return Ok(Some(Action::Search(SearchAction::Select(exact_match_ix))));
                         } else if changed_pages && self.search_results.current_page_len() > 0 {
                             return Ok(Some(Action::Search(SearchAction::Select(Some(0)))));
                         }
                     }
-                    SearchAction::Clear => self.reset(),
+                    SearchAction::Clear => self.reset()?,
                     SearchAction::NavNextPage(pages) => {
                         self.search_results.go_next_pages(
                             pages,
                             self.input.value().to_string(),
                             self.command_tx.clone().unwrap(),
-                        );
+                        )?;
                     }
                     SearchAction::NavPrevPage(pages) => {
                         self.search_results.go_prev_pages(
                             pages,
                             self.input.value().to_string(),
                             self.command_tx.clone().unwrap(),
-                        );
+                        )?;
                     }
                     SearchAction::NavFirstPage => {
                         self.search_results.go_to_page(
                             1,
                             self.input.value().to_string(),
                             self.command_tx.clone().unwrap(),
-                        );
+                        )?;
                     }
                     SearchAction::NavLastPage => {
                         self.search_results.go_to_page(
                             self.search_results.pages(),
                             self.input.value().to_string(),
                             self.command_tx.clone().unwrap(),
-                        );
+                        )?;
                     }
                     SearchAction::Select(index) => {
                         if let Some(selected) = self.search_results.select(index) {
@@ -846,13 +867,13 @@ impl Component for Home {
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> AppResult<()> {
         let [left, right] =
             Layout::horizontal([Constraint::Percentage(40), Constraint::Percentage(60)])
                 .areas(area);
 
-        self.render_left(frame, left);
-        self.render_right(frame, right);
+        self.render_left(frame, left)?;
+        self.render_right(frame, right)?;
 
         Ok(())
     }

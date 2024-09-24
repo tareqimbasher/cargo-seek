@@ -10,6 +10,7 @@ repository = "https://github.com/tareqimbasher/crate-seek"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1.0.86"
 better-panic = "0.3.0"
 chrono = { version = "0.4.38", features = ["serde"] }
 clap = { version = "4.5.18", features = [
@@ -40,6 +41,7 @@ strip-ansi-escapes = "0.2.0"
 strum = { version = "0.26.3", features = ["derive"] }
 sys-locale = "0.3.1"
 tempfile = "3.12.0"
+thiserror = "1.0.64"
 throbber-widgets-tui = "0.7.0"
 tokio = { version = "1.40.0", features = ["full"] }
 tokio-util = "0.7.12"

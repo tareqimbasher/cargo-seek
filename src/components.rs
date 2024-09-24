@@ -1,4 +1,7 @@
-use color_eyre::Result;
+pub mod button;
+pub mod fps;
+pub mod home;
+
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::{
     layout::{Rect, Size},
@@ -6,12 +9,9 @@ use ratatui::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{action::Action, config::Config, tui::Event};
+use crate::errors::AppResult;
 use crate::tui::Tui;
-
-pub mod fps;
-pub mod home;
-pub mod button;
+use crate::{action::Action, config::Config, tui::Event};
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 ///
@@ -27,7 +27,7 @@ pub trait Component {
     /// # Returns
     ///
     /// * `Result<()>` - An Ok result or an error.
-    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
+    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> AppResult<()> {
         let _ = tx; // to appease clippy
         Ok(())
     }
@@ -40,7 +40,7 @@ pub trait Component {
     /// # Returns
     ///
     /// * `Result<()>` - An Ok result or an error.
-    fn register_config_handler(&mut self, config: Config) -> Result<()> {
+    fn register_config_handler(&mut self, config: Config) -> AppResult<()> {
         let _ = config; // to appease clippy
         Ok(())
     }
@@ -53,7 +53,7 @@ pub trait Component {
     /// # Returns
     ///
     /// * `Result<()>` - An Ok result or an error.
-    fn init(&mut self, area: Size) -> Result<()> {
+    fn init(&mut self, area: Size) -> AppResult<()> {
         let _ = area; // to appease clippy
         Ok(())
     }
@@ -66,7 +66,7 @@ pub trait Component {
     /// # Returns
     ///
     /// * `Result<Option<Action>>` - An action to be processed or none.
-    fn handle_events(&mut self, event: Option<Event>) -> Result<Option<Action>> {
+    fn handle_events(&mut self, event: Option<Event>) -> AppResult<Option<Action>> {
         let action = match event {
             Some(Event::Key(key_event)) => self.handle_key_event(key_event)?,
             Some(Event::Mouse(mouse_event)) => self.handle_mouse_event(mouse_event)?,
@@ -83,7 +83,7 @@ pub trait Component {
     /// # Returns
     ///
     /// * `Result<Option<Action>>` - An action to be processed or none.
-    fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
+    fn handle_key_event(&mut self, key: KeyEvent) -> AppResult<Option<Action>> {
         let _ = key; // to appease clippy
         Ok(None)
     }
@@ -96,7 +96,7 @@ pub trait Component {
     /// # Returns
     ///
     /// * `Result<Option<Action>>` - An action to be processed or none.
-    fn handle_mouse_event(&mut self, mouse: MouseEvent) -> Result<Option<Action>> {
+    fn handle_mouse_event(&mut self, mouse: MouseEvent) -> AppResult<Option<Action>> {
         let _ = mouse; // to appease clippy
         Ok(None)
     }
@@ -109,8 +109,9 @@ pub trait Component {
     /// # Returns
     ///
     /// * `Result<Option<Action>>` - An action to be processed or none.
-    fn update(&mut self, action: Action, tui: &mut Tui) -> Result<Option<Action>> {
+    fn update(&mut self, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
         let _ = action; // to appease clippy
+        let _ = tui;
         Ok(None)
     }
     /// Render the component on the screen. (REQUIRED)
@@ -123,5 +124,5 @@ pub trait Component {
     /// # Returns
     ///
     /// * `Result<()>` - An Ok result or an error.
-    fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()>;
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> AppResult<()>;
 }

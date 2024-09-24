@@ -1,4 +1,3 @@
-use color_eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::{
     layout::Rect,
@@ -8,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{debug, info};
 
+use crate::errors::AppResult;
 use crate::{
     action::Action,
     components::{fps::FpsCounter, home::Home, Component},
@@ -35,15 +35,12 @@ pub enum Mode {
 }
 
 impl App {
-    pub fn new(tick_rate: f64, frame_rate: f64) -> Result<Self> {
+    pub fn new(tick_rate: f64, frame_rate: f64) -> AppResult<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
         Ok(Self {
             tick_rate,
             frame_rate,
-            components: vec![
-                Box::new(Home::new()),
-                Box::new(FpsCounter::default())
-            ],
+            components: vec![Box::new(Home::new()), Box::new(FpsCounter::default())],
             should_quit: false,
             should_suspend: false,
             config: Config::new()?,
@@ -54,7 +51,7 @@ impl App {
         })
     }
 
-    pub async fn run(&mut self) -> Result<()> {
+    pub async fn run(&mut self) -> AppResult<()> {
         let mut tui = Tui::new()?
             .mouse(true)
             .tick_rate(self.tick_rate)
@@ -90,7 +87,7 @@ impl App {
         Ok(())
     }
 
-    async fn handle_events(&mut self, tui: &mut Tui) -> Result<()> {
+    async fn handle_events(&mut self, tui: &mut Tui) -> AppResult<()> {
         let Some(event) = tui.next_event().await else {
             return Ok(());
         };
@@ -111,7 +108,7 @@ impl App {
         Ok(())
     }
 
-    fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
+    fn handle_key_event(&mut self, key: KeyEvent) -> AppResult<()> {
         let action_tx = self.action_tx.clone();
         let Some(keymap) = self.config.keybindings.get(&self.mode) else {
             return Ok(());
@@ -136,7 +133,7 @@ impl App {
         Ok(())
     }
 
-    fn handle_actions(&mut self, tui: &mut Tui) -> Result<()> {
+    fn handle_actions(&mut self, tui: &mut Tui) -> AppResult<()> {
         while let Ok(action) = self.action_rx.try_recv() {
             if action != Action::Tick && action != Action::Render {
                 debug!("{action:?}");
@@ -162,13 +159,13 @@ impl App {
         Ok(())
     }
 
-    fn handle_resize(&mut self, tui: &mut Tui, w: u16, h: u16) -> Result<()> {
+    fn handle_resize(&mut self, tui: &mut Tui, w: u16, h: u16) -> AppResult<()> {
         tui.resize(Rect::new(0, 0, w, h))?;
         self.render(tui)?;
         Ok(())
     }
 
-    fn render(&mut self, tui: &mut Tui) -> Result<()> {
+    fn render(&mut self, tui: &mut Tui) -> AppResult<()> {
         tui.draw(|frame| {
             let app_border = Block::bordered()
                 .title(format!(" 📦 crate-seek v{} ", env!("CARGO_PKG_VERSION")))

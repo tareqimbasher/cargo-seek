@@ -1,8 +1,5 @@
-#![allow(dead_code)] // Remove this once you start using the code
-
 use std::{collections::HashMap, env, path::PathBuf};
 
-use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use derive_deref::{Deref, DerefMut};
 use directories::ProjectDirs;
@@ -462,7 +459,7 @@ fn parse_color(s: &str) -> Option<Color> {
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
-
+    use crate::errors::AppResult;
     use super::*;
 
     #[test]
@@ -513,7 +510,7 @@ mod tests {
     }
 
     #[test]
-    fn test_config() -> Result<()> {
+    fn test_config() -> AppResult<()> {
         let c = Config::new()?;
         assert_eq!(
             c.keybindings

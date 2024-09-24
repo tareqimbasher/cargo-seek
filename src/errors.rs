@@ -1,9 +1,42 @@
 use std::env;
 
-use color_eyre::Result;
 use tracing::error;
 
-pub fn init() -> Result<()> {
+use crate::action::Action;
+
+#[derive(thiserror::Error, Debug)]
+pub enum AppError {
+    #[error("Network Request Error: {0}")]
+    Http(#[from] reqwest::Error),
+
+    #[error("I/O Error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("Config Error: {0}")]
+    Config(#[from] config::ConfigError),
+
+    #[error("Error sending action: {0}")]
+    SendAction(#[from] tokio::sync::mpsc::error::SendError<Action>),
+
+    #[error("Command channel is not initialized in: {0}")]
+    CommandChannelNotInitialized(String),
+
+    #[error("Unknown error: {0}")]
+    Unknown(String),
+}
+
+/// Catch-all: if an error that implements std::error::Error occurs
+/// and that error does not have a variant in AppError it will fallback
+/// to be mapped to Unknown
+impl From<Box<dyn std::error::Error>> for AppError {
+    fn from(error: Box<dyn std::error::Error>) -> Self {
+        AppError::Unknown(format!("{:?}", error))
+    }
+}
+
+pub type AppResult<T> = Result<T, AppError>;
+
+pub fn init() -> color_eyre::Result<()> {
     let (panic_hook, eyre_hook) = color_eyre::config::HookBuilder::default()
         .panic_section(format!(
             "This is a bug. Consider reporting it at {}",
