@@ -13,6 +13,7 @@ mod errors;
 mod http_client;
 mod logging;
 mod tui;
+mod util;
 
 #[tokio::main]
 async fn main() -> Result<()> {

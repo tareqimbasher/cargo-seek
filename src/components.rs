@@ -7,9 +7,11 @@ use ratatui::{
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{action::Action, config::Config, tui::Event};
+use crate::tui::Tui;
 
 pub mod fps;
 pub mod home;
+pub mod button;
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 ///
@@ -107,7 +109,7 @@ pub trait Component {
     /// # Returns
     ///
     /// * `Result<Option<Action>>` - An action to be processed or none.
-    fn update(&mut self, action: Action) -> Result<Option<Action>> {
+    fn update(&mut self, action: Action, tui: &mut Tui) -> Result<Option<Action>> {
         let _ = action; // to appease clippy
         Ok(None)
     }

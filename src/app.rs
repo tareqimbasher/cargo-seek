@@ -42,7 +42,7 @@ impl App {
             frame_rate,
             components: vec![
                 Box::new(Home::new()),
-                //Box::new(FpsCounter::default())
+                Box::new(FpsCounter::default())
             ],
             should_quit: false,
             should_suspend: false,
@@ -154,7 +154,7 @@ impl App {
                 _ => {}
             }
             for component in self.components.iter_mut() {
-                if let Some(action) = component.update(action.clone())? {
+                if let Some(action) = component.update(action.clone(), tui)? {
                     self.action_tx.send(action)?
                 };
             }

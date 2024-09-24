@@ -1,36 +1,30 @@
 use super::Component;
-use crate::app::Mode;
-use crate::{action::Action, config::Config, http_client};
+use crate::components::button::{Button, BLUE, GRAY, ORANGE, PURPLE};
+use crate::tui::Tui;
+use crate::util::Util;
+use crate::{
+    action::{Action, SearchAction},
+    app::Mode,
+    config::Config,
+    http_client,
+};
 use chrono::{DateTime, Utc};
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use lazy_static::lazy_static;
-use num_format::{Locale, ToFormattedString};
-use ratatui::layout::Alignment;
-use ratatui::text::{Line, Text};
-use ratatui::widgets::block::Title;
-use ratatui::widgets::Wrap;
 use ratatui::{
-    layout::{Constraint, Layout, Rect},
+    layout::{Alignment, Constraint, Flex, Layout, Rect},
     style::{Modifier, Style, Stylize},
-    widgets::{Block, Borders, List, ListItem, ListState, Padding, Paragraph},
+    text::{Line, Text},
+    widgets::{block::Title, Block, Borders, List, ListItem, ListState, Padding, Paragraph, Wrap},
     Frame,
 };
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
-use sys_locale::get_locale;
+use std::{fs, io::Write, process::Command};
 use tokio::sync::mpsc::UnboundedSender;
-use tui_input::backend::crossterm::EventHandler;
-use tui_input::Input;
+use tui_input::{backend::crossterm::EventHandler, Input};
 
-lazy_static! {
-    // TODO maybe remove 1 or both libs?
-    static ref LOCALE_STR: String = get_locale().unwrap_or(String::from("en-US"));
-    static ref LOCALE: Locale = Locale::from_str(LOCALE_STR.as_str()).unwrap_or(Locale::en);
-}
-
-#[derive(Default, PartialEq)]
-enum Focus {
+#[derive(Default, PartialEq, Clone, Debug, Eq, Serialize, Deserialize)]
+pub enum Focusable {
     #[default]
     Search,
     Results,
@@ -45,7 +39,7 @@ struct Meta {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SearchResults {
-    crates: Vec<SearchItem>,
+    crates: Vec<Crate>,
     meta: Meta,
     #[serde(default)]
     state: ListState,
@@ -77,7 +71,7 @@ impl SearchResults {
         self.meta.page > 1
     }
 
-    fn go_back_pages(&self, pages: u32, query: String, command_tx: UnboundedSender<Action>) {
+    fn go_prev_pages(&self, pages: u32, query: String, command_tx: UnboundedSender<Action>) {
         let requested_page = if pages >= self.meta.page {
             1
         } else {
@@ -89,7 +83,7 @@ impl SearchResults {
         }
 
         command_tx
-            .send(Action::Search(query, requested_page))
+            .send(Action::Search(SearchAction::Search(query, requested_page)))
             .unwrap()
     }
 
@@ -105,7 +99,7 @@ impl SearchResults {
         }
 
         command_tx
-            .send(Action::Search(query, requested_page))
+            .send(Action::Search(SearchAction::Search(query, requested_page)))
             .unwrap()
     }
 
@@ -121,11 +115,11 @@ impl SearchResults {
         }
 
         command_tx
-            .send(Action::Search(query, requested_page))
+            .send(Action::Search(SearchAction::Search(query, requested_page)))
             .unwrap()
     }
 
-    fn get_selected(&self) -> Option<&SearchItem> {
+    fn get_selected(&self) -> Option<&Crate> {
         if let Some(ix) = self.state.selected() {
             if let Some(item) = self.crates.get(ix) {
                 return Some(item);
@@ -135,25 +129,34 @@ impl SearchResults {
         None
     }
 
-    fn select_next(&mut self) {
+    fn select(&mut self, index: Option<usize>) -> Option<&Crate> {
+        self.state.select(index);
+        self.get_selected()
+    }
+
+    fn select_next(&mut self) -> Option<&Crate> {
         self.state.select_next();
+        self.get_selected()
     }
 
-    fn select_previous(&mut self) {
+    fn select_previous(&mut self) -> Option<&Crate> {
         self.state.select_previous();
+        self.get_selected()
     }
 
-    fn select_first(&mut self) {
+    fn select_first(&mut self) -> Option<&Crate> {
         self.state.select_first();
+        self.get_selected()
     }
 
-    fn select_last(&mut self) {
+    fn select_last(&mut self) -> Option<&Crate> {
         self.state.select_last();
+        self.get_selected()
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SearchItem {
+pub struct Crate {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
@@ -169,7 +172,7 @@ pub struct SearchItem {
     pub exact_match: bool,
 }
 
-impl SearchItem {
+impl Crate {
     fn version(&self) -> &str {
         match &self.max_stable_version {
             Some(v) => v,
@@ -181,18 +184,26 @@ impl SearchItem {
 #[derive(Default)]
 pub struct Home {
     input: Input,
-    focused: Focus,
+    show_usage: bool,
+    focused: Focusable,
     searching: bool,
     search_results: SearchResults,
     spinner_state: throbber_widgets_tui::ThrobberState,
     command_tx: Option<UnboundedSender<Action>>,
     config: Config,
-    hide_usage: bool,
 }
 
 impl Home {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            show_usage: true,
+            ..Default::default()
+        }
+    }
+
+    fn reset(&mut self) {
+        self.input.reset();
+        self.search_results = SearchResults::default();
     }
 
     fn render_left(&mut self, frame: &mut Frame, area: Rect) {
@@ -219,14 +230,14 @@ impl Home {
                     .title(" Search ")
                     .borders(Borders::ALL)
                     .border_style(match self.focused {
-                        Focus::Search => self.config.styles[&Mode::Home]["focus"],
+                        Focusable::Search => self.config.styles[&Mode::Home]["focus"],
                         _ => Style::default(),
                     }),
             );
         frame.render_widget(input, search);
 
         match self.focused {
-            Focus::Search => {
+            Focusable::Search => {
                 // Make the cursor visible and ask ratatui to put it at the specified coordinates after rendering
                 frame.set_cursor_position((
                     // Put cursor past the end of the input text
@@ -235,7 +246,7 @@ impl Home {
                     search.y + 1,
                 ))
             }
-            Focus::Results =>
+            Focusable::Results =>
                 // Hide the cursor. `Frame` does this by default, so we don't need to do anything here
                 {}
         }
@@ -310,7 +321,7 @@ impl Home {
                     )
                     .borders(Borders::ALL)
                     .border_style(match self.focused {
-                        Focus::Results => self.config.styles[&Mode::Home]["focus"],
+                        Focusable::Results => self.config.styles[&Mode::Home]["focus"],
                         _ => Style::default(),
                     }),
             )
@@ -320,182 +331,250 @@ impl Home {
     }
 
     fn render_right(&mut self, frame: &mut Frame, area: Rect) {
-        let selected = self.search_results.get_selected();
-
-        if self.hide_usage && selected.is_some() {
-            let item = selected.unwrap();
-
-            let updated_diff = Utc::now().signed_duration_since(item.updated_at);
-            let updated_relative = if updated_diff.num_days() > 1 {
-                format!("{} days ago", updated_diff.num_days())
-            } else if updated_diff.num_hours() > 1 {
-                format!("{} hours ago", updated_diff.num_hours())
-            } else if updated_diff.num_seconds() > 1 {
-                format!("{} minutes ago", updated_diff.num_minutes())
-            } else {
-                format!("{} seconds ago", updated_diff.num_seconds())
-            };
-
-            // TODO Why isn't it taking it from lazy static?
-            let locale = Locale::from_str(LOCALE_STR.as_str()).unwrap_or(Locale::en);
-
-            let text = Text::from(vec![
-                Line::from(vec![
-                    format!("{:<25}", "Description:").yellow().bold(),
-                    item.description.clone().unwrap_or_default().bold(),
-                ]),
-                Line::default(),
-                Line::from(vec![
-                    format!("{:<25}", "Version:").yellow().bold(),
-                    item.version().into(),
-                ]),
-                Line::from(vec![
-                    format!("{:<25}", "Latest Version:").yellow().bold(),
-                    item.max_version.to_string().into(),
-                ]),
-                Line::from(vec![
-                    format!("{:<25}", "Home Page:").yellow().bold(),
-                    item.homepage.clone().unwrap_or_default().into(),
-                ]),
-                Line::from(vec![
-                    format!("{:<25}", "Documentation:").yellow().bold(),
-                    item.documentation.clone().unwrap_or_default().into(),
-                ]),
-                Line::from(vec![
-                    format!("{:<25}", "Repository:").yellow().bold(),
-                    item.repository.clone().unwrap_or_default().into(),
-                ]),
-                Line::from(vec![
-                    format!("{:<25}", "crates.io Page:").yellow().bold(),
-                    format!("https://crates.io/crates/{}", item.id).into(),
-                ]),
-                Line::from(vec![
-                    format!("{:<25}", "Downloads:").yellow().bold(),
-                    item.downloads.to_formatted_string(&locale).into(),
-                ]),
-                Line::from(vec![
-                    format!("{:<25}", "Recent Downloads:").yellow().bold(),
-                    item.recent_downloads
-                        .unwrap_or_default()
-                        .to_formatted_string(&locale)
-                        .into(),
-                ]),
-                Line::from(vec![
-                    format!("{:<25}", "Created:").yellow().bold(),
-                    item.created_at
-                        .format("%d/%m/%Y %H:%M:%S (UTC)")
-                        .to_string()
-                        .into(),
-                ]),
-                Line::from(vec![
-                    format!("{:<25}", "Updated:").yellow().bold(),
-                    format!(
-                        "{} ({})",
-                        item.updated_at.format("%d/%m/%Y %H:%M:%S (UTC)"),
-                        updated_relative
-                    )
-                    .into(),
-                ]),
-            ]);
-
-            let right_block = Block::default()
-                .title(format!(" 🧐 {} ", item.name))
-                .title_style(self.config.styles[&Mode::Home]["title"])
-                .padding(Padding::uniform(1))
-                .borders(Borders::ALL);
-
-            frame.render_widget(&right_block, area);
-
-            frame.render_widget(
-                Paragraph::new(text)
-                    .wrap(Wrap { trim: true })
-                    .scroll((0, 0)),
-                right_block.inner(area),
-            );
+        if self.show_usage {
+            self.render_usage(frame, area);
+        } else if let Some(krate) = self.search_results.get_selected() {
+            self.render_crate_details(krate, frame, area);
         } else {
-            let text = Text::from(vec![
-                Line::from(vec![
-                    format!("{:<25}", "ENTER:").yellow().bold(),
-                    "Search".bold(),
-                ]),
-                Line::from(vec![
-                    format!("{:<25}", "a:").yellow().bold(),
-                    "Add".bold(),
-                    " (WIP)".gray()
-                ]),
-                Line::from(vec![
-                    format!("{:<25}", "i:").yellow().bold(),
-                    "Install".bold(),
-                    " (WIP)".gray()
-                ]),
-                Line::from(vec![
-                    format!("{:<25}", "Ctrl + o:").yellow().bold(),
-                    "Open docs URL".bold(),
-                    " (WIP)".gray()
-                ]),
-                Line::default(),
-                Line::from(vec!["NAVIGATION".bold()]),
-                Line::from(vec![
-                    format!("{:<25}", "TAB:").yellow().bold(),
-                    "Switch between boxes".bold(),
-                ]),
-                Line::from(vec![
-                    format!("{:<25}", "ESC:").yellow().bold(),
-                    "Go back to search; clear results".bold(),
-                ]),
-                Line::from(vec![
-                    format!("{:<25}", "Ctrl + h:").yellow().bold(),
-                    "Toggle this usage screen".bold(),
-                ]),
-                Line::from(vec![
-                    format!("{:<25}", "Ctrl + z:").yellow().bold(),
-                    "Suspend".bold(),
-                ]),
-                Line::from(vec![
-                    format!("{:<25}", "Ctrl + c:").yellow().bold(),
-                    "Quit".bold(),
-                ]),
-                Line::default(),
-                Line::from(vec!["LIST".bold()]),
-                Line::from(vec![
-                    format!("{:<25}", "Up/Down:").yellow().bold(),
-                    "Scroll in crate list".bold(),
-                ]),
-                Line::from(vec![
-                    format!("{:<25}", "Home/End:").yellow().bold(),
-                    "Go to first/last crate in list".bold(),
-                ]),
-                Line::default(),
-                Line::from(vec!["PAGING".bold()]),
-                Line::from(vec![
-                    format!("{:<25}", "Left/Right:").yellow().bold(),
-                    "Go backward/forward a page".bold(),
-                ]),
-                Line::from(vec![
-                    format!("{:<25}", "Ctrl + Left/Right:").yellow().bold(),
-                    "Go backward/forward 10 pages".bold(),
-                ]),
-                Line::from(vec![
-                    format!("{:<25}", "Ctrl + Home/End:").yellow().bold(),
-                    "Go to first/last page".bold(),
-                ]),
-            ]);
-
-            let right_block = Block::default()
-                .title(" 📖 Usage ")
-                .title_style(self.config.styles[&Mode::Home]["title"])
-                .padding(Padding::uniform(1))
-                .borders(Borders::ALL);
-
-            frame.render_widget(&right_block, area);
-
-            frame.render_widget(
-                Paragraph::new(text)
-                    .wrap(Wrap { trim: true })
-                    .scroll((0, 0)),
-                right_block.inner(area),
-            );
+            self.render_no_results(frame, area);
         }
+    }
+
+    fn render_usage(&self, frame: &mut Frame, area: Rect) {
+        let text = Text::from(vec![
+            Line::from(vec![
+                format!("{:<25}", "ENTER:").yellow().bold(),
+                "Search".bold(),
+            ]),
+            Line::from(vec![
+                format!("{:<25}", "a:").yellow().bold(),
+                "Add".bold(),
+                " (WIP)".gray(),
+            ]),
+            Line::from(vec![
+                format!("{:<25}", "i:").yellow().bold(),
+                "Install".bold(),
+                " (WIP)".gray(),
+            ]),
+            Line::from(vec![
+                format!("{:<25}", "Ctrl + o:").yellow().bold(),
+                "Open docs URL".bold(),
+                " (WIP)".gray(),
+            ]),
+            Line::default(),
+            Line::from(vec!["NAVIGATION".bold()]),
+            Line::from(vec![
+                format!("{:<25}", "TAB:").yellow().bold(),
+                "Switch between boxes".bold(),
+            ]),
+            Line::from(vec![
+                format!("{:<25}", "ESC:").yellow().bold(),
+                "Go back to search; clear results".bold(),
+            ]),
+            Line::from(vec![
+                format!("{:<25}", "Ctrl + h:").yellow().bold(),
+                "Toggle this usage screen".bold(),
+            ]),
+            Line::from(vec![
+                format!("{:<25}", "Ctrl + z:").yellow().bold(),
+                "Suspend".bold(),
+            ]),
+            Line::from(vec![
+                format!("{:<25}", "Ctrl + c:").yellow().bold(),
+                "Quit".bold(),
+            ]),
+            Line::default(),
+            Line::from(vec!["LIST".bold()]),
+            Line::from(vec![
+                format!("{:<25}", "Up/Down:").yellow().bold(),
+                "Scroll in crate list".bold(),
+            ]),
+            Line::from(vec![
+                format!("{:<25}", "Home/End:").yellow().bold(),
+                "Go to first/last crate in list".bold(),
+            ]),
+            Line::default(),
+            Line::from(vec!["PAGING".bold()]),
+            Line::from(vec![
+                format!("{:<25}", "Left/Right:").yellow().bold(),
+                "Go backward/forward a page".bold(),
+            ]),
+            Line::from(vec![
+                format!("{:<25}", "Ctrl + Left/Right:").yellow().bold(),
+                "Go backward/forward 10 pages".bold(),
+            ]),
+            Line::from(vec![
+                format!("{:<25}", "Ctrl + Home/End:").yellow().bold(),
+                "Go to first/last page".bold(),
+            ]),
+        ]);
+
+        let block = Block::default()
+            .title(" 📖 Usage ")
+            .title_style(self.config.styles[&Mode::Home]["title"])
+            .padding(Padding::uniform(1))
+            .borders(Borders::ALL);
+
+        frame.render_widget(&block, area);
+
+        frame.render_widget(
+            Paragraph::new(text)
+                .wrap(Wrap { trim: true })
+                .scroll((0, 0)),
+            block.inner(area),
+        );
+    }
+
+    fn render_crate_details(&self, krate: &Crate, frame: &mut Frame, area: Rect) {
+        let main_block = Block::default()
+            .title(format!(" 🧐 {} ", krate.name))
+            .title_style(self.config.styles[&Mode::Home]["title"])
+            .padding(Padding::uniform(1))
+            .borders(Borders::ALL);
+
+        let left_column_width = 25;
+        let updated_relative = Util::get_relative_time(krate.updated_at, Utc::now());
+
+        let text = Text::from(vec![
+            Line::from(vec![
+                format!("{:<left_column_width$}", "Description:")
+                    .yellow()
+                    .bold(),
+                krate.description.clone().unwrap_or_default().bold(),
+            ]),
+            Line::from(vec![
+                format!("{:<left_column_width$}", "Version:")
+                    .yellow()
+                    .bold(),
+                krate.version().into(),
+            ]),
+            Line::from(vec![
+                format!("{:<left_column_width$}", "Latest Version:")
+                    .yellow()
+                    .bold(),
+                krate.max_version.to_string().into(),
+            ]),
+            Line::from(vec![
+                format!("{:<left_column_width$}", "Home Page:")
+                    .yellow()
+                    .bold(),
+                krate.homepage.clone().unwrap_or_default().into(),
+            ]),
+            Line::from(vec![
+                format!("{:<25}", "Documentation:").yellow().bold(),
+                krate.documentation.clone().unwrap_or_default().into(),
+            ]),
+            Line::from(vec![
+                format!("{:<left_column_width$}", "Repository:")
+                    .yellow()
+                    .bold(),
+                krate.repository.clone().unwrap_or_default().into(),
+            ]),
+            Line::from(vec![
+                format!("{:<left_column_width$}", "crates.io Page:")
+                    .yellow()
+                    .bold(),
+                format!("https://crates.io/crates/{}", krate.id).into(),
+            ]),
+            Line::from(vec![
+                format!("{:<left_column_width$}", "Downloads:")
+                    .yellow()
+                    .bold(),
+                Util::format_number(krate.downloads).into(),
+            ]),
+            Line::from(vec![
+                format!("{:<left_column_width$}", "Recent Downloads:")
+                    .yellow()
+                    .bold(),
+                Util::format_number(krate.recent_downloads.unwrap_or_default()).into(),
+            ]),
+            Line::from(vec![
+                format!("{:<left_column_width$}", "Created:")
+                    .yellow()
+                    .bold(),
+                krate
+                    .created_at
+                    .format("%d/%m/%Y %H:%M:%S (UTC)")
+                    .to_string()
+                    .into(),
+            ]),
+            Line::from(vec![
+                format!("{:<left_column_width$}", "Updated:")
+                    .yellow()
+                    .bold(),
+                format!(
+                    "{} ({})",
+                    krate.updated_at.format("%d/%m/%Y %H:%M:%S (UTC)"),
+                    updated_relative
+                )
+                .into(),
+            ]),
+        ]);
+
+        let details_paragraph_lines = text.lines.len();
+        let details_paragraph = Paragraph::new(text);
+
+        frame.render_widget(&main_block, area);
+
+        let [details_area, _, buttons_row1_area, _, buttons_row2_area] = Layout::vertical([
+            Constraint::Length(details_paragraph_lines as u16),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+        ])
+        .areas(main_block.inner(area));
+
+        frame.render_widget(details_paragraph, details_area);
+
+        // Buttons row 1
+        let buttons_row_layout = Layout::horizontal([
+            Constraint::Length(left_column_width as u16),
+            Constraint::Length(10),
+            Constraint::Length(1),
+            Constraint::Length(10),
+        ]);
+
+        let [property_area, button1_area, _, button2_area] =
+            buttons_row_layout.areas(buttons_row1_area);
+
+        frame.render_widget(Text::from("Cargo:").yellow().bold(), property_area);
+        frame.render_widget(Button::new("Add").theme(BLUE), button1_area);
+        frame.render_widget(Button::new("Install").theme(PURPLE), button2_area);
+
+        // Buttons row 2
+        let [property_area, button1_area, _, button2_area] =
+            buttons_row_layout.areas(buttons_row2_area);
+
+        frame.render_widget(Text::from("Links:").yellow().bold(), property_area);
+
+        let mut button_areas = vec![button1_area, button2_area];
+
+        if krate.repository.is_some() {
+            frame.render_widget(Button::new("README").theme(GRAY), button_areas.remove(0));
+        }
+
+        if krate.documentation.is_some() {
+            frame.render_widget(Button::new("Docs").theme(ORANGE), button_areas.remove(0));
+        }
+    }
+
+    fn render_no_results(&self, frame: &mut Frame, area: Rect) {
+        let text = Text::raw("0 crates found");
+        let centered = self.center(
+            area,
+            Constraint::Length(text.width() as u16),
+            Constraint::Length(1),
+        );
+        frame.render_widget(text, centered);
+    }
+
+    fn center(&self, area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
+        let [area] = Layout::horizontal([horizontal])
+            .flex(Flex::Center)
+            .areas(area);
+        let [area] = Layout::vertical([vertical]).flex(Flex::Center).areas(area);
+        area
     }
 }
 
@@ -515,97 +594,93 @@ impl Component for Home {
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
 
         match key.code {
-            KeyCode::Enter if self.focused == Focus::Search => {
-                return Ok(Action::Search(self.input.value().to_string(), 1).into());
+            KeyCode::Enter if self.focused == Focusable::Search => {
+                return Ok(Some(Action::Search(SearchAction::Search(
+                    self.input.value().to_string(),
+                    1,
+                ))));
             }
             KeyCode::Esc => {
-                if self.focused == Focus::Search {
-                    self.input.reset();
-                    self.search_results = SearchResults::default();
-                } else if self.focused == Focus::Results {
-                    self.focused = Focus::Search;
+                if self.focused == Focusable::Search {
+                    return Ok(Some(Action::Search(SearchAction::Clear)));
+                } else if self.focused == Focusable::Results {
+                    return Ok(Some(Action::Focus(Focusable::Search)));
                 }
             }
             KeyCode::Char('h') if ctrl => {
-                self.hide_usage = !self.hide_usage;
+                return Ok(Some(Action::ToggleUsage));
             }
             // Page navigation
             KeyCode::Right
-                if self.search_results.has_next_page() && self.focused == Focus::Results =>
+                if self.search_results.has_next_page() && self.focused == Focusable::Results =>
             {
                 let pages = match ctrl {
                     true => 10,
                     false => 1,
                 };
-
-                self.search_results.go_next_pages(
-                    pages,
-                    self.input.value().to_string(),
-                    self.command_tx.clone().unwrap(),
-                );
+                return Ok(Some(Action::Search(SearchAction::NavNextPage(pages))));
             }
             KeyCode::Left
-                if self.search_results.has_prev_page() && self.focused == Focus::Results =>
+                if self.search_results.has_prev_page() && self.focused == Focusable::Results =>
             {
                 let pages = match ctrl {
                     true => 10,
                     false => 1,
                 };
-
-                self.search_results.go_back_pages(
-                    pages,
-                    self.input.value().to_string(),
-                    self.command_tx.clone().unwrap(),
-                );
+                return Ok(Some(Action::Search(SearchAction::NavNextPage(pages))));
             }
             KeyCode::Home if ctrl && has_results => {
-                self.focused = Focus::Results;
-                self.search_results.go_to_page(
-                    1,
-                    self.input.value().to_string(),
-                    self.command_tx.clone().unwrap(),
-                );
+                self.command_tx
+                    .clone()
+                    .unwrap()
+                    .send(Action::Focus(Focusable::Results))?;
+                return Ok(Some(Action::Search(SearchAction::NavFirstPage)));
             }
             KeyCode::End if ctrl && has_results => {
-                self.focused = Focus::Results;
-                self.search_results.go_to_page(
-                    self.search_results.pages(),
-                    self.input.value().to_string(),
-                    self.command_tx.clone().unwrap(),
-                );
+                self.command_tx
+                    .clone()
+                    .unwrap()
+                    .send(Action::Focus(Focusable::Results))?;
+                return Ok(Some(Action::Search(SearchAction::NavLastPage)));
             }
             // List navigation
             KeyCode::Down if has_results => {
-                self.focused = Focus::Results;
-                self.search_results.select_next();
+                self.command_tx
+                    .clone()
+                    .unwrap()
+                    .send(Action::Focus(Focusable::Results))?;
+                return Ok(Some(Action::Search(SearchAction::SelectNext)));
             }
             KeyCode::Up if has_results => {
-                self.focused = Focus::Results;
-                self.search_results.select_previous();
+                self.command_tx
+                    .clone()
+                    .unwrap()
+                    .send(Action::Focus(Focusable::Results))?;
+                return Ok(Some(Action::Search(SearchAction::SelectPrev)));
             }
-            KeyCode::Home if has_results && self.focused == Focus::Results => {
-                self.search_results.select_first();
+            KeyCode::Home if has_results && self.focused == Focusable::Results => {
+                return Ok(Some(Action::Search(SearchAction::SelectFirst)));
             }
-            KeyCode::End if has_results && self.focused == Focus::Results => {
-                self.search_results.select_last();
+            KeyCode::End if has_results && self.focused == Focusable::Results => {
+                return Ok(Some(Action::Search(SearchAction::SelectLast)));
             }
             KeyCode::BackTab => {
-                return Ok(Action::FocusPrevious.into());
+                return Ok(Some(Action::FocusPrevious));
             }
             KeyCode::Tab => {
-                return Ok(Action::FocusNext.into());
+                return Ok(Some(Action::FocusNext));
             }
-            _ => match self.focused {
-                Focus::Search => {
+            // Send to input box
+            _ => {
+                if self.focused == Focusable::Search {
                     self.input.handle_event(&crossterm::event::Event::Key(key));
                 }
-                Focus::Results => {}
-            },
+            }
         }
         Ok(None)
     }
 
-    fn update(&mut self, action: Action) -> Result<Option<Action>> {
+    fn update(&mut self, action: Action, tui: &mut Tui) -> Result<Option<Action>> {
         match action {
             Action::Tick => {
                 // add any logic here that should run on every tick
@@ -616,65 +691,154 @@ impl Component for Home {
             Action::Render => {
                 // add any logic here that should run on every render
             }
+            Action::Focus(focusable) => {
+                self.focused = focusable;
+            }
             Action::FocusNext | Action::FocusPrevious => match self.focused {
-                Focus::Search if !self.search_results.crates.is_empty() => {
-                    self.focused = Focus::Results;
-
+                Focusable::Search if !self.search_results.crates.is_empty() => {
                     if self.search_results.state.selected().is_none() {
-                        self.search_results.state.select_next()
+                        return Ok(Some(Action::Search(SearchAction::SelectNext)));
                     }
+
+                    return Ok(Some(Action::Focus(Focusable::Results)));
                 }
-                Focus::Results => {
-                    self.focused = Focus::Search;
+                Focusable::Results => {
+                    return Ok(Some(Action::Focus(Focusable::Search)));
                 }
                 _ => {}
             },
-            Action::Search(query, page) => {
-                // TODO this isn't that great
-                if self.searching {
-                    std::thread::sleep(std::time::Duration::from_secs(1));
+            Action::ToggleUsage => {
+                self.show_usage = !self.show_usage;
+            }
+            Action::RenderReadme(markdown) => {
+                tui.exit()?;
+
+                let mut temp_file =
+                    tempfile::NamedTempFile::new().expect("failed to create temp file");
+
+                write!(temp_file, "{}", markdown).expect("failed to write to temp file");
+
+                let original_path = temp_file.path().to_path_buf();
+                let new_path = original_path.parent().unwrap().join("rseek_readme_tmp.md");
+                fs::rename(&original_path, &new_path)?;
+
+                // TODO Check if glow doesn't exist use mdcat for example. And if neither exists, open url
+                // TODO Windows: dunce
+                let mut glow = Command::new("glow")
+                    .arg("-p")
+                    .arg(&new_path)
+                    .spawn()
+                    .expect("failed to execute mdcat");
+
+                let _ = glow.wait().expect("failed to wait on less");
+
+                if new_path.exists() {
+                    fs::remove_file(new_path).ok();
                 }
 
-                self.searching = true;
-                let tx = self.command_tx.clone();
-
-                tokio::spawn(async move {
-                    let url = format!(
-                        "https://crates.io/api/v1/crates?q={}&per_page=100&page={}",
-                        query, page
-                    );
-
-                    let json = http_client::CLIENT
-                        .get(&url)
-                        .send()
-                        .await
-                        .unwrap()
-                        .text()
-                        .await
-                        .unwrap();
-
-                    // TODO if deserialization fails, log it
-                    let response = serde_json::from_str::<SearchResults>(&json).unwrap_or_default();
-
-                    tx.unwrap()
-                        .send(Action::RenderSearchResults(response, page))
-                        .unwrap();
-                });
+                tui.enter()?;
+                tui.terminal.clear()?;
             }
-            Action::RenderSearchResults(results, page) => {
-                let exact_match_ix = results.crates.iter().position(|c| c.exact_match);
-                let changed_pages = page != self.search_results.meta.page;
+            Action::Search(action) => {
+                match action {
+                    SearchAction::Search(term, page) => {
+                        // TODO this isn't that great
+                        if self.searching {
+                            std::thread::sleep(std::time::Duration::from_secs(1));
+                        }
 
-                self.hide_usage = true;
-                self.searching = false;
-                self.search_results = results;
-                self.search_results.meta.page = page;
+                        self.searching = true;
+                        let tx = self.command_tx.clone();
 
-                if exact_match_ix.is_some() {
-                    self.focused = Focus::Results;
-                    self.search_results.state.select(exact_match_ix);
-                } else if changed_pages && self.search_results.current_page_len() > 0 {
-                    self.search_results.state.select(Some(0));
+                        tokio::spawn(async move {
+                            let result = http_client::INSTANCE.search(term, page).await;
+
+                            tx.unwrap()
+                                .send(Action::Search(SearchAction::Render(result, page)))
+                                .unwrap();
+                        });
+                    }
+                    SearchAction::Render(results, page) => {
+                        let exact_match_ix = results.crates.iter().position(|c| c.exact_match);
+                        let changed_pages = page != self.search_results.meta.page;
+
+                        self.show_usage = false;
+                        self.searching = false;
+                        self.search_results = results;
+                        self.search_results.meta.page = page;
+
+                        if exact_match_ix.is_some() {
+                            self.command_tx
+                                .clone()
+                                .unwrap()
+                                .send(Action::Focus(Focusable::Results))?;
+
+                            return Ok(Some(Action::Search(SearchAction::Select(exact_match_ix))));
+                        } else if changed_pages && self.search_results.current_page_len() > 0 {
+                            return Ok(Some(Action::Search(SearchAction::Select(Some(0)))));
+                        }
+                    }
+                    SearchAction::Clear => self.reset(),
+                    SearchAction::NavNextPage(pages) => {
+                        self.search_results.go_next_pages(
+                            pages,
+                            self.input.value().to_string(),
+                            self.command_tx.clone().unwrap(),
+                        );
+                    }
+                    SearchAction::NavPrevPage(pages) => {
+                        self.search_results.go_prev_pages(
+                            pages,
+                            self.input.value().to_string(),
+                            self.command_tx.clone().unwrap(),
+                        );
+                    }
+                    SearchAction::NavFirstPage => {
+                        self.search_results.go_to_page(
+                            1,
+                            self.input.value().to_string(),
+                            self.command_tx.clone().unwrap(),
+                        );
+                    }
+                    SearchAction::NavLastPage => {
+                        self.search_results.go_to_page(
+                            self.search_results.pages(),
+                            self.input.value().to_string(),
+                            self.command_tx.clone().unwrap(),
+                        );
+                    }
+                    SearchAction::Select(index) => {
+                        if let Some(selected) = self.search_results.select(index) {
+                            if let Some(repository) = &selected.repository {
+                                if !repository.is_empty() {
+                                    // let repository = repository.clone();
+                                    // let tx = self.command_tx.clone();
+                                    //
+                                    // tokio::spawn(async move {
+                                    //     if let Some(markdown) =
+                                    //         http_client::INSTANCE.get_repo_readme(repository).await
+                                    //     {
+                                    //         tx.unwrap()
+                                    //             .send(Action::RenderReadme(markdown))
+                                    //             .unwrap();
+                                    //     }
+                                    // });
+                                }
+                            }
+                        }
+                    }
+                    SearchAction::SelectNext => {
+                        self.search_results.select_next();
+                    }
+                    SearchAction::SelectPrev => {
+                        self.search_results.select_previous();
+                    }
+                    SearchAction::SelectFirst => {
+                        self.search_results.select_first();
+                    }
+                    SearchAction::SelectLast => {
+                        self.search_results.select_last();
+                    }
                 }
             }
             _ => {}

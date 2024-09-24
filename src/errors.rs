@@ -44,7 +44,7 @@ pub fn init() -> Result<()> {
                 .create_panic_handler()(panic_info);
         }
 
-        std::process::exit(libc::EXIT_FAILURE);
+        std::process::exit(1);
     }));
     Ok(())
 }

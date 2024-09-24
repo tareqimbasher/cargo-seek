@@ -184,9 +184,7 @@ impl Tui {
             if self.paste {
                 crossterm::execute!(stdout(), DisableBracketedPaste)?;
             }
-            if self.mouse {
-                crossterm::execute!(stdout(), DisableMouseCapture)?;
-            }
+            crossterm::execute!(stdout(), DisableMouseCapture)?;
             crossterm::execute!(stdout(), LeaveAlternateScreen, cursor::Show)?;
             crossterm::terminal::disable_raw_mode()?;
         }
