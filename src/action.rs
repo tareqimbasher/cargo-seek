@@ -1,6 +1,8 @@
-use crate::components::home::{Focusable, SearchResults};
 use serde::{Deserialize, Serialize};
 use strum::Display;
+
+use crate::components::home::types::SearchResults;
+use crate::components::home::Focusable;
 
 #[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
 pub enum Action {

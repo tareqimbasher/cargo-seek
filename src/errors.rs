@@ -9,11 +9,17 @@ pub enum AppError {
     #[error("Network Request Error: {0}")]
     Http(#[from] reqwest::Error),
 
+    #[error("URL Parse Error: {0}")]
+    Url(String),
+
     #[error("I/O Error: {0}")]
     Io(#[from] std::io::Error),
 
     #[error("Config Error: {0}")]
     Config(#[from] config::ConfigError),
+
+    #[error("Serialization Error: {0}")]
+    Serialization(#[from] serde_json::Error),
 
     #[error("Error sending action: {0}")]
     SendAction(#[from] tokio::sync::mpsc::error::SendError<Action>),

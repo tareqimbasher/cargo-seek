@@ -1,105 +1,147 @@
-use crate::components::home::SearchResults;
 use lazy_static::lazy_static;
 use reqwest::{StatusCode, Url};
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
+use tokio::sync::Mutex;
+
+use crate::components::home::types::SearchResults;
+use crate::errors::{AppError, AppResult};
 
 lazy_static! {
     pub static ref INSTANCE: Arc<HttpClient> = Arc::new(HttpClient::new());
+    static ref CLIENT: Arc<reqwest::Client> = Arc::new(
+        reqwest::Client::builder()
+            .user_agent("crate-seek (github:tareqimbasher/crate-seek")
+            .build()
+            .unwrap()
+    );
 }
 
 pub struct HttpClient {
-    client: reqwest::Client,
-    crates_base_url: Url,
     rate_limit: std::time::Duration,
-    last_request_time: Arc<tokio::sync::Mutex<Option<tokio::time::Instant>>>,
+    last_request_time: Arc<Mutex<Option<tokio::time::Instant>>>,
+    active_requests: Arc<AtomicUsize>,
+
+    crates_base_url: Url,
+}
+
+impl Default for HttpClient {
+    fn default() -> Self {
+        HttpClient {
+            rate_limit: std::time::Duration::from_secs(1),
+            last_request_time: Arc::new(Mutex::new(None)),
+            active_requests: Arc::new(AtomicUsize::new(0)),
+
+            crates_base_url: Url::parse("https://crates.io/api/v1/").unwrap(),
+        }
+    }
 }
 
 impl HttpClient {
-    fn new() -> Self {
-        HttpClient {
-            client: reqwest::Client::builder()
-                .user_agent("crate-seek (github:tareqimbasher/crate-seek")
-                .build()
-                .unwrap(),
-            crates_base_url: Url::parse("https://crates.io/api/v1/").unwrap(),
-            rate_limit: std::time::Duration::from_secs(1),
-            last_request_time: Arc::new(tokio::sync::Mutex::new(None)),
-        }
+    pub fn new() -> Self {
+        Default::default()
     }
 
-    async fn get(&self, url: &Url) -> (String, StatusCode) {
-        let mut lock = self.last_request_time.clone().lock_owned().await;
+    /// Rate-limited request
+    pub async fn rate_limited_get(&self, url: &Url) -> AppResult<(String, StatusCode)> {
+        let mut lock = self.last_request_time.lock().await;
 
-        if let Some(last_request_time) = lock.take() {
+        if let Some(last_request_time) = *lock {
             if last_request_time.elapsed() < self.rate_limit {
                 tokio::time::sleep(self.rate_limit - last_request_time.elapsed()).await;
             }
         }
 
+        self.active_requests.fetch_add(1, Ordering::SeqCst);
+
         let time = tokio::time::Instant::now();
-        let res = self.client.get(url.clone()).send().await.unwrap();
+        let res = CLIENT.get(url.clone()).send().await.unwrap();
 
         let status_code = res.status();
         let content = res.text().await.unwrap();
 
+        self.active_requests.fetch_sub(1, Ordering::SeqCst);
+
         // Free up the lock
         *lock = Some(time);
 
-        (content.to_string(), status_code)
+        Ok((content, status_code))
     }
 
-    pub async fn search(&self, term: String, page: u32) -> SearchResults {
-        let mut url = self.crates_base_url.join("crates").unwrap();
+    /// Non-rate-limited request
+    pub async fn non_rate_limited_get(&self, url: &Url) -> AppResult<(String, StatusCode)> {
+        self.active_requests.fetch_add(1, Ordering::SeqCst);
+
+        let res = CLIENT.get(url.clone()).send().await.unwrap();
+
+        let status_code = res.status();
+        let content = res.text().await.unwrap();
+
+        self.active_requests.fetch_sub(1, Ordering::SeqCst);
+
+        Ok((content, status_code))
+    }
+
+    /// Checks if the client is currently working (non-blocking)
+    pub fn is_working(&self) -> bool {
+        self.active_requests.load(Ordering::SeqCst) > 0
+    }
+
+    pub async fn search(&self, term: String, per_page: u32, page: u32) -> AppResult<SearchResults> {
+        let mut url = self
+            .crates_base_url
+            .join("crates")
+            .map_err(|err| AppError::Url(format!("{}", err)))?;
 
         url.query_pairs_mut()
             .append_pair("q", term.as_str())
             .append_pair("page", page.to_string().as_str())
-            .append_pair("per_page", 100.to_string().as_str());
+            .append_pair("per_page", per_page.to_string().as_str());
 
-        let (text, _) = self.get(&url).await;
+        let (text, _) = self.rate_limited_get(&url).await?;
 
-        // TODO if deserialization fails, log it
-        serde_json::from_str::<SearchResults>(&text).unwrap_or_default()
+        Ok(serde_json::from_str::<SearchResults>(&text)?)
     }
 
-    pub async fn get_repo_readme(&self, repo_url_str: String) -> Option<String> {
-        let repo_url = Url::parse(repo_url_str.as_str()).unwrap();
+    pub async fn get_repo_readme(&self, repo_url_str: String) -> AppResult<Option<String>> {
+        let repo_url =
+            Url::parse(repo_url_str.as_str()).map_err(|err| AppError::Url(format!("{}", err)))?;
 
         let domain = repo_url.domain();
         if domain.is_none() || domain.unwrap() != "github.com" {
-            return None;
+            return Ok(None);
         }
 
-        let mut segments = repo_url.path_segments().unwrap();
-        let repo_owner = segments.next();
-        let repo_name = segments.next();
+        if let Some(mut segments) = repo_url.path_segments() {
+            let repo_owner = segments.next();
+            let repo_name = segments.next();
 
-        if repo_owner.is_none() || repo_name.is_none() {
-            return None;
-        }
+            if repo_owner.is_none() || repo_name.is_none() {
+                return Ok(None);
+            }
 
-        for branch_name in ["main", "master"] {
-            let url = Url::parse(
-                format!(
-                    "https://raw.githubusercontent.com/{}/{}/refs/heads/{}/README.md",
-                    repo_owner.unwrap(),
-                    repo_name.unwrap(),
-                    branch_name
+            for branch_name in ["main", "master"] {
+                let url = Url::parse(
+                    format!(
+                        "https://raw.githubusercontent.com/{}/{}/refs/heads/{}/README.md",
+                        repo_owner.unwrap(),
+                        repo_name.unwrap(),
+                        branch_name
+                    )
+                        .as_str(),
                 )
-                .as_str(),
-            );
+                    .map_err(|err| AppError::Url(format!("{}", err)))?;
 
-            if url.is_err() {
-                return None;
-            }
+                let (text, status) = self.non_rate_limited_get(&url).await?;
 
-            let (text, status) = self.get(&url.unwrap()).await;
-
-            if status.is_success() {
-                return Some(text);
+                if status.is_success() {
+                    return Ok(Some(text));
+                }
             }
         }
 
-        None
+        Ok(None)
     }
 }
