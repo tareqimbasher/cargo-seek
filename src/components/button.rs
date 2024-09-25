@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::prelude::Modifier;
@@ -123,7 +125,13 @@ impl<'a> Widget for Button<'a> {
     #[allow(clippy::cast_possible_truncation)]
     fn render(self, area: Rect, buf: &mut Buffer) {
         let (background, text, shadow, highlight) = self.colors();
-        buf.set_style(area, Style::new().bg(background).fg(text).add_modifier(Modifier::BOLD));
+        buf.set_style(
+            area,
+            Style::new()
+                .bg(background)
+                .fg(text)
+                .add_modifier(Modifier::BOLD),
+        );
 
         // render top line if there's enough space
         if area.height > 2 {

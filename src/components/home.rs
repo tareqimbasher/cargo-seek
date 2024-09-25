@@ -1,11 +1,10 @@
 pub mod types;
 
-use std::{fs, io::Write, process::Command};
-
 use super::Component;
 
 use chrono::Utc;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use enum_iterator::{all, reverse_all, Sequence};
 use ratatui::style::Styled;
 use ratatui::{
     layout::{Alignment, Constraint, Flex, Layout, Rect},
@@ -14,13 +13,15 @@ use ratatui::{
     widgets::{block::Title, Block, Borders, List, ListItem, Padding, Paragraph, Wrap},
     Frame,
 };
+use reqwest::Url;
 use serde::{Deserialize, Serialize};
+use std::{fs, io::Write, iter::Cycle, process::Command};
 use tokio::sync::mpsc::UnboundedSender;
 use tui_input::{backend::crossterm::EventHandler, Input};
 
-use crate::components::button::{Button, BLUE, GRAY, ORANGE, PURPLE};
+use crate::components::button::{Button, State, BLUE, GRAY, ORANGE, PURPLE};
 use crate::components::home::types::{Crate, SearchResults};
-use crate::errors::{AppError, AppResult};
+use crate::errors::AppResult;
 use crate::tui::Tui;
 use crate::util::Util;
 use crate::{
@@ -30,11 +31,29 @@ use crate::{
     http_client,
 };
 
-#[derive(Default, PartialEq, Clone, Debug, Eq, Serialize, Deserialize)]
+#[derive(Default, PartialEq, Clone, Debug, Eq, Sequence, Serialize, Deserialize)]
 pub enum Focusable {
     #[default]
     Search,
     Results,
+    AddButton,
+    InstallButton,
+    ReadmeButton,
+    DocsButton,
+}
+
+impl Focusable {
+    pub fn next(&self) -> Focusable {
+        let mut variants: Cycle<_> = all::<Focusable>().cycle();
+        variants.find(|v| v == self);
+        variants.next().unwrap()
+    }
+
+    pub fn prev(&self) -> Focusable {
+        let mut variants: Cycle<_> = reverse_all::<Focusable>().cycle();
+        variants.find(|v| v == self);
+        variants.next().unwrap()
+    }
 }
 
 #[derive(Default)]
@@ -56,21 +75,20 @@ impl Home {
         }
     }
 
-    fn send_action(&self, action: Action) -> AppResult<()> {
-        if let Some(ref sender) = self.command_tx {
-            sender.send(action)?;
-            Ok(())
-        } else {
-            Err(AppError::CommandChannelNotInitialized(
-                std::any::type_name::<Self>().into(),
-            ))
-        }
-    }
+    // fn send_action(&self, action: Action) -> AppResult<()> {
+    //     if let Some(ref sender) = self.command_tx {
+    //         sender.send(action)?;
+    //         Ok(())
+    //     } else {
+    //         Err(AppError::CommandChannelNotInitialized(
+    //             std::any::type_name::<Self>().into(),
+    //         ))
+    //     }
+    // }
 
     fn reset(&mut self) -> AppResult<()> {
         self.input.reset();
         self.search_results = None;
-
         Ok(())
     }
 
@@ -110,19 +128,14 @@ impl Home {
             );
         frame.render_widget(input, search);
 
-        match self.focused {
-            Focusable::Search => {
-                // Make the cursor visible and ask ratatui to put it at the specified coordinates after rendering
-                frame.set_cursor_position((
-                    // Put cursor past the end of the input text
-                    search.x + (self.input.visual_cursor().max(scroll) - scroll) as u16 + 1,
-                    // Move one line down, from the border to the input line
-                    search.y + 1,
-                ))
-            }
-            Focusable::Results =>
-                // Hide the cursor. `Frame` does this by default, so we don't need to do anything here
-                {}
+        if self.focused == Focusable::Search {
+            // Make the cursor visible and ask ratatui to put it at the specified coordinates after rendering
+            frame.set_cursor_position((
+                // Put cursor past the end of the input text
+                search.x + (self.input.visual_cursor().max(scroll) - scroll) as u16 + 1,
+                // Move one line down, from the border to the input line
+                search.y + 1,
+            ))
         }
 
         if http_client::INSTANCE.is_working() {
@@ -153,7 +166,7 @@ impl Home {
             });
 
         if let Some(results) = self.search_results.as_mut() {
-            let correction = match results.state.selected() {
+            let correction = match results.get_selected_index() {
                 Some(_) => 4,
                 None => 2,
             };
@@ -173,18 +186,18 @@ impl Home {
                 })
                 .collect();
 
-            let selected_item_num = match results.state.selected() {
+            let selected_item_num = match results.get_selected_index() {
                 None => 0,
-                Some(s) => {
-                    if s == usize::MAX {
-                        results.current_page_len()
-                    } else if s == usize::MIN {
+                Some(ix) => {
+                    if ix == usize::MAX {
+                        results.current_page_count()
+                    } else if ix == usize::MIN {
                         1
-                    } else if s > results.current_page_len() - 1 {
+                    } else if ix > results.current_page_count() - 1 {
                         // ListState select_next() increments selected even after last item is selected
-                        s
+                        ix
                     } else {
-                        s + 1
+                        ix + 1
                     }
                 }
             };
@@ -195,14 +208,14 @@ impl Home {
                         .title(Title::from(format!(
                             " {}/{} ",
                             selected_item_num,
-                            results.current_page_len()
+                            results.current_page_count()
                         )))
                         .title(
                             Title::from(format!(
                                 " Page {} of {} ({} items) ",
                                 results.current_page(),
-                                results.pages(),
-                                results.total_items()
+                                results.page_count(),
+                                results.total_count()
                             ))
                             .alignment(Alignment::Right),
                         ),
@@ -210,7 +223,7 @@ impl Home {
                 .highlight_style(self.config.styles[&Mode::Home]["accent"].bold())
                 .highlight_symbol("> ");
 
-            frame.render_stateful_widget(list, area, &mut results.state);
+            frame.render_stateful_widget(list, area, results.list_state());
         }
 
         Ok(())
@@ -323,7 +336,14 @@ impl Home {
             .title(format!(" 🧐 {} ", krate.name))
             .title_style(self.config.styles[&Mode::Home]["title"])
             .padding(Padding::uniform(1))
-            .borders(Borders::ALL);
+            .borders(Borders::ALL)
+            .border_style(match self.focused {
+                Focusable::AddButton
+                | Focusable::InstallButton
+                | Focusable::ReadmeButton
+                | Focusable::DocsButton => self.config.styles[&Mode::Home]["accent"],
+                _ => Style::default(),
+            });
 
         let left_column_width = 25;
         let updated_relative = Util::get_relative_time(krate.updated_at, Utc::now());
@@ -414,8 +434,24 @@ impl Home {
             buttons_row_layout.areas(buttons_row1_area);
 
         frame.render_widget(Text::from("Cargo:").set_style(prop_style), property_area);
-        frame.render_widget(Button::new("Add").theme(BLUE), button1_area);
-        frame.render_widget(Button::new("Install").theme(PURPLE), button2_area);
+        frame.render_widget(
+            Button::new("Add")
+                .theme(BLUE)
+                .state(match self.focused == Focusable::AddButton {
+                    true => State::Selected,
+                    _ => State::Normal,
+                }),
+            button1_area,
+        );
+        frame.render_widget(
+            Button::new("Install").theme(PURPLE).state(
+                match self.focused == Focusable::InstallButton {
+                    true => State::Selected,
+                    _ => State::Normal,
+                },
+            ),
+            button2_area,
+        );
 
         // Buttons row 2
         let [property_area, button1_area, _, button2_area] =
@@ -426,11 +462,27 @@ impl Home {
         let mut button_areas = vec![button1_area, button2_area];
 
         if krate.repository.is_some() {
-            frame.render_widget(Button::new("README").theme(GRAY), button_areas.remove(0));
+            frame.render_widget(
+                Button::new("README").theme(GRAY).state(
+                    match self.focused == Focusable::ReadmeButton {
+                        true => State::Selected,
+                        _ => State::Normal,
+                    },
+                ),
+                button_areas.remove(0),
+            );
         }
 
         if krate.documentation.is_some() {
-            frame.render_widget(Button::new("Docs").theme(ORANGE), button_areas.remove(0));
+            frame.render_widget(
+                Button::new("Docs").theme(ORANGE).state(
+                    match self.focused == Focusable::DocsButton {
+                        true => State::Selected,
+                        _ => State::Normal,
+                    },
+                ),
+                button_areas.remove(0),
+            );
         }
 
         Ok(())
@@ -481,23 +533,75 @@ impl Component for Home {
 
         // Try match key combos that should be handled regardless what is focused
         match key.code {
-            KeyCode::Esc => {
-                if self.focused == Focusable::Search {
-                    return Ok(Some(Action::Search(SearchAction::Clear)));
-                } else if self.focused == Focusable::Results {
-                    return Ok(Some(Action::Focus(Focusable::Search)));
-                }
-            }
             KeyCode::Char('h') if ctrl => {
                 return Ok(Some(Action::ToggleUsage));
             }
-
+            KeyCode::Esc => {
+                return if self.focused == Focusable::Search {
+                    Ok(Some(Action::Search(SearchAction::Clear)))
+                } else {
+                    Ok(Some(Action::Focus(Focusable::Search)))
+                }
+            }
             KeyCode::BackTab => {
                 return Ok(Some(Action::FocusPrevious));
             }
             KeyCode::Tab => {
                 return Ok(Some(Action::FocusNext));
             }
+            KeyCode::Enter => match self.focused {
+                Focusable::Search => {
+                    return Ok(Some(Action::Search(SearchAction::Search(
+                        self.input.value().to_string(),
+                        1,
+                    ))));
+                }
+                Focusable::Results => {}
+                Focusable::AddButton => {}
+                Focusable::InstallButton => {}
+                Focusable::ReadmeButton => {
+                    return Ok(Some(Action::OpenReadme));
+                }
+                Focusable::DocsButton => {
+                    return Ok(Some(Action::OpenDocs));
+                }
+            },
+            KeyCode::Up => match self.focused {
+                Focusable::ReadmeButton => {
+                    return Ok(Some(Action::Focus(Focusable::AddButton)));
+                }
+                Focusable::DocsButton => {
+                    return Ok(Some(Action::Focus(Focusable::InstallButton)));
+                }
+                _ => {}
+            },
+            KeyCode::Down => match self.focused {
+                Focusable::AddButton => {
+                    return Ok(Some(Action::Focus(Focusable::ReadmeButton)));
+                }
+                Focusable::InstallButton => {
+                    return Ok(Some(Action::Focus(Focusable::DocsButton)));
+                }
+                _ => {}
+            },
+            KeyCode::Left => match self.focused {
+                Focusable::InstallButton => {
+                    return Ok(Some(Action::Focus(Focusable::AddButton)));
+                }
+                Focusable::DocsButton => {
+                    return Ok(Some(Action::Focus(Focusable::ReadmeButton)));
+                }
+                _ => {}
+            },
+            KeyCode::Right => match self.focused {
+                Focusable::AddButton => {
+                    return Ok(Some(Action::Focus(Focusable::InstallButton)));
+                }
+                Focusable::ReadmeButton => {
+                    return Ok(Some(Action::Focus(Focusable::DocsButton)));
+                }
+                _ => {}
+            },
             _ => {}
         }
 
@@ -506,17 +610,9 @@ impl Component for Home {
                 KeyCode::Down => {
                     return Ok(Some(Action::Focus(Focusable::Results)));
                 }
-                KeyCode::Enter if self.focused == Focusable::Search => {
-                    return Ok(Some(Action::Search(SearchAction::Search(
-                        self.input.value().to_string(),
-                        1,
-                    ))));
-                }
-                // Send to input box
                 _ => {
-                    if self.focused == Focusable::Search {
-                        self.input.handle_event(&crossterm::event::Event::Key(key));
-                    }
+                    // Send to input box
+                    self.input.handle_event(&crossterm::event::Event::Key(key));
                 }
             }
 
@@ -532,7 +628,7 @@ impl Component for Home {
                 match key.code {
                     // List navigation
                     KeyCode::Up => {
-                        if let Some(selected_ix) = results.state.selected() {
+                        if let Some(selected_ix) = results.get_selected_index() {
                             if selected_ix == 0 {
                                 return Ok(Some(Action::Focus(Focusable::Search)));
                             }
@@ -594,25 +690,139 @@ impl Component for Home {
             Action::Focus(focusable) => {
                 self.focused = focusable;
             }
-            Action::FocusNext | Action::FocusPrevious => match self.focused {
-                Focusable::Search => {
-                    if let Some(results) = &self.search_results {
-                        self.send_action(Action::Focus(Focusable::Results))?;
-
-                        // If no item is selected, select the first item
-                        if !results.crates.is_empty() && results.state.selected().is_none() {
-                            return Ok(Some(Action::Search(SearchAction::SelectNext)));
-                        }
+            Action::FocusNext => {
+                if let Some(results) = &self.search_results {
+                    if results.get_selected_index().is_some() {
+                        return Ok(Some(Action::Focus(self.focused.next())));
                     }
                 }
-                Focusable::Results => {
-                    return Ok(Some(Action::Focus(Focusable::Search)));
-                }
-            },
+                return Ok(Some(Action::Focus(Focusable::Search)));
+            }
+            Action::FocusPrevious => return Ok(Some(Action::Focus(self.focused.prev()))),
             Action::ToggleUsage => {
                 self.show_usage = !self.show_usage;
             }
+            Action::Search(action) => match action {
+                SearchAction::Search(term, page) => {
+                    if let Some(tx) = self.command_tx.clone() {
+                        tokio::spawn(async move {
+                            if let Ok(results) = http_client::INSTANCE.search(term, 100, page).await
+                            {
+                                tx.send(Action::Search(SearchAction::Render(results)))
+                                    .unwrap();
+                            }
+                        });
+                    }
+                }
+                SearchAction::Render(mut results) => {
+                    let exact_match_ix = results.crates.iter().position(|c| c.exact_match);
+
+                    if exact_match_ix.is_some() {
+                        results.select_index(exact_match_ix);
+                    } else if results.current_page_count() > 0 {
+                        results.select_index(Some(0));
+                    }
+
+                    self.search_results = Some(results);
+                    self.show_usage = false;
+                }
+                SearchAction::Clear => self.reset()?,
+                _ => {
+                    if let Some(results) = self.search_results.as_mut() {
+                        match action {
+                            SearchAction::NavNextPage(pages) => {
+                                results.go_next_pages(
+                                    pages,
+                                    self.input.value().to_string(),
+                                    self.command_tx.clone().unwrap(),
+                                )?;
+                            }
+                            SearchAction::NavPrevPage(pages) => {
+                                results.go_prev_pages(
+                                    pages,
+                                    self.input.value().to_string(),
+                                    self.command_tx.clone().unwrap(),
+                                )?;
+                            }
+                            SearchAction::NavFirstPage => {
+                                results.go_to_page(
+                                    1,
+                                    self.input.value().to_string(),
+                                    self.command_tx.clone().unwrap(),
+                                )?;
+                            }
+                            SearchAction::NavLastPage => {
+                                results.go_to_page(
+                                    results.page_count(),
+                                    self.input.value().to_string(),
+                                    self.command_tx.clone().unwrap(),
+                                )?;
+                            }
+                            SearchAction::SelectIndex(index) => {
+                                if let Some(selected) = results.select_index(index) {
+                                    if selected.repository.is_none() {
+                                        return Ok(None);
+                                    }
+
+                                    let repository = selected.repository.as_ref().unwrap();
+
+                                    if repository.is_empty() {
+                                        return Ok(None);
+                                    }
+                                }
+                            }
+                            SearchAction::SelectNext => {
+                                results.select_next();
+                            }
+                            SearchAction::SelectPrev => {
+                                results.select_previous();
+                            }
+                            SearchAction::SelectFirst => {
+                                results.select_first();
+                            }
+                            SearchAction::SelectLast => {
+                                results.select_last();
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            },
+            Action::OpenReadme => {
+                // TODO setting if open in browser or cli
+                // if let Some(url) = self
+                //     .search_results
+                //     .as_ref()
+                //     .and_then(|results| results.get_selected())
+                //     .and_then(|krate| krate.repository.as_ref())
+                //     .and_then(|docs| Url::parse(docs).ok())
+                // {
+                //     open::that(url.to_string())?;
+                // }
+
+                if let Some(url) = self
+                    .search_results
+                    .as_ref()
+                    .and_then(|results| results.get_selected())
+                    .and_then(|krate| krate.repository.as_ref())
+                    .and_then(|docs| Url::parse(docs).ok())
+                {
+                    let tx = self.command_tx.clone();
+
+                    tokio::spawn(async move {
+                        if let Some(markdown) = http_client::INSTANCE
+                            .get_repo_readme(url.to_string())
+                            .await
+                            .unwrap()
+                        {
+                            tx.unwrap().send(Action::RenderReadme(markdown)).unwrap();
+                        }
+                    });
+                }
+            }
             Action::RenderReadme(markdown) => {
+                // TODO if this fails, open in browser
+
                 let mut temp_file = tempfile::NamedTempFile::new()?;
                 write!(temp_file, "{}", markdown)?;
                 let original_path = temp_file.path().to_path_buf();
@@ -639,112 +849,15 @@ impl Component for Home {
                     fs::remove_file(original_path).ok();
                 }
             }
-            Action::Search(action) => {
-                match action {
-                    SearchAction::Search(term, page) => {
-                        if let Some(tx) = self.command_tx.clone() {
-                            tokio::spawn(async move {
-                                let result = http_client::INSTANCE.search(term, 100, page).await;
-
-                                if result.is_ok() {
-                                    tx.send(Action::Search(SearchAction::Render(
-                                        result.unwrap(),
-                                        page,
-                                    )))
-                                    .unwrap();
-                                }
-                            });
-                        }
-                    }
-                    SearchAction::Render(mut results, page) => {
-                        let exact_match_ix = results.crates.iter().position(|c| c.exact_match);
-                        let changed_pages = self.search_results.is_none()
-                            || page != self.search_results.as_ref().unwrap().current_page();
-
-                        if exact_match_ix.is_some() {
-                            results.state.select(exact_match_ix);
-                        } else if results.current_page_len() > 0 {
-                            results.state.select(Some(0));
-                        }
-
-                        results.meta.current_page = page;
-                        self.search_results = Some(results);
-                        self.show_usage = false;
-                    }
-                    SearchAction::Clear => self.reset()?,
-                    _ => {
-                        if let Some(results) = self.search_results.as_mut() {
-                            match action {
-                                SearchAction::NavNextPage(pages) => {
-                                    results.go_next_pages(
-                                        pages,
-                                        self.input.value().to_string(),
-                                        self.command_tx.clone().unwrap(),
-                                    )?;
-                                }
-                                SearchAction::NavPrevPage(pages) => {
-                                    results.go_prev_pages(
-                                        pages,
-                                        self.input.value().to_string(),
-                                        self.command_tx.clone().unwrap(),
-                                    )?;
-                                }
-                                SearchAction::NavFirstPage => {
-                                    results.go_to_page(
-                                        1,
-                                        self.input.value().to_string(),
-                                        self.command_tx.clone().unwrap(),
-                                    )?;
-                                }
-                                SearchAction::NavLastPage => {
-                                    results.go_to_page(
-                                        results.pages(),
-                                        self.input.value().to_string(),
-                                        self.command_tx.clone().unwrap(),
-                                    )?;
-                                }
-                                SearchAction::Select(index) => {
-                                    if let Some(selected) = results.select(index) {
-                                        if selected.repository.is_none() {
-                                            return Ok(None);
-                                        }
-
-                                        let repository = selected.repository.as_ref().unwrap();
-
-                                        if repository.is_empty() {
-                                            return Ok(None);
-                                        }
-
-                                        // let repository = repository.clone();
-                                        // let tx = self.command_tx.clone();
-                                        //
-                                        // tokio::spawn(async move {
-                                        //     if let Some(markdown) =
-                                        //         http_client::INSTANCE.get_repo_readme(repository).await
-                                        //     {
-                                        //         tx.unwrap()
-                                        //             .send(Action::RenderReadme(markdown))
-                                        //             .unwrap();
-                                        //     }
-                                        // });
-                                    }
-                                }
-                                SearchAction::SelectNext => {
-                                    results.select_next();
-                                }
-                                SearchAction::SelectPrev => {
-                                    results.select_previous();
-                                }
-                                SearchAction::SelectFirst => {
-                                    results.select_first();
-                                }
-                                SearchAction::SelectLast => {
-                                    results.select_last();
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
+            Action::OpenDocs => {
+                if let Some(url) = self
+                    .search_results
+                    .as_ref()
+                    .and_then(|results| results.get_selected())
+                    .and_then(|krate| krate.documentation.as_ref())
+                    .and_then(|docs| Url::parse(docs).ok())
+                {
+                    open::that(url.to_string())?;
                 }
             }
             _ => {}

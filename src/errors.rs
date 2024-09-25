@@ -9,6 +9,9 @@ pub enum AppError {
     #[error("Network Request Error: {0}")]
     Http(#[from] reqwest::Error),
 
+    #[error("Response had code {0}: {1}")]
+    ResponseUnsuccessful(u16, String),
+
     #[error("URL Parse Error: {0}")]
     Url(String),
 
@@ -24,9 +27,8 @@ pub enum AppError {
     #[error("Error sending action: {0}")]
     SendAction(#[from] tokio::sync::mpsc::error::SendError<Action>),
 
-    #[error("Command channel is not initialized in: {0}")]
-    CommandChannelNotInitialized(String),
-
+    // #[error("Command channel is not initialized in: {0}")]
+    // CommandChannelNotInitialized(String),
     #[error("Unknown error: {0}")]
     Unknown(String),
 }

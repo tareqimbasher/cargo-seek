@@ -20,21 +20,25 @@ pub enum Action {
     FocusNext,
     FocusPrevious,
     ToggleUsage,
-    RenderReadme(String),
 
     Search(SearchAction),
+
+    OpenReadme,
+    RenderReadme(String),
+    OpenDocs,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
 pub enum SearchAction {
     Search(String, u32),
-    Render(SearchResults, u32),
+    Render(SearchResults),
     Clear,
+
     NavNextPage(u32),
     NavPrevPage(u32),
     NavFirstPage,
     NavLastPage,
-    Select(Option<usize>),
+    SelectIndex(Option<usize>),
     SelectNext,
     SelectPrev,
     SelectFirst,

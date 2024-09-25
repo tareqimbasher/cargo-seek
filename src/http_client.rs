@@ -100,9 +100,17 @@ impl HttpClient {
             .append_pair("page", page.to_string().as_str())
             .append_pair("per_page", per_page.to_string().as_str());
 
-        let (text, _) = self.rate_limited_get(&url).await?;
+        let (text, status) = self.rate_limited_get(&url).await?;
 
-        Ok(serde_json::from_str::<SearchResults>(&text)?)
+        if !status.is_success() {
+            return Err(AppError::ResponseUnsuccessful(u16::from(status), text));
+        }
+
+        let mut results = serde_json::from_str::<SearchResults>(&text)?;
+
+        results.set_current_page(page);
+
+        Ok(results)
     }
 
     pub async fn get_repo_readme(&self, repo_url_str: String) -> AppResult<Option<String>> {
@@ -130,9 +138,9 @@ impl HttpClient {
                         repo_name.unwrap(),
                         branch_name
                     )
-                        .as_str(),
+                    .as_str(),
                 )
-                    .map_err(|err| AppError::Url(format!("{}", err)))?;
+                .map_err(|err| AppError::Url(format!("{}", err)))?;
 
                 let (text, status) = self.non_rate_limited_get(&url).await?;
 

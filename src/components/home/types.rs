@@ -23,6 +23,22 @@ pub struct Crate {
     pub exact_match: bool,
 }
 
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SearchResults {
+    pub crates: Vec<Crate>,
+    meta: Meta,
+    #[serde(default)]
+    state: ListState,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Meta {
+    #[serde(default)]
+    pub current_page: u32,
+    #[serde(rename = "total")]
+    pub total_count: u32,
+}
+
 impl Crate {
     pub fn version(&self) -> &str {
         match &self.max_stable_version {
@@ -32,38 +48,55 @@ impl Crate {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SearchResults {
-    pub crates: Vec<Crate>,
-    pub meta: Meta,
-    #[serde(default)]
-    pub state: ListState,
-}
-
 impl SearchResults {
-    pub fn total_items(&self) -> u32 {
-        self.meta.total_crates
+    pub fn set_current_page(&mut self, page: u32) {
+        self.meta.current_page = page;
     }
 
-    pub fn current_page_len(&self) -> usize {
-        self.crates.len()
+    pub fn total_count(&self) -> u32 {
+        self.meta.total_count
+    }
+
+    pub fn page_count(&self) -> u32 {
+        self.meta.total_count.div_ceil(100)
     }
 
     pub fn current_page(&self) -> u32 {
         self.meta.current_page
     }
 
-    pub fn pages(&self) -> u32 {
-        self.meta.total_crates.div_ceil(100)
+    pub fn current_page_count(&self) -> usize {
+        self.crates.len()
     }
 
     pub fn has_next_page(&self) -> bool {
         let so_far = self.meta.current_page * 100;
-        so_far + 100 <= self.meta.total_crates
+        so_far + 100 <= self.meta.total_count
     }
 
     pub fn has_prev_page(&self) -> bool {
         self.meta.current_page > 1
+    }
+
+    pub fn go_to_page(
+        &self,
+        page: u32,
+        query: String,
+        command_tx: UnboundedSender<Action>,
+    ) -> AppResult<()> {
+        let requested_page = if page >= self.page_count() {
+            self.page_count()
+        } else {
+            page
+        };
+
+        if requested_page == self.current_page() {
+            return Ok(());
+        }
+
+        command_tx.send(Action::Search(SearchAction::Search(query, requested_page)))?;
+
+        Ok(())
     }
 
     pub fn go_prev_pages(
@@ -87,27 +120,6 @@ impl SearchResults {
         Ok(())
     }
 
-    pub fn go_to_page(
-        &self,
-        page: u32,
-        query: String,
-        command_tx: UnboundedSender<Action>,
-    ) -> AppResult<()> {
-        let requested_page = if page >= self.pages() {
-            self.pages()
-        } else {
-            page
-        };
-
-        if requested_page == self.current_page() {
-            return Ok(());
-        }
-
-        command_tx.send(Action::Search(SearchAction::Search(query, requested_page)))?;
-
-        Ok(())
-    }
-
     pub fn go_next_pages(
         &self,
         pages: u32,
@@ -116,8 +128,8 @@ impl SearchResults {
     ) -> AppResult<()> {
         let mut requested_page = self.meta.current_page + pages;
 
-        if requested_page > self.pages() {
-            requested_page = self.pages();
+        if requested_page > self.page_count() {
+            requested_page = self.page_count();
         }
 
         if requested_page == self.current_page() {
@@ -129,8 +141,12 @@ impl SearchResults {
         Ok(())
     }
 
+    pub fn get_selected_index(&self) -> Option<usize> {
+        self.state.selected()
+    }
+
     pub fn get_selected(&self) -> Option<&Crate> {
-        if let Some(ix) = self.state.selected() {
+        if let Some(ix) = self.get_selected_index() {
             if let Some(item) = self.crates.get(ix) {
                 return Some(item);
             }
@@ -139,7 +155,7 @@ impl SearchResults {
         None
     }
 
-    pub fn select(&mut self, index: Option<usize>) -> Option<&Crate> {
+    pub fn select_index(&mut self, index: Option<usize>) -> Option<&Crate> {
         self.state.select(index);
         self.get_selected()
     }
@@ -163,12 +179,8 @@ impl SearchResults {
         self.state.select_last();
         self.get_selected()
     }
-}
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Meta {
-    #[serde(default)]
-    pub current_page: u32,
-    #[serde(rename = "total")]
-    pub total_crates: u32,
+    pub fn list_state(&mut self) -> &mut ListState {
+        &mut self.state
+    }
 }

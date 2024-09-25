@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::{collections::HashMap, env, path::PathBuf};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -458,9 +460,9 @@ fn parse_color(s: &str) -> Option<Color> {
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
-    use crate::errors::AppResult;
     use super::*;
+    use crate::errors::AppResult;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_parse_style_default() {
