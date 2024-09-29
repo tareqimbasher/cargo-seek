@@ -35,12 +35,18 @@ pub enum Mode {
 }
 
 impl App {
-    pub fn new(tick_rate: f64, frame_rate: f64) -> AppResult<Self> {
+    pub fn new(tick_rate: f64, frame_rate: f64, show_counter: bool) -> AppResult<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
+
+        let mut components: Vec<Box<dyn Component>> = vec![Box::new(Home::new(action_tx.clone()))];
+        if show_counter {
+            components.push(Box::new(FpsCounter::default()));
+        }
+
         Ok(Self {
             tick_rate,
             frame_rate,
-            components: vec![Box::new(Home::new()), Box::new(FpsCounter::default())],
+            components,
             should_quit: false,
             should_suspend: false,
             config: Config::new()?,

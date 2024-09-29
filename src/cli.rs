@@ -6,12 +6,16 @@ use crate::config::{get_config_dir, get_data_dir};
 #[command(author, version = version(), about)]
 pub struct Cli {
     /// Tick rate, i.e. number of ticks per second
-    #[arg(short, long, value_name = "FLOAT", default_value_t = 4.0)]
+    #[arg(short, long = "tps", value_name = "FLOAT", default_value_t = 4.0)]
     pub tick_rate: f64,
 
     /// Frame rate, i.e. number of frames per second
-    #[arg(short, long, value_name = "FLOAT", default_value_t = 30.0)]
+    #[arg(short, long = "fps", value_name = "FLOAT", default_value_t = 30.0)]
     pub frame_rate: f64,
+
+    /// Show TPS/FPS counter
+    #[arg(long)]
+    pub counter: bool,
 }
 
 const VERSION_MESSAGE: &str = concat!(
