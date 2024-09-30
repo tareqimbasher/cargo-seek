@@ -7,7 +7,6 @@ use ratatui::{
     layout::{Rect, Size},
     Frame,
 };
-use tokio::sync::mpsc::UnboundedSender;
 
 use crate::errors::AppResult;
 use crate::tui::Tui;
@@ -18,19 +17,6 @@ use crate::{action::Action, config::Config, tui::Event};
 /// Implementors of this trait can be registered with the main application loop and will be able to
 /// receive events, update state, and be rendered on the screen.
 pub trait Component {
-    /// Register an action handler that can send actions for processing if necessary.
-    ///
-    /// # Arguments
-    ///
-    /// * `tx` - An unbounded sender that can send actions.
-    ///
-    /// # Returns
-    ///
-    /// * `Result<()>` - An Ok result or an error.
-    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> AppResult<()> {
-        let _ = tx; // to appease clippy
-        Ok(())
-    }
     /// Register a configuration handler that provides configuration settings if necessary.
     ///
     /// # Arguments

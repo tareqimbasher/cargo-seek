@@ -1,10 +1,6 @@
 use chrono::{DateTime, Utc};
 use ratatui::widgets::ListState;
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc::UnboundedSender;
-
-use crate::action::{Action, SearchAction};
-use crate::errors::AppResult;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Crate {
@@ -34,9 +30,9 @@ pub struct SearchResults {
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Meta {
     #[serde(default)]
-    pub current_page: u32,
+    pub current_page: usize,
     #[serde(rename = "total")]
-    pub total_count: u32,
+    pub total_count: usize,
 }
 
 impl Crate {
@@ -49,19 +45,19 @@ impl Crate {
 }
 
 impl SearchResults {
-    pub fn set_current_page(&mut self, page: u32) {
+    pub fn set_current_page(&mut self, page: usize) {
         self.meta.current_page = page;
     }
 
-    pub fn total_count(&self) -> u32 {
+    pub fn total_count(&self) -> usize {
         self.meta.total_count
     }
 
-    pub fn page_count(&self) -> u32 {
+    pub fn page_count(&self) -> usize {
         self.meta.total_count.div_ceil(100)
     }
 
-    pub fn current_page(&self) -> u32 {
+    pub fn current_page(&self) -> usize {
         self.meta.current_page
     }
 
@@ -76,69 +72,6 @@ impl SearchResults {
 
     pub fn has_prev_page(&self) -> bool {
         self.meta.current_page > 1
-    }
-
-    pub fn go_to_page(
-        &self,
-        page: u32,
-        query: String,
-        command_tx: UnboundedSender<Action>,
-    ) -> AppResult<()> {
-        let requested_page = if page >= self.page_count() {
-            self.page_count()
-        } else {
-            page
-        };
-
-        if requested_page == self.current_page() {
-            return Ok(());
-        }
-
-        command_tx.send(Action::Search(SearchAction::Search(query, requested_page)))?;
-
-        Ok(())
-    }
-
-    pub fn go_prev_pages(
-        &self,
-        pages: u32,
-        query: String,
-        command_tx: UnboundedSender<Action>,
-    ) -> AppResult<()> {
-        let requested_page = if pages >= self.meta.current_page {
-            1
-        } else {
-            self.meta.current_page - pages
-        };
-
-        if requested_page == self.current_page() {
-            return Ok(());
-        }
-
-        command_tx.send(Action::Search(SearchAction::Search(query, requested_page)))?;
-
-        Ok(())
-    }
-
-    pub fn go_next_pages(
-        &self,
-        pages: u32,
-        query: String,
-        command_tx: UnboundedSender<Action>,
-    ) -> AppResult<()> {
-        let mut requested_page = self.meta.current_page + pages;
-
-        if requested_page > self.page_count() {
-            requested_page = self.page_count();
-        }
-
-        if requested_page == self.current_page() {
-            return Ok(());
-        }
-
-        command_tx.send(Action::Search(SearchAction::Search(query, requested_page)))?;
-
-        Ok(())
     }
 
     pub fn get_selected_index(&self) -> Option<usize> {

@@ -6,6 +6,7 @@ use std::sync::{
 };
 use tokio::sync::Mutex;
 
+use crate::components::home::search_sort_dropdown::Sort;
 use crate::components::home::types::SearchResults;
 use crate::errors::{AppError, AppResult};
 
@@ -89,7 +90,13 @@ impl HttpClient {
         self.active_requests.load(Ordering::SeqCst) > 0
     }
 
-    pub async fn search(&self, term: String, per_page: u32, page: u32) -> AppResult<SearchResults> {
+    pub async fn search(
+        &self,
+        term: String,
+        sort: Sort,
+        per_page: usize,
+        page: usize,
+    ) -> AppResult<SearchResults> {
         let mut url = self
             .crates_base_url
             .join("crates")
@@ -97,6 +104,7 @@ impl HttpClient {
 
         url.query_pairs_mut()
             .append_pair("q", term.as_str())
+            .append_pair("sort", sort.to_str())
             .append_pair("page", page.to_string().as_str())
             .append_pair("per_page", per_page.to_string().as_str());
 

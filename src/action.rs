@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
+use crate::components::home::search_sort_dropdown::Sort;
 use crate::components::home::types::SearchResults;
 use crate::components::home::Focusable;
 
@@ -16,10 +17,10 @@ pub enum Action {
     Error(String),
     Help,
 
+    ToggleUsage,
     Focus(Focusable),
     FocusNext,
     FocusPrevious,
-    ToggleUsage,
 
     Search(SearchAction),
 
@@ -30,12 +31,13 @@ pub enum Action {
 
 #[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
 pub enum SearchAction {
-    Search(String, u32),
-    Render(SearchResults),
     Clear,
+    Search(String, Sort, usize),
+    SortBy(Sort),
+    Render(SearchResults),
 
-    NavNextPage(u32),
-    NavPrevPage(u32),
+    NavPagesForward(usize),
+    NavPagesBack(usize),
     NavFirstPage,
     NavLastPage,
     SelectIndex(Option<usize>),

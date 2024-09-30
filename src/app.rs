@@ -65,9 +65,6 @@ impl App {
         tui.enter()?;
 
         for component in self.components.iter_mut() {
-            component.register_action_handler(self.action_tx.clone())?;
-        }
-        for component in self.components.iter_mut() {
             component.register_config_handler(self.config.clone())?;
         }
         for component in self.components.iter_mut() {

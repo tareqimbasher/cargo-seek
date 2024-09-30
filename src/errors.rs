@@ -27,8 +27,6 @@ pub enum AppError {
     #[error("Error sending action: {0}")]
     SendAction(#[from] tokio::sync::mpsc::error::SendError<Action>),
 
-    // #[error("Command channel is not initialized in: {0}")]
-    // CommandChannelNotInitialized(String),
     #[error("Unknown error: {0}")]
     Unknown(String),
 }

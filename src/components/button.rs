@@ -125,12 +125,15 @@ impl<'a> Widget for Button<'a> {
     #[allow(clippy::cast_possible_truncation)]
     fn render(self, area: Rect, buf: &mut Buffer) {
         let (background, text, shadow, highlight) = self.colors();
+        let mut modifier = Modifier::BOLD;
+
+        if self.state == State::Selected {
+            modifier |= Modifier::UNDERLINED;
+        }
+
         buf.set_style(
             area,
-            Style::new()
-                .bg(background)
-                .fg(text)
-                .add_modifier(Modifier::BOLD),
+            Style::new().bg(background).fg(text).add_modifier(modifier),
         );
 
         // render top line if there's enough space
