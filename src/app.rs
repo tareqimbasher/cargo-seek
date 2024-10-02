@@ -171,7 +171,7 @@ impl App {
     fn render(&mut self, tui: &mut Tui) -> AppResult<()> {
         tui.draw(|frame| {
             let app_border = Block::bordered()
-                .title(format!(" 📦 crate-seek v{} ", env!("CARGO_PKG_VERSION")))
+                .title(format!(" 📦 seekr v{} ", env!("CARGO_PKG_VERSION")))
                 .title_style(self.config.styles[&Mode::Home]["title"])
                 .border_type(BorderType::Double);
 

@@ -14,7 +14,7 @@ lazy_static! {
     pub static ref INSTANCE: Arc<HttpClient> = Arc::new(HttpClient::new());
     static ref CLIENT: Arc<reqwest::Client> = Arc::new(
         reqwest::Client::builder()
-            .user_agent("crate-seek (github:tareqimbasher/crate-seek")
+            .user_agent("crate-seek (github:tareqimbasher/seekr")
             .build()
             .unwrap()
     );

@@ -5,7 +5,7 @@ edition = "2021"
 description = "Search and install cargo crates"
 authors = ["Tareq Imbasher <https://github.com/tareqimbasher"]
 build = "build.rs"
-repository = "https://github.com/tareqimbasher/crate-seek"
+repository = "https://github.com/tareqimbasher/seekr"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
