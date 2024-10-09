@@ -1,3 +1,4 @@
+
 use crossterm::event::{KeyCode, KeyEvent};
 use enum_iterator::{all, Sequence};
 use ratatui::{
@@ -7,7 +8,6 @@ use ratatui::{
     Frame,
 };
 use serde::{Deserialize, Serialize};
-use strum::Display;
 
 use crate::action::{Action, SearchAction};
 use crate::app::Mode;
@@ -15,7 +15,7 @@ use crate::components::Component;
 use crate::config::Config;
 use crate::errors::AppResult;
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Display, Sequence, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Sequence, Serialize, Deserialize)]
 pub enum Sort {
     #[default]
     Relevance,
@@ -24,6 +24,20 @@ pub enum Sort {
     RecentDownloads,
     RecentlyUpdated,
     NewlyAdded,
+}
+
+impl std::fmt::Display for Sort {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let output = match self {
+            Sort::Relevance => "Relevance",
+            Sort::Name => "Name",
+            Sort::Downloads => "Downloads",
+            Sort::RecentDownloads => "Recent Downloads",
+            Sort::RecentlyUpdated => "Recently Updated",
+            Sort::NewlyAdded => "Newly Added",
+        };
+        write!(f, "{}", output)
+    }
 }
 
 impl Sort {

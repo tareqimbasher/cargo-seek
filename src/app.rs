@@ -1,16 +1,14 @@
 use crossterm::event::KeyEvent;
-use ratatui::{
-    layout::Rect,
-    widgets::{Block, BorderType},
-};
+use ratatui::layout::{Constraint, Layout, Rect};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{debug, info};
 
+use crate::components::status_bar::StatusLevel;
 use crate::errors::AppResult;
 use crate::{
     action::Action,
-    components::{fps::FpsCounter, home::Home, Component},
+    components::{app_id::AppId, fps::FpsCounter, home::Home, status_bar::StatusBar, Component},
     config::Config,
     tui::{Event, Tui},
 };
@@ -20,6 +18,7 @@ pub struct App {
     tick_rate: f64,
     frame_rate: f64,
     components: Vec<Box<dyn Component>>,
+    status_bar: StatusBar,
     should_quit: bool,
     should_suspend: bool,
     mode: Mode,
@@ -38,7 +37,10 @@ impl App {
     pub fn new(tick_rate: f64, frame_rate: f64, show_counter: bool) -> AppResult<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
 
-        let mut components: Vec<Box<dyn Component>> = vec![Box::new(Home::new(action_tx.clone()))];
+        let mut components: Vec<Box<dyn Component>> = vec![
+            Box::new(Home::new(action_tx.clone())),
+            Box::new(AppId::new()),
+        ];
         if show_counter {
             components.push(Box::new(FpsCounter::default()));
         }
@@ -47,6 +49,7 @@ impl App {
             tick_rate,
             frame_rate,
             components,
+            status_bar: StatusBar::new(action_tx.clone()),
             should_quit: false,
             should_suspend: false,
             config: Config::new()?,
@@ -64,12 +67,16 @@ impl App {
             .frame_rate(self.frame_rate);
         tui.enter()?;
 
+        self.status_bar
+            .register_config_handler(self.config.clone())?;
         for component in self.components.iter_mut() {
             component.register_config_handler(self.config.clone())?;
         }
         for component in self.components.iter_mut() {
-            component.init(tui.size()?)?;
+            component.init(&mut tui)?;
         }
+
+        self.status_bar.info("Ready");
 
         let action_tx = self.action_tx.clone();
         loop {
@@ -141,6 +148,9 @@ impl App {
             if action != Action::Tick && action != Action::Render {
                 debug!("{action:?}");
             }
+
+            let clone = action.clone();
+
             match action {
                 Action::Tick => {
                     self.last_tick_key_events.drain(..);
@@ -151,11 +161,20 @@ impl App {
                 Action::ClearScreen => tui.terminal.clear()?,
                 Action::Resize(w, h) => self.handle_resize(tui, w, h)?,
                 Action::Render => self.render(tui)?,
+                Action::UpdateStatus(level, message) => {
+                    match level {
+                        StatusLevel::Info => self.status_bar.info(message),
+                        StatusLevel::Progress => self.status_bar.progress(message),
+                        StatusLevel::Success => self.status_bar.success(message),
+                        StatusLevel::Error => self.status_bar.error(message),
+                    };
+                }
                 _ => {}
             }
+
             for component in self.components.iter_mut() {
-                if let Some(action) = component.update(action.clone(), tui)? {
-                    self.action_tx.send(action)?
+                if let Some(sub_action) = component.update(clone.clone(), tui)? {
+                    self.action_tx.send(sub_action)?
                 };
             }
         }
@@ -170,21 +189,22 @@ impl App {
 
     fn render(&mut self, tui: &mut Tui) -> AppResult<()> {
         tui.draw(|frame| {
-            let app_border = Block::bordered()
-                .title(format!(" 📦 seekr v{} ", env!("CARGO_PKG_VERSION")))
-                .title_style(self.config.styles[&Mode::Home]["title"])
-                .border_type(BorderType::Double);
-
-            frame.render_widget(&app_border, frame.area());
-
-            let area = app_border.inner(frame.area());
+            let [main_content_area, status_bar_area] =
+                Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(frame.area());
 
             for component in self.components.iter_mut() {
-                if let Err(err) = component.draw(frame, area) {
+                if let Err(err) = component.draw(frame, main_content_area) {
                     let _ = self
                         .action_tx
                         .send(Action::Error(format!("Failed to draw: {:?}", err)));
                 }
+            }
+
+            if let Err(err) = self.status_bar.draw(frame, status_bar_area) {
+                let _ = self.action_tx.send(Action::Error(format!(
+                    "Failed to draw status bar: {:?}",
+                    err
+                )));
             }
         })?;
         Ok(())

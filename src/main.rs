@@ -8,6 +8,7 @@ mod http_client;
 mod logging;
 mod tui;
 mod util;
+mod project;
 
 use clap::Parser;
 use cli::Cli;

@@ -1,5 +1,4 @@
 use std::env;
-
 use tracing::error;
 
 use crate::action::Action;
@@ -23,6 +22,9 @@ pub enum AppError {
 
     #[error("Serialization Error: {0}")]
     Serialization(#[from] serde_json::Error),
+    
+    #[error("FromUtf8 Error: {0}")]
+    FromUtf8(#[from] std::string::FromUtf8Error),
 
     #[error("Error sending action: {0}")]
     SendAction(#[from] tokio::sync::mpsc::error::SendError<Action>),

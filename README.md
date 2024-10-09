@@ -11,6 +11,22 @@ It's meant to be a quick way to search for crates on crates.io, add crates to yo
 
 ![preview][preview]
 
+## Features
+
+- [x] Search
+  - [x] Sorting
+  - [ ] Category
+  - [x] Tag added
+  - [ ] Tag installed
+  - [ ] Add
+  - [ ] Install
+  - [ ] Open ReadMe
+  - [x] Open Docs
+- [ ] Project Management Tab
+  - [ ] Start by listing added
+- [ ] bin tab
+  - [ ] Start by listing globally installed binaries
+
 ## Install
     cargo install seekr
 
@@ -19,4 +35,18 @@ It's meant to be a quick way to search for crates on crates.io, add crates to yo
     
 **or**
 
-    seekr
+    seekr [SEARCHTERM]
+      -t, --tps <FLOAT>  Tick rate, i.e. number of ticks per second [default: 4]
+      -f, --fps <FLOAT>  Frame rate, i.e. number of frames per second [default: 30]
+          --counter      Show TPS/FPS counter
+      -h, --help         Print help
+      -V, --version      Print version**
+
+
+
+|Key|Action|
+|-|-|
+|`Enter`|Search crates|
+|`Shift + Enter`|Sort by|
+|`Esc`|Go back to Search, and if there, reset search|
+|`Tab`|Move between different panels|

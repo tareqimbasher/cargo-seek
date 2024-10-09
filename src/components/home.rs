@@ -22,11 +22,13 @@ use tui_input::{backend::crossterm::EventHandler, Input};
 use crate::components::button::{Button, State, BLUE, GRAY, ORANGE, PURPLE};
 use crate::components::home::search_sort_dropdown::SearchSortDropdown;
 use crate::components::home::types::{Crate, SearchResults};
+use crate::components::status_bar::StatusLevel;
 use crate::errors::AppResult;
+use crate::project::Project;
 use crate::tui::Tui;
 use crate::util::Util;
 use crate::{
-    action::{Action, SearchAction},
+    action::{Action, CargoAction, SearchAction},
     app::Mode,
     config::Config,
     http_client,
@@ -59,6 +61,7 @@ impl Focusable {
 }
 
 pub struct Home {
+    project: Option<Project>,
     input: Input,
     search_sort_dropdown: SearchSortDropdown,
     show_usage: bool,
@@ -72,6 +75,7 @@ pub struct Home {
 impl Home {
     pub fn new(action_tx: UnboundedSender<Action>) -> Self {
         Self {
+            project: None,
             input: Input::default(),
             search_sort_dropdown: SearchSortDropdown::new(),
             show_usage: true,
@@ -86,6 +90,8 @@ impl Home {
     fn reset(&mut self) -> AppResult<()> {
         self.input.reset();
         self.search_results = None;
+        self.action_tx
+            .send(Action::UpdateStatus(StatusLevel::Info, "Ready".into()))?;
         Ok(())
     }
 
@@ -105,13 +111,14 @@ impl Home {
                 query,
                 self.search_sort_dropdown.get_selected(),
                 requested_page,
+                Some(format!("Loading page {}", requested_page)),
             )))?;
         }
 
         Ok(())
     }
 
-    pub fn go_pages_forward(&self, pages: usize, query: String) -> AppResult<()> {
+    pub fn go_pages_back(&self, pages: usize, query: String) -> AppResult<()> {
         if let Some(results) = &self.search_results {
             let requested_page = if pages >= results.current_page() {
                 1
@@ -127,13 +134,14 @@ impl Home {
                 query,
                 self.search_sort_dropdown.get_selected(),
                 requested_page,
+                Some(format!("Loading page {}", requested_page)),
             )))?;
         }
 
         Ok(())
     }
 
-    pub fn go_pages_back(&self, pages: usize, query: String) -> AppResult<()> {
+    pub fn go_pages_forward(&self, pages: usize, query: String) -> AppResult<()> {
         if let Some(results) = &self.search_results {
             let mut requested_page = results.current_page() + pages;
 
@@ -149,6 +157,7 @@ impl Home {
                 query,
                 self.search_sort_dropdown.get_selected(),
                 requested_page,
+                Some(format!("Loading page {}", requested_page)),
             )))?;
         }
 
@@ -231,7 +240,11 @@ impl Home {
             .border_style(match self.focused {
                 Focusable::Results => self.config.styles[&Mode::Home]["accent"],
                 _ => Style::default(),
-            });
+            })
+            .title(
+                Title::from(format!(" ▼ {} ", self.search_sort_dropdown.get_selected()))
+                    .alignment(Alignment::Center),
+            );
 
         if let Some(results) = self.search_results.as_mut() {
             let correction = match results.get_selected_index() {
@@ -239,21 +252,36 @@ impl Home {
                 None => 2,
             };
 
+            let added_tag = "[added]";
+
             let list_items: Vec<ListItem> = results
                 .crates
                 .iter()
                 .map(|i| {
-                    let name = i.name.as_str();
+                    let name = i.name.to_string();
                     let version = i.version();
+                    let added = if let Some(project) = &self.project {
+                        project.dependency_kinds.contains_key(&name)
+                    } else {
+                        false
+                    };
 
-                    let mut space_between =
-                        area.width as i32 - (name.len() as i32 + version.len() as i32) - correction;
-
-                    if space_between < 0 {
-                        space_between = 1;
+                    let mut white_space = area.width as i32 - name.len() as i32 - 20 - correction;
+                    if added {
+                        white_space -= added_tag.len() as i32;
                     }
 
-                    let line = format!("{}{}{}", name, " ".repeat(space_between as usize), version);
+                    if white_space < 0 {
+                        white_space = 1;
+                    }
+
+                    let line = format!(
+                        "{}{}{}{:>20}",
+                        name,
+                        " ".repeat(white_space as usize),
+                        if added { added_tag } else { "" },
+                        version
+                    );
 
                     ListItem::new(line)
                 })
@@ -290,7 +318,6 @@ impl Home {
                             selected_item_num_in_total,
                             results.total_count()
                         )))
-                        .title(Title::from(" ▼ Relevance ").alignment(Alignment::Center))
                         .title(
                             Title::from(format!(
                                 " Page {}/{} ",
@@ -304,6 +331,8 @@ impl Home {
                 .highlight_symbol("> ");
 
             frame.render_stateful_widget(list, area, results.list_state());
+        } else {
+            frame.render_widget(block, area);
         }
 
         Ok(())
@@ -324,71 +353,87 @@ impl Home {
 
     fn render_usage(&self, frame: &mut Frame, area: Rect) -> AppResult<()> {
         let prop_style = self.config.styles[&Mode::Home]["accent"].bold();
+        let pad = 25;
 
         let text = Text::from(vec![
+            Line::from(vec!["SEARCH".bold()]),
             Line::from(vec![
-                format!("{:<25}", "ENTER:").set_style(prop_style),
+                format!("{:<pad$}", "ENTER:").set_style(prop_style),
                 "Search".bold(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "a:").set_style(prop_style),
-                "Add".bold(),
-                " (WIP)".gray(),
-            ]),
-            Line::from(vec![
-                format!("{:<25}", "i:").set_style(prop_style),
-                "Install".bold(),
-                " (WIP)".gray(),
-            ]),
-            Line::from(vec![
-                format!("{:<25}", "Ctrl + o:").set_style(prop_style),
-                "Open docs URL".bold(),
-                " (WIP)".gray(),
+                format!("{:<pad$}", "Ctrl + s:").set_style(prop_style),
+                "Sort".bold(),
             ]),
             Line::default(),
             Line::from(vec!["NAVIGATION".bold()]),
             Line::from(vec![
-                format!("{:<25}", "TAB:").set_style(prop_style),
+                format!("{:<pad$}", "TAB:").set_style(prop_style),
                 "Switch between boxes".bold(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "ESC:").set_style(prop_style),
+                format!("{:<pad$}", "ESC:").set_style(prop_style),
                 "Go back to search; clear results".bold(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "Ctrl + h:").set_style(prop_style),
+                format!("{:<pad$}", "Ctrl + h:").set_style(prop_style),
                 "Toggle this usage screen".bold(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "Ctrl + z:").set_style(prop_style),
+                format!("{:<pad$}", "Ctrl + z:").set_style(prop_style),
                 "Suspend".bold(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "Ctrl + c:").set_style(prop_style),
+                format!("{:<pad$}", "Ctrl + c:").set_style(prop_style),
                 "Quit".bold(),
             ]),
             Line::default(),
             Line::from(vec!["LIST".bold()]),
             Line::from(vec![
-                format!("{:<25}", "Up/Down:").set_style(prop_style),
+                format!("{:<pad$}", "Up/Down:").set_style(prop_style),
                 "Scroll in crate list".bold(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "Home/End:").set_style(prop_style),
+                format!("{:<pad$}", "Home/End:").set_style(prop_style),
                 "Go to first/last crate in list".bold(),
+            ]),
+            Line::from(vec![
+                format!("{:<pad$}", "a:").set_style(prop_style),
+                "Add".bold(),
+                " (WIP)".gray(),
+            ]),
+            Line::from(vec![
+                format!("{:<pad$}", "r:").set_style(prop_style),
+                "Remove".bold(),
+                " (WIP)".gray(),
+            ]),
+            Line::from(vec![
+                format!("{:<pad$}", "i:").set_style(prop_style),
+                "Install".bold(),
+                " (WIP)".gray(),
+            ]),
+            Line::from(vec![
+                format!("{:<pad$}", "u:").set_style(prop_style),
+                "Uninstall".bold(),
+                " (WIP)".gray(),
+            ]),
+            Line::from(vec![
+                format!("{:<pad$}", "Ctrl + o:").set_style(prop_style),
+                "Open docs URL".bold(),
+                " (WIP)".gray(),
             ]),
             Line::default(),
             Line::from(vec!["PAGING".bold()]),
             Line::from(vec![
-                format!("{:<25}", "Left/Right:").set_style(prop_style),
+                format!("{:<pad$}", "Left/Right:").set_style(prop_style),
                 "Go backward/forward a page".bold(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "Ctrl + Left/Right:").set_style(prop_style),
+                format!("{:<pad$}", "Ctrl + Left/Right:").set_style(prop_style),
                 "Go backward/forward 10 pages".bold(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "Ctrl + Home/End:").set_style(prop_style),
+                format!("{:<pad$}", "Ctrl + Home/End:").set_style(prop_style),
                 "Go to first/last page".bold(),
             ]),
         ]);
@@ -448,7 +493,7 @@ impl Home {
                 krate.homepage.clone().unwrap_or_default().into(),
             ]),
             Line::from(vec![
-                format!("{:<25}", "Documentation:").set_style(prop_style),
+                format!("{:<left_column_width$}", "Documentation:").set_style(prop_style),
                 krate.documentation.clone().unwrap_or_default().into(),
             ]),
             Line::from(vec![
@@ -605,6 +650,12 @@ impl Component for Home {
         Ok(())
     }
 
+    fn init(&mut self, tui: &mut Tui) -> AppResult<()> {
+        let _ = tui; // to appease clippy
+        self.update(Action::ReadProject, tui).ok();
+        Ok(())
+    }
+
     fn handle_key_event(&mut self, key: KeyEvent) -> AppResult<Option<Action>> {
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
 
@@ -620,6 +671,12 @@ impl Component for Home {
                     Ok(Some(Action::Focus(Focusable::Search)))
                 }
             }
+            KeyCode::Char('s') if ctrl => {
+                return Ok(Some(Action::Focus(Focusable::SearchSort)));
+            }
+            KeyCode::Char('/') => {
+                return Ok(Some(Action::Focus(Focusable::Search)));
+            }
             KeyCode::BackTab => {
                 return Ok(Some(Action::FocusPrevious));
             }
@@ -634,6 +691,7 @@ impl Component for Home {
                         self.input.value().to_string(),
                         self.search_sort_dropdown.get_selected(),
                         1,
+                        None,
                     ))));
                 }
                 Focusable::Results => {}
@@ -776,51 +834,105 @@ impl Component for Home {
                 self.focused = focusable;
             }
             Action::FocusNext => {
-                return Ok(Some(Action::Focus(self.focused.next())));
+                let mut next = self.focused.next();
+                if next == Focusable::SearchSort {
+                    next = Focusable::SearchSort.next();
+                }
+
+                return Ok(Some(Action::Focus(next)));
             }
-            Action::FocusPrevious => return Ok(Some(Action::Focus(self.focused.prev()))),
+            Action::FocusPrevious => {
+                let mut prev = self.focused.prev();
+                if prev == Focusable::SearchSort {
+                    prev = Focusable::SearchSort.prev();
+                }
+
+                return Ok(Some(Action::Focus(prev)));
+            }
             Action::ToggleUsage => {
                 self.show_usage = !self.show_usage;
             }
+            Action::ReadProject => {
+                if let Ok(current_dir) = std::env::current_dir() {
+                    let tx = self.action_tx.clone();
+                    tokio::spawn(async move {
+                        if let Some(project) = Project::read(current_dir) {
+                            tx.send(Action::HandleReadProjectCompleted(project)).ok();
+                        }
+                    });
+                }
+            }
+            Action::HandleReadProjectCompleted(project) => {
+                self.project = Some(project);
+            }
             Action::Search(action) => match action {
                 SearchAction::Clear => self.reset()?,
-                SearchAction::Search(term, sort, page) => {
+                SearchAction::Search(term, sort, page, status) => {
                     let tx = self.action_tx.clone();
 
+                    let status = status.unwrap_or("Searching".into());
+                    tx.send(Action::UpdateStatus(StatusLevel::Progress, status))?;
+
                     tokio::spawn(async move {
-                        if let Ok(results) =
-                            http_client::INSTANCE.search(term, sort, 100, page).await
-                        {
-                            tx.send(Action::Search(SearchAction::Render(results)))
-                                .unwrap();
+                        let result = http_client::INSTANCE.search(term, sort, 100, page).await;
+
+                        match result {
+                            Ok(search_results) => {
+                                tx.send(Action::Search(SearchAction::Render(search_results)))
+                                    .ok();
+                            }
+                            Err(err) => {
+                                tx.send(Action::UpdateStatus(
+                                    StatusLevel::Error,
+                                    format!("{:#}", err),
+                                )).ok();
+                            }
                         }
                     });
                 }
                 SearchAction::SortBy(sort) => {
                     self.action_tx.send(Action::Focus(Focusable::Search))?;
+
+                    if self.search_results.is_none() {
+                        return Ok(None);
+                    }
+
+                    let status = format!("Sorting by: {}", sort);
                     return Ok(Some(Action::Search(SearchAction::Search(
                         self.input.value().into(),
                         sort,
                         1,
+                        Some(status),
                     ))));
                 }
                 SearchAction::Render(mut results) => {
+                    let results_len = results.current_page_count();
+                    let results_total_len = results.total_count();
+
                     let exact_match_ix = results.crates.iter().position(|c| c.exact_match);
 
                     if exact_match_ix.is_some() {
                         results.select_index(exact_match_ix);
-                    } else if results.current_page_count() > 0 {
+                    } else if results_len > 0 {
                         results.select_index(Some(0));
                     }
 
                     self.search_results = Some(results);
                     self.show_usage = false;
+
+                    let message = if results_total_len > 0 {
+                        format!("Found {results_total_len} crates")
+                    } else {
+                        "No results found".into()
+                    };
+                    self.action_tx
+                        .send(Action::UpdateStatus(StatusLevel::Success, message))?;
                 }
                 SearchAction::NavPagesForward(pages) => {
-                    self.go_pages_back(pages, self.input.value().to_string())?;
+                    self.go_pages_forward(pages, self.input.value().to_string())?;
                 }
                 SearchAction::NavPagesBack(pages) => {
-                    self.go_pages_forward(pages, self.input.value().to_string())?;
+                    self.go_pages_back(pages, self.input.value().to_string())?;
                 }
                 SearchAction::NavFirstPage => {
                     self.go_to_page(1, self.input.value().to_string())?;
@@ -849,6 +961,24 @@ impl Component for Home {
                             _ => {}
                         }
                     }
+                }
+            },
+            Action::Cargo(action) => match action {
+                CargoAction::Add(crate_name, version) => {
+                    let _ = crate_name;
+                    let _ = version;
+                    return Ok(Some(Action::ReadProject));
+                }
+                CargoAction::Remove(crate_name) => {
+                    let _ = crate_name;
+                    return Ok(Some(Action::ReadProject));
+                }
+                CargoAction::Update(crate_name) => {
+                    let _ = crate_name;
+                    return Ok(Some(Action::ReadProject));
+                }
+                CargoAction::UpdateAll => {
+                    return Ok(Some(Action::ReadProject));
                 }
             },
             Action::OpenReadme => {

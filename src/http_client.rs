@@ -14,7 +14,7 @@ lazy_static! {
     pub static ref INSTANCE: Arc<HttpClient> = Arc::new(HttpClient::new());
     static ref CLIENT: Arc<reqwest::Client> = Arc::new(
         reqwest::Client::builder()
-            .user_agent("crate-seek (github:tareqimbasher/seekr")
+            .user_agent("seekr (github:tareqimbasher/seekr")
             .build()
             .unwrap()
     );
@@ -45,6 +45,25 @@ impl HttpClient {
         Default::default()
     }
 
+    async fn get(&self, url: &Url) -> AppResult<(String, StatusCode)> {
+        match CLIENT.get(url.clone()).send().await {
+            Ok(res) => {
+                let status_code = res.status();
+                match res.text().await {
+                    Ok(content) => {
+                        Ok((content, status_code))
+                    }
+                    Err(err) => {
+                        Err(AppError::from(err))
+                    }
+                }
+            }
+            Err(err) => {
+                Err(AppError::from(err))
+            }
+        }
+    }
+
     /// Rate-limited request
     pub async fn rate_limited_get(&self, url: &Url) -> AppResult<(String, StatusCode)> {
         let mut lock = self.last_request_time.lock().await;
@@ -58,31 +77,28 @@ impl HttpClient {
         self.active_requests.fetch_add(1, Ordering::SeqCst);
 
         let time = tokio::time::Instant::now();
-        let res = CLIENT.get(url.clone()).send().await.unwrap();
-
-        let status_code = res.status();
-        let content = res.text().await.unwrap();
+        let result = self.get(url).await;
 
         self.active_requests.fetch_sub(1, Ordering::SeqCst);
 
         // Free up the lock
         *lock = Some(time);
 
-        Ok((content, status_code))
+        result
     }
 
     /// Non-rate-limited request
     pub async fn non_rate_limited_get(&self, url: &Url) -> AppResult<(String, StatusCode)> {
         self.active_requests.fetch_add(1, Ordering::SeqCst);
 
-        let res = CLIENT.get(url.clone()).send().await.unwrap();
+        self.active_requests.fetch_add(1, Ordering::SeqCst);
 
-        let status_code = res.status();
-        let content = res.text().await.unwrap();
+        let result = self.get(url).await;
 
         self.active_requests.fetch_sub(1, Ordering::SeqCst);
+        self.active_requests.fetch_sub(1, Ordering::SeqCst);
 
-        Ok((content, status_code))
+        result
     }
 
     /// Checks if the client is currently working (non-blocking)

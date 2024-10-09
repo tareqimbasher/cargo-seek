@@ -1,12 +1,11 @@
+pub mod app_id;
 pub mod button;
 pub mod fps;
 pub mod home;
+pub mod status_bar;
 
 use crossterm::event::{KeyEvent, MouseEvent};
-use ratatui::{
-    layout::{Rect, Size},
-    Frame,
-};
+use ratatui::{layout::Rect, Frame};
 
 use crate::errors::AppResult;
 use crate::tui::Tui;
@@ -30,17 +29,13 @@ pub trait Component {
         let _ = config; // to appease clippy
         Ok(())
     }
-    /// Initialize the component with a specified area if necessary.
-    ///
-    /// # Arguments
-    ///
-    /// * `area` - Rectangular area to initialize the component within.
+    /// Initialize the component.
     ///
     /// # Returns
     ///
     /// * `Result<()>` - An Ok result or an error.
-    fn init(&mut self, area: Size) -> AppResult<()> {
-        let _ = area; // to appease clippy
+    fn init(&mut self, tui: &mut Tui) -> AppResult<()> {
+        let _ = tui; // to appease clippy
         Ok(())
     }
     /// Handle incoming events and produce actions if necessary.
