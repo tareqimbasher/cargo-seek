@@ -42,9 +42,7 @@ impl Project {
             })?
             .ok();
 
-        if manifest_file.is_none() {
-            return None;
-        }
+        manifest_file.as_ref()?;
 
         let manifest_file_path = manifest_file.unwrap().path();
 
@@ -85,6 +83,7 @@ impl Project {
         Ok(metadata)
     }
 
+    #[allow(dead_code)]
     pub fn contains_package(&self, package_name: String) -> bool {
         self.packages.iter().any(|p| p.name == package_name)
     }
@@ -97,16 +96,17 @@ struct Metadata {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Package {
-    name: String,
-    version: Option<String>,
-    description: Option<String>,
-    dependencies: Vec<Dependency>,
+    pub id: String,
+    pub name: String,
+    pub version: Option<String>,
+    pub description: Option<String>,
+    pub dependencies: Vec<Dependency>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-struct Dependency {
-    name: String,
-    req: String,
-    kind: Option<String>,
-    optional: bool,
+pub struct Dependency {
+    pub name: String,
+    pub req: String,
+    pub kind: Option<String>,
+    pub optional: bool,
 }

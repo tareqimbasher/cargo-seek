@@ -8,8 +8,17 @@
   "styles": {
     "Home": {
       "accent": "yellow",
+      "accent_active": "lightyellow",
       "title": "bold lightyellow",
-      "throbber": "lightyellow"
+      "throbber": "lightyellow",
+//      "accent": "cyan",
+//      "accent_active": "lightcyan",
+//      "title": "bold lightcyan",
+//      "throbber": "lightcyan"
+//      "accent": "magenta",
+//      "accent_active": "lightmagenta",
+//      "title": "bold lightmagenta",
+//      "throbber": "lightmagenta"
     }
   }
 }

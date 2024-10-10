@@ -17,12 +17,14 @@ pub struct Crate {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub exact_match: bool,
+    #[serde(default)]
+    pub is_local: bool,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SearchResults {
     pub crates: Vec<Crate>,
-    meta: Meta,
+    pub meta: Meta,
     #[serde(default)]
     state: ListState,
 }

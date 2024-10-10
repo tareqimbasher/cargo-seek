@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{debug, info};
 
-use crate::components::status_bar::StatusLevel;
 use crate::errors::AppResult;
 use crate::{
     action::Action,
@@ -18,7 +17,6 @@ pub struct App {
     tick_rate: f64,
     frame_rate: f64,
     components: Vec<Box<dyn Component>>,
-    status_bar: StatusBar,
     should_quit: bool,
     should_suspend: bool,
     mode: Mode,
@@ -40,6 +38,7 @@ impl App {
         let mut components: Vec<Box<dyn Component>> = vec![
             Box::new(Home::new(action_tx.clone())),
             Box::new(AppId::new()),
+            Box::new(StatusBar::new(action_tx.clone())),
         ];
         if show_counter {
             components.push(Box::new(FpsCounter::default()));
@@ -49,7 +48,6 @@ impl App {
             tick_rate,
             frame_rate,
             components,
-            status_bar: StatusBar::new(action_tx.clone()),
             should_quit: false,
             should_suspend: false,
             config: Config::new()?,
@@ -67,16 +65,12 @@ impl App {
             .frame_rate(self.frame_rate);
         tui.enter()?;
 
-        self.status_bar
-            .register_config_handler(self.config.clone())?;
         for component in self.components.iter_mut() {
             component.register_config_handler(self.config.clone())?;
         }
         for component in self.components.iter_mut() {
             component.init(&mut tui)?;
         }
-
-        self.status_bar.info("Ready");
 
         let action_tx = self.action_tx.clone();
         loop {
@@ -161,14 +155,6 @@ impl App {
                 Action::ClearScreen => tui.terminal.clear()?,
                 Action::Resize(w, h) => self.handle_resize(tui, w, h)?,
                 Action::Render => self.render(tui)?,
-                Action::UpdateStatus(level, message) => {
-                    match level {
-                        StatusLevel::Info => self.status_bar.info(message),
-                        StatusLevel::Progress => self.status_bar.progress(message),
-                        StatusLevel::Success => self.status_bar.success(message),
-                        StatusLevel::Error => self.status_bar.error(message),
-                    };
-                }
                 _ => {}
             }
 
@@ -193,18 +179,17 @@ impl App {
                 Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(frame.area());
 
             for component in self.components.iter_mut() {
-                if let Err(err) = component.draw(frame, main_content_area) {
+                let mut area = main_content_area;
+
+                if let Some(_) = component.as_any().downcast_ref::<StatusBar>() {
+                    area = status_bar_area;
+                }
+
+                if let Err(err) = component.draw(frame, area) {
                     let _ = self
                         .action_tx
                         .send(Action::Error(format!("Failed to draw: {:?}", err)));
                 }
-            }
-
-            if let Err(err) = self.status_bar.draw(frame, status_bar_area) {
-                let _ = self.action_tx.send(Action::Error(format!(
-                    "Failed to draw status bar: {:?}",
-                    err
-                )));
             }
         })?;
         Ok(())

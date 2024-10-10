@@ -91,4 +91,8 @@ impl Component for FpsCounter {
         frame.render_widget(paragraph, top);
         Ok(())
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

@@ -6,7 +6,7 @@ use std::sync::{
 };
 use tokio::sync::Mutex;
 
-use crate::components::home::search_sort_dropdown::Sort;
+use crate::components::home::sort_dropdown::Sort;
 use crate::components::home::types::SearchResults;
 use crate::errors::{AppError, AppResult};
 
@@ -87,6 +87,7 @@ impl HttpClient {
         result
     }
 
+    #[allow(dead_code)]
     /// Non-rate-limited request
     pub async fn non_rate_limited_get(&self, url: &Url) -> AppResult<(String, StatusCode)> {
         self.active_requests.fetch_add(1, Ordering::SeqCst);
@@ -137,6 +138,7 @@ impl HttpClient {
         Ok(results)
     }
 
+    #[allow(dead_code)]
     pub async fn get_repo_readme(&self, repo_url_str: String) -> AppResult<Option<String>> {
         let repo_url =
             Url::parse(repo_url_str.as_str()).map_err(|err| AppError::Url(format!("{}", err)))?;

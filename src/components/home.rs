@@ -1,4 +1,5 @@
-pub mod search_sort_dropdown;
+pub mod scope_dropdown;
+pub mod sort_dropdown;
 pub mod types;
 
 use super::Component;
@@ -10,7 +11,10 @@ use ratatui::{
     layout::{Alignment, Constraint, Flex, Layout, Rect},
     style::{Style, Styled, Stylize},
     text::{Line, Text},
-    widgets::{block::Title, Block, Borders, List, ListItem, Padding, Paragraph, Wrap},
+    widgets::{
+        block::{Position, Title},
+        Block, Borders, List, ListItem, Padding, Paragraph, Wrap,
+    },
     Frame,
 };
 use reqwest::Url;
@@ -20,11 +24,13 @@ use tokio::sync::mpsc::UnboundedSender;
 use tui_input::{backend::crossterm::EventHandler, Input};
 
 use crate::components::button::{Button, State, BLUE, GRAY, ORANGE, PURPLE};
-use crate::components::home::search_sort_dropdown::SearchSortDropdown;
+use crate::components::home::scope_dropdown::{Scope, ScopeDropdown};
+use crate::components::home::sort_dropdown::SortDropdown;
 use crate::components::home::types::{Crate, SearchResults};
-use crate::components::status_bar::StatusLevel;
+use crate::components::status_bar::{StatusDuration, StatusLevel};
 use crate::errors::AppResult;
 use crate::project::Project;
+use crate::services::crate_search_manager::{CrateSearchManager, SearchOptions};
 use crate::tui::Tui;
 use crate::util::Util;
 use crate::{
@@ -38,7 +44,8 @@ use crate::{
 pub enum Focusable {
     #[default]
     Search,
-    SearchSort,
+    Sort,
+    Scope,
     Results,
     AddButton,
     InstallButton,
@@ -63,13 +70,16 @@ impl Focusable {
 pub struct Home {
     project: Option<Project>,
     input: Input,
-    search_sort_dropdown: SearchSortDropdown,
+    sort_dropdown: SortDropdown,
+    scope_dropdown: ScopeDropdown,
     show_usage: bool,
     focused: Focusable,
+    crate_search_manager: CrateSearchManager,
     search_results: Option<SearchResults>,
     spinner_state: throbber_widgets_tui::ThrobberState,
     action_tx: UnboundedSender<Action>,
     config: Config,
+    scope: Scope,
 }
 
 impl Home {
@@ -77,13 +87,16 @@ impl Home {
         Self {
             project: None,
             input: Input::default(),
-            search_sort_dropdown: SearchSortDropdown::new(),
+            sort_dropdown: SortDropdown::new(),
+            scope_dropdown: ScopeDropdown::new(),
             show_usage: true,
             focused: Focusable::default(),
             search_results: None,
+            crate_search_manager: CrateSearchManager::new(action_tx.clone()),
             spinner_state: throbber_widgets_tui::ThrobberState::default(),
             action_tx,
             config: Config::default(),
+            scope: Scope::default(),
         }
     }
 
@@ -109,7 +122,7 @@ impl Home {
 
             self.action_tx.send(Action::Search(SearchAction::Search(
                 query,
-                self.search_sort_dropdown.get_selected(),
+                self.sort_dropdown.get_selected(),
                 requested_page,
                 Some(format!("Loading page {}", requested_page)),
             )))?;
@@ -132,7 +145,7 @@ impl Home {
 
             self.action_tx.send(Action::Search(SearchAction::Search(
                 query,
-                self.search_sort_dropdown.get_selected(),
+                self.sort_dropdown.get_selected(),
                 requested_page,
                 Some(format!("Loading page {}", requested_page)),
             )))?;
@@ -155,7 +168,7 @@ impl Home {
 
             self.action_tx.send(Action::Search(SearchAction::Search(
                 query,
-                self.search_sort_dropdown.get_selected(),
+                self.sort_dropdown.get_selected(),
                 requested_page,
                 Some(format!("Loading page {}", requested_page)),
             )))?;
@@ -170,7 +183,8 @@ impl Home {
 
         self.render_search(frame, search)?;
         self.render_results(frame, results)?;
-        self.search_sort_dropdown.draw(frame, area)?;
+        self.sort_dropdown.draw(frame, area)?;
+        self.scope_dropdown.draw(frame, area)?;
 
         Ok(())
     }
@@ -199,7 +213,7 @@ impl Home {
                     .title(" Search ")
                     .borders(Borders::ALL)
                     .border_style(match self.focused {
-                        Focusable::Search => self.config.styles[&Mode::Home]["accent"],
+                        Focusable::Search => self.config.styles[&Mode::Home]["accent_active"],
                         _ => Style::default(),
                     }),
             );
@@ -238,12 +252,32 @@ impl Home {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(match self.focused {
-                Focusable::Results => self.config.styles[&Mode::Home]["accent"],
+                Focusable::Results => self.config.styles[&Mode::Home]["accent_active"],
                 _ => Style::default(),
             })
             .title(
-                Title::from(format!(" ▼ {} ", self.search_sort_dropdown.get_selected()))
-                    .alignment(Alignment::Center),
+                Title::from(
+                    format!(" ▼ {} ", self.sort_dropdown.get_selected()).set_style(
+                        if self.focused == Focusable::Sort {
+                            self.config.styles[&Mode::Home]["title"]
+                        } else {
+                            Style::default()
+                        },
+                    ),
+                )
+                .alignment(Alignment::Right),
+            )
+            .title(
+                Title::from(
+                    format!(" ▼ {} ", self.scope_dropdown.get_selected()).set_style(
+                        if self.focused == Focusable::Scope {
+                            self.config.styles[&Mode::Home]["title"]
+                        } else {
+                            Style::default()
+                        },
+                    ),
+                )
+                .alignment(Alignment::Right),
             );
 
         if let Some(results) = self.search_results.as_mut() {
@@ -252,12 +286,12 @@ impl Home {
                 None => 2,
             };
 
-            let added_tag = "[added]";
-
             let list_items: Vec<ListItem> = results
                 .crates
                 .iter()
                 .map(|i| {
+                    let added_tag = if i.is_local { "[local]" } else { "[added]" };
+
                     let name = i.name.to_string();
                     let version = i.version();
                     let added = if let Some(project) = &self.project {
@@ -289,7 +323,13 @@ impl Home {
 
             let items_in_prev_pages = match results.current_page() {
                 1 => 0,
-                p => (p - 1) * 100,
+                p => {
+                    if p < 1 {
+                        0
+                    } else {
+                        (p - 1) * 100
+                    }
+                }
             };
 
             let selected_item_num = match results.get_selected_index() {
@@ -324,6 +364,7 @@ impl Home {
                                 results.current_page(),
                                 results.page_count(),
                             ))
+                            .position(Position::Bottom)
                             .alignment(Alignment::Right),
                         ),
                 )
@@ -448,7 +489,7 @@ impl Home {
 
         frame.render_widget(
             Paragraph::new(text)
-                .wrap(Wrap { trim: true })
+                .wrap(Wrap { trim: false })
                 .scroll((0, 0)),
             block.inner(area),
         );
@@ -457,29 +498,33 @@ impl Home {
     }
 
     fn render_crate_details(&self, krate: &Crate, frame: &mut Frame, area: Rect) -> AppResult<()> {
+        let details_focused = self.focused == Focusable::AddButton
+            || self.focused == Focusable::InstallButton
+            || self.focused == Focusable::ReadmeButton
+            || self.focused == Focusable::DocsButton;
+
         let main_block = Block::default()
             .title(format!(" 🧐 {} ", krate.name))
             .title_style(self.config.styles[&Mode::Home]["title"])
             .padding(Padding::uniform(1))
             .borders(Borders::ALL)
-            .border_style(match self.focused {
-                Focusable::AddButton
-                | Focusable::InstallButton
-                | Focusable::ReadmeButton
-                | Focusable::DocsButton => self.config.styles[&Mode::Home]["accent"],
-                _ => Style::default(),
+            .border_style(if details_focused {
+                self.config.styles[&Mode::Home]["accent_active"]
+            } else {
+                Style::default()
             });
 
         let left_column_width = 25;
         let updated_relative = Util::get_relative_time(krate.updated_at, Utc::now());
 
-        let prop_style = self.config.styles[&Mode::Home]["accent"].bold();
+        let prop_style = self.config.styles[&Mode::Home][if details_focused {
+            "accent_active"
+        } else {
+            "accent"
+        }]
+        .bold();
 
         let text = Text::from(vec![
-            Line::from(vec![
-                format!("{:<left_column_width$}", "Description:").set_style(prop_style),
-                krate.description.clone().unwrap_or_default().bold(),
-            ]),
             Line::from(vec![
                 format!("{:<left_column_width$}", "Version:").set_style(prop_style),
                 krate.version().into(),
@@ -529,15 +574,19 @@ impl Home {
                 )
                 .into(),
             ]),
+            Line::from(vec![
+                format!("{:<left_column_width$}", "Description:").set_style(prop_style),
+                krate.description.clone().unwrap_or_default().bold(),
+            ]),
         ]);
 
         let details_paragraph_lines = text.lines.len();
-        let details_paragraph = Paragraph::new(text);
+        let details_paragraph = Paragraph::new(text).wrap(Wrap { trim: false });
 
         frame.render_widget(&main_block, area);
 
         let [details_area, _, buttons_row1_area, _, buttons_row2_area] = Layout::vertical([
-            Constraint::Length(details_paragraph_lines as u16),
+            Constraint::Length((details_paragraph_lines + 1) as u16),
             Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Length(1),
@@ -644,7 +693,8 @@ impl Home {
 
 impl Component for Home {
     fn register_config_handler(&mut self, config: Config) -> AppResult<()> {
-        self.search_sort_dropdown
+        self.sort_dropdown.register_config_handler(config.clone())?;
+        self.scope_dropdown
             .register_config_handler(config.clone())?;
         self.config = config;
         Ok(())
@@ -672,7 +722,18 @@ impl Component for Home {
                 }
             }
             KeyCode::Char('s') if ctrl => {
-                return Ok(Some(Action::Focus(Focusable::SearchSort)));
+                return Ok(Some(Action::Focus(if self.focused == Focusable::Sort {
+                    Focusable::Search
+                } else {
+                    Focusable::Sort
+                })));
+            }
+            KeyCode::Char('p') if ctrl => {
+                return Ok(Some(Action::Focus(if self.focused == Focusable::Scope {
+                    Focusable::Search
+                } else {
+                    Focusable::Scope
+                })));
             }
             KeyCode::Char('/') => {
                 return Ok(Some(Action::Focus(Focusable::Search)));
@@ -689,7 +750,7 @@ impl Component for Home {
                 Focusable::Search => {
                     return Ok(Some(Action::Search(SearchAction::Search(
                         self.input.value().to_string(),
-                        self.search_sort_dropdown.get_selected(),
+                        self.sort_dropdown.get_selected(),
                         1,
                         None,
                     ))));
@@ -808,8 +869,14 @@ impl Component for Home {
             }
         }
 
-        if self.focused == Focusable::SearchSort {
-            if let Some(action) = self.search_sort_dropdown.handle_key_event(key)? {
+        if self.focused == Focusable::Sort {
+            if let Some(action) = self.sort_dropdown.handle_key_event(key)? {
+                return Ok(Some(action));
+            }
+        }
+
+        if self.focused == Focusable::Scope {
+            if let Some(action) = self.scope_dropdown.handle_key_event(key)? {
                 return Ok(Some(action));
             }
         }
@@ -829,22 +896,24 @@ impl Component for Home {
                 // add any logic here that should run on every render
             }
             Action::Focus(focusable) => {
-                self.search_sort_dropdown
-                    .set_is_focused(focusable == Focusable::SearchSort);
+                self.sort_dropdown
+                    .set_is_focused(focusable == Focusable::Sort);
+                self.scope_dropdown
+                    .set_is_focused(focusable == Focusable::Scope);
                 self.focused = focusable;
             }
             Action::FocusNext => {
                 let mut next = self.focused.next();
-                if next == Focusable::SearchSort {
-                    next = Focusable::SearchSort.next();
+                while next == Focusable::Sort || next == Focusable::Scope {
+                    next = next.next();
                 }
 
                 return Ok(Some(Action::Focus(next)));
             }
             Action::FocusPrevious => {
                 let mut prev = self.focused.prev();
-                if prev == Focusable::SearchSort {
-                    prev = Focusable::SearchSort.prev();
+                while prev == Focusable::Sort || prev == Focusable::Scope {
+                    prev = prev.prev();
                 }
 
                 return Ok(Some(Action::Focus(prev)));
@@ -871,24 +940,22 @@ impl Component for Home {
                     let tx = self.action_tx.clone();
 
                     let status = status.unwrap_or("Searching".into());
-                    tx.send(Action::UpdateStatus(StatusLevel::Progress, status))?;
+                    tx.send(Action::UpdateStatus(
+                        StatusLevel::Progress,
+                        status.to_string(),
+                    ))?;
 
-                    tokio::spawn(async move {
-                        let result = http_client::INSTANCE.search(term, sort, 100, page).await;
+                    self.crate_search_manager.search(
+                        SearchOptions {
+                            term: Some(term),
+                            sort,
+                            page: Some(page),
+                            scope: self.scope.clone(),
+                        },
+                        &self.project,
+                    );
 
-                        match result {
-                            Ok(search_results) => {
-                                tx.send(Action::Search(SearchAction::Render(search_results)))
-                                    .ok();
-                            }
-                            Err(err) => {
-                                tx.send(Action::UpdateStatus(
-                                    StatusLevel::Error,
-                                    format!("{:#}", err),
-                                )).ok();
-                            }
-                        }
-                    });
+                    return Ok(None);
                 }
                 SearchAction::SortBy(sort) => {
                     self.action_tx.send(Action::Focus(Focusable::Search))?;
@@ -905,9 +972,26 @@ impl Component for Home {
                         Some(status),
                     ))));
                 }
+                SearchAction::Scope(scope) => {
+                    self.action_tx.send(Action::Focus(Focusable::Search))?;
+
+                    if self.search_results.is_none() {
+                        return Ok(None);
+                    }
+
+                    let status = format!("Scoped to: {}", scope);
+
+                    self.scope = scope;
+
+                    return Ok(Some(Action::Search(SearchAction::Search(
+                        self.input.value().into(),
+                        self.sort_dropdown.get_selected(),
+                        1,
+                        Some(status),
+                    ))));
+                }
                 SearchAction::Render(mut results) => {
                     let results_len = results.current_page_count();
-                    let results_total_len = results.total_count();
 
                     let exact_match_ix = results.crates.iter().position(|c| c.exact_match);
 
@@ -920,13 +1004,13 @@ impl Component for Home {
                     self.search_results = Some(results);
                     self.show_usage = false;
 
-                    let message = if results_total_len > 0 {
-                        format!("Found {results_total_len} crates")
-                    } else {
-                        "No results found".into()
-                    };
-                    self.action_tx
-                        .send(Action::UpdateStatus(StatusLevel::Success, message))?;
+                    if results_len > 0 {
+                        self.action_tx.send(Action::UpdateStatusWithDuration(
+                            StatusLevel::Success,
+                            StatusDuration::Sticky,
+                            format!("Loaded {results_len} results"),
+                        ))?;
+                    }
                 }
                 SearchAction::NavPagesForward(pages) => {
                     self.go_pages_forward(pages, self.input.value().to_string())?;
@@ -983,16 +1067,6 @@ impl Component for Home {
             },
             Action::OpenReadme => {
                 // TODO setting if open in browser or cli
-                // if let Some(url) = self
-                //     .search_results
-                //     .as_ref()
-                //     .and_then(|results| results.get_selected())
-                //     .and_then(|krate| krate.repository.as_ref())
-                //     .and_then(|docs| Url::parse(docs).ok())
-                // {
-                //     open::that(url.to_string())?;
-                // }
-
                 if let Some(url) = self
                     .search_results
                     .as_ref()
@@ -1000,17 +1074,27 @@ impl Component for Home {
                     .and_then(|krate| krate.repository.as_ref())
                     .and_then(|docs| Url::parse(docs).ok())
                 {
-                    let tx = self.action_tx.clone();
-                    tokio::spawn(async move {
-                        if let Some(markdown) = http_client::INSTANCE
-                            .get_repo_readme(url.to_string())
-                            .await
-                            .unwrap()
-                        {
-                            tx.send(Action::RenderReadme(markdown)).unwrap();
-                        }
-                    });
+                    open::that(url.to_string())?;
                 }
+
+                // if let Some(url) = self
+                //     .search_results
+                //     .as_ref()
+                //     .and_then(|results| results.get_selected())
+                //     .and_then(|krate| krate.repository.as_ref())
+                //     .and_then(|docs| Url::parse(docs).ok())
+                // {
+                //     let tx = self.action_tx.clone();
+                //     tokio::spawn(async move {
+                //         if let Some(markdown) = http_client::INSTANCE
+                //             .get_repo_readme(url.to_string())
+                //             .await
+                //             .unwrap()
+                //         {
+                //             tx.send(Action::RenderReadme(markdown)).unwrap();
+                //         }
+                //     });
+                // }
             }
             Action::RenderReadme(markdown) => {
                 // TODO if this fails, open in browser
@@ -1066,6 +1150,10 @@ impl Component for Home {
         self.render_right(frame, right)?;
 
         Ok(())
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -1134,7 +1222,7 @@ mod tests {
     #[tokio::test]
     async fn test_focus_next_action() {
         let (home, _) = execute_update(Action::FocusNext).await;
-        assert_eq!(home.focused, Focusable::SearchSort);
+        assert_eq!(home.focused, Focusable::Sort);
     }
 
     #[tokio::test]

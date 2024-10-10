@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
-use crate::components::home::search_sort_dropdown::Sort;
+use crate::components::home::scope_dropdown::Scope;
+use crate::components::home::sort_dropdown::Sort;
 use crate::components::home::types::SearchResults;
 use crate::components::home::Focusable;
-use crate::components::status_bar::StatusLevel;
+use crate::components::status_bar::{StatusDuration, StatusLevel};
 use crate::project::Project;
 
 #[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
@@ -25,6 +26,7 @@ pub enum Action {
     FocusPrevious,
 
     UpdateStatus(StatusLevel, String),
+    UpdateStatusWithDuration(StatusLevel, StatusDuration, String),
 
     ReadProject,
     HandleReadProjectCompleted(Project),
@@ -42,6 +44,7 @@ pub enum SearchAction {
     Clear,
     Search(String, Sort, usize, Option<String>),
     SortBy(Sort),
+    Scope(Scope),
     Render(SearchResults),
 
     NavPagesForward(usize),
@@ -60,5 +63,5 @@ pub enum CargoAction {
     Add(String, String),
     Remove(String),
     Update(String),
-    UpdateAll
+    UpdateAll,
 }

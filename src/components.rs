@@ -4,6 +4,8 @@ pub mod fps;
 pub mod home;
 pub mod status_bar;
 
+use std::any::Any;
+
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::{layout::Rect, Frame};
 
@@ -15,7 +17,7 @@ use crate::{action::Action, config::Config, tui::Event};
 ///
 /// Implementors of this trait can be registered with the main application loop and will be able to
 /// receive events, update state, and be rendered on the screen.
-pub trait Component {
+pub trait Component: Any {
     /// Register a configuration handler that provides configuration settings if necessary.
     ///
     /// # Arguments
@@ -106,4 +108,6 @@ pub trait Component {
     ///
     /// * `Result<()>` - An Ok result or an error.
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> AppResult<()>;
+
+    fn as_any(&self) -> &dyn Any;
 }

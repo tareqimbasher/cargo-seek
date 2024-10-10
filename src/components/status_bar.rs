@@ -8,12 +8,15 @@ use ratatui::Frame;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::oneshot;
 
 use crate::action::Action;
 use crate::app::Mode;
 use crate::components::status_bar::StatusLevel::Info;
+use crate::components::Component;
 use crate::config::Config;
 use crate::errors::AppResult;
+use crate::tui::Tui;
 
 #[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
 pub enum StatusLevel {
@@ -23,7 +26,8 @@ pub enum StatusLevel {
     Error,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
 pub enum StatusDuration {
     /// Is not rendered to screen (ex: when clearing status)
     None,
@@ -40,7 +44,6 @@ pub enum StatusDuration {
 #[derive(Debug, Clone)]
 struct StatusMessage {
     level: StatusLevel,
-    duration: StatusDuration,
     message: String,
 }
 
@@ -48,6 +51,7 @@ pub struct StatusBar {
     status: Option<StatusMessage>,
     last_annoying: Option<StatusMessage>,
     config: Config,
+    cancel_tx: Option<oneshot::Sender<()>>,
     action_tx: UnboundedSender<Action>,
 }
 
@@ -57,6 +61,7 @@ impl StatusBar {
             status: None,
             last_annoying: None,
             config: Config::default(),
+            cancel_tx: None,
             action_tx,
         }
     }
@@ -70,7 +75,6 @@ impl StatusBar {
         let text = status.into();
         let message = StatusMessage {
             level,
-            duration: duration.clone(),
             message: text.clone(),
         };
 
@@ -80,6 +84,13 @@ impl StatusBar {
             self.status = self.last_annoying.clone();
         } else {
             self.status = Some(message);
+
+            // Cancel any clear task currently pending
+            if let Some(cancel_tx) = self.cancel_tx.take() {
+                let _ = cancel_tx.send(());
+                self.cancel_tx = None;
+            }
+
             let sleep: Option<u64> = match duration {
                 StatusDuration::None => Some(0),
                 StatusDuration::Short => Some(3),
@@ -89,9 +100,15 @@ impl StatusBar {
             };
 
             if let Some(sleep) = sleep {
+                let (cancel_tx, mut cancel_rx) = oneshot::channel();
+                self.cancel_tx = Some(cancel_tx);
+
                 let tx = self.action_tx.clone();
                 tokio::spawn(async move {
                     tokio::time::sleep(tokio::time::Duration::from_secs(sleep)).await;
+                    if cancel_rx.try_recv().is_ok() {
+                        return;
+                    }
                     tx.send(Action::UpdateStatus(Info, "Ready".into())).unwrap();
                 });
             }
@@ -102,24 +119,69 @@ impl StatusBar {
         self.set_status(status, StatusLevel::Info, StatusDuration::Long);
     }
 
+    pub fn info_with_duration<S: Into<String>>(&mut self, duration: StatusDuration, status: S) {
+        self.set_status(status, StatusLevel::Info, duration);
+    }
+
     pub fn progress<S: Into<String>>(&mut self, status: S) {
         self.set_status(status, StatusLevel::Progress, StatusDuration::Sticky);
+    }
+
+    pub fn progress_with_duration<S: Into<String>>(&mut self, duration: StatusDuration, status: S) {
+        self.set_status(status, StatusLevel::Progress, duration);
     }
 
     pub fn success<S: Into<String>>(&mut self, status: S) {
         self.set_status(status, StatusLevel::Success, StatusDuration::Long);
     }
 
+    pub fn success_with_duration<S: Into<String>>(&mut self, duration: StatusDuration, status: S) {
+        self.set_status(status, StatusLevel::Success, duration);
+    }
+
     pub fn error<S: Into<String>>(&mut self, status: S) {
         self.set_status(status, StatusLevel::Error, StatusDuration::Long);
     }
 
-    pub fn register_config_handler(&mut self, config: Config) -> AppResult<()> {
+    pub fn error_with_duration<S: Into<String>>(&mut self, duration: StatusDuration, status: S) {
+        self.set_status(status, StatusLevel::Error, duration);
+    }
+}
+
+impl Component for StatusBar {
+    fn register_config_handler(&mut self, config: Config) -> AppResult<()> {
         self.config = config;
         Ok(())
     }
 
-    pub fn draw(&mut self, frame: &mut Frame, area: Rect) -> AppResult<()> {
+    fn init(&mut self, tui: &mut Tui) -> AppResult<()> {
+        let _ = tui; // to appease clippy
+        self.info("Ready");
+        Ok(())
+    }
+
+    fn update(&mut self, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
+        let _ = tui;
+        match action {
+            Action::UpdateStatus(level, message) => match level {
+                StatusLevel::Info => self.info(message),
+                StatusLevel::Progress => self.progress(message),
+                StatusLevel::Success => self.success(message),
+                StatusLevel::Error => self.error(message),
+            },
+            Action::UpdateStatusWithDuration(level, duration, message) => match level {
+                StatusLevel::Info => self.info_with_duration(duration, message),
+                StatusLevel::Progress => self.progress_with_duration(duration, message),
+                StatusLevel::Success => self.success_with_duration(duration, message),
+                StatusLevel::Error => self.error_with_duration(duration, message),
+            },
+            _ => {}
+        };
+
+        Ok(None)
+    }
+
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> AppResult<()> {
         let [left, right] =
             Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
                 .areas(area);
@@ -166,5 +228,9 @@ impl StatusBar {
         );
 
         Ok(())
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }

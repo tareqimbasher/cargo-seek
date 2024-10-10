@@ -2,6 +2,7 @@ mod action;
 mod app;
 mod cli;
 mod components;
+mod services;
 mod config;
 mod errors;
 mod http_client;

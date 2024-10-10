@@ -1,4 +1,3 @@
-
 use crossterm::event::{KeyCode, KeyEvent};
 use enum_iterator::{all, Sequence};
 use ratatui::{
@@ -53,18 +52,18 @@ impl Sort {
     }
 }
 
-pub struct SearchSortDropdown {
+pub struct SortDropdown {
     config: Config,
     is_focused: bool,
-    list_state: ListState,
+    state: ListState,
 }
 
-impl SearchSortDropdown {
+impl SortDropdown {
     pub fn new() -> Self {
-        SearchSortDropdown {
+        SortDropdown {
             config: Config::default(),
             is_focused: false,
-            list_state: ListState::default(),
+            state: ListState::default(),
         }
     }
 
@@ -73,17 +72,16 @@ impl SearchSortDropdown {
     }
 
     pub fn get_selected(&self) -> Sort {
-        if let Some(ix) = self.list_state.selected() {
+        if let Some(ix) = self.state.selected() {
             if let Some(value) = all::<Sort>().nth(ix) {
                 return value;
             }
         }
-
         Sort::default()
     }
 }
 
-impl Component for SearchSortDropdown {
+impl Component for SortDropdown {
     fn register_config_handler(&mut self, config: Config) -> AppResult<()> {
         self.config = config;
         Ok(())
@@ -96,10 +94,10 @@ impl Component for SearchSortDropdown {
 
         match key.code {
             KeyCode::Up => {
-                self.list_state.select_previous();
+                self.state.select_previous();
             }
             KeyCode::Down => {
-                self.list_state.select_next();
+                self.state.select_next();
             }
             KeyCode::Enter => {
                 return Ok(Some(Action::Search(SearchAction::SortBy(
@@ -117,8 +115,8 @@ impl Component for SearchSortDropdown {
             return Ok(());
         }
 
-        if self.list_state.selected().is_none() {
-            self.list_state.select_first();
+        if self.state.selected().is_none() {
+            self.state.select_first();
         }
 
         let [_, main, _] = Layout::horizontal([
@@ -156,8 +154,12 @@ impl Component for SearchSortDropdown {
         .highlight_style(self.config.styles[&Mode::Home]["accent"].bold())
         .highlight_symbol("> ");
 
-        frame.render_stateful_widget(list, dropdown.inner(sort_by_dropdown), &mut self.list_state);
+        frame.render_stateful_widget(list, dropdown.inner(sort_by_dropdown), &mut self.state);
 
         Ok(())
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
