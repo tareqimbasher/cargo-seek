@@ -1,9 +1,12 @@
+use std::sync::{Arc};
+
 use crossterm::event::KeyEvent;
 use ratatui::layout::{Constraint, Layout, Rect};
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
 use tracing::{debug, info};
 
+use crate::cargo::cargo_env::CargoEnv;
 use crate::errors::AppResult;
 use crate::{
     action::Action,
@@ -13,6 +16,7 @@ use crate::{
 };
 
 pub struct App {
+    cargo_env: Arc<Mutex<CargoEnv>>,
     config: Config,
     tick_rate: f64,
     frame_rate: f64,
@@ -35,16 +39,22 @@ impl App {
     pub fn new(tick_rate: f64, frame_rate: f64, show_counter: bool) -> AppResult<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
 
+        let root = std::env::current_dir().ok();
+        let cargo_env = Arc::new(Mutex::new(CargoEnv::new(root)));
+
         let mut components: Vec<Box<dyn Component>> = vec![
-            Box::new(Home::new(action_tx.clone())),
+            Box::new(Home::new(Arc::clone(&cargo_env), action_tx.clone())?),
             Box::new(AppId::new()),
             Box::new(StatusBar::new(action_tx.clone())),
         ];
+
         if show_counter {
             components.push(Box::new(FpsCounter::default()));
         }
 
+
         Ok(Self {
+            cargo_env,
             tick_rate,
             frame_rate,
             components,
@@ -64,6 +74,8 @@ impl App {
             .tick_rate(self.tick_rate)
             .frame_rate(self.frame_rate);
         tui.enter()?;
+
+        self.cargo_env.lock().await.read().ok();
 
         for component in self.components.iter_mut() {
             component.register_config_handler(self.config.clone())?;
@@ -181,7 +193,7 @@ impl App {
             for component in self.components.iter_mut() {
                 let mut area = main_content_area;
 
-                if let Some(_) = component.as_any().downcast_ref::<StatusBar>() {
+                if component.as_any().downcast_ref::<StatusBar>().is_some() {
                     area = status_bar_area;
                 }
 

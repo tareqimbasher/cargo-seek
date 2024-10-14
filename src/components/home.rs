@@ -4,6 +4,9 @@ pub mod types;
 
 use super::Component;
 
+use std::{fs, io::Write, iter::Cycle, process::Command};
+use std::sync::{Arc};
+
 use chrono::Utc;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use enum_iterator::{all, reverse_all, Sequence};
@@ -19,8 +22,8 @@ use ratatui::{
 };
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
-use std::{fs, io::Write, iter::Cycle, process::Command};
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::Mutex;
 use tui_input::{backend::crossterm::EventHandler, Input};
 
 use crate::components::button::{Button, State, BLUE, GRAY, ORANGE, PURPLE};
@@ -29,7 +32,6 @@ use crate::components::home::sort_dropdown::SortDropdown;
 use crate::components::home::types::{Crate, SearchResults};
 use crate::components::status_bar::{StatusDuration, StatusLevel};
 use crate::errors::AppResult;
-use crate::project::Project;
 use crate::services::crate_search_manager::{CrateSearchManager, SearchOptions};
 use crate::tui::Tui;
 use crate::util::Util;
@@ -39,6 +41,7 @@ use crate::{
     config::Config,
     http_client,
 };
+use crate::cargo::cargo_env::CargoEnv;
 
 #[derive(Default, PartialEq, Clone, Debug, Eq, Sequence, Serialize, Deserialize)]
 pub enum Focusable {
@@ -68,7 +71,7 @@ impl Focusable {
 }
 
 pub struct Home {
-    project: Option<Project>,
+    cargo_env: Arc<Mutex<CargoEnv>>,
     input: Input,
     sort_dropdown: SortDropdown,
     scope_dropdown: ScopeDropdown,
@@ -83,21 +86,21 @@ pub struct Home {
 }
 
 impl Home {
-    pub fn new(action_tx: UnboundedSender<Action>) -> Self {
-        Self {
-            project: None,
+    pub fn new(cargo_env: Arc<Mutex<CargoEnv>>, action_tx: UnboundedSender<Action>) -> AppResult<Self> {
+        Ok(Self {
+            cargo_env,
             input: Input::default(),
             sort_dropdown: SortDropdown::new(),
             scope_dropdown: ScopeDropdown::new(),
             show_usage: true,
             focused: Focusable::default(),
             search_results: None,
-            crate_search_manager: CrateSearchManager::new(action_tx.clone()),
+            crate_search_manager: CrateSearchManager::new(action_tx.clone())?,
             spinner_state: throbber_widgets_tui::ThrobberState::default(),
             action_tx,
             config: Config::default(),
             scope: Scope::default(),
-        }
+        })
     }
 
     fn reset(&mut self) -> AppResult<()> {
@@ -290,19 +293,20 @@ impl Home {
                 .crates
                 .iter()
                 .map(|i| {
-                    let added_tag = if i.is_local { "[local]" } else { "[added]" };
+                    let tag = if i.is_local {
+                        "[local]"
+                    } else if i.is_installed {
+                        "[installed]"
+                    } else {
+                        ""
+                    };
 
                     let name = i.name.to_string();
                     let version = i.version();
-                    let added = if let Some(project) = &self.project {
-                        project.dependency_kinds.contains_key(&name)
-                    } else {
-                        false
-                    };
 
                     let mut white_space = area.width as i32 - name.len() as i32 - 20 - correction;
-                    if added {
-                        white_space -= added_tag.len() as i32;
+                    if !tag.is_empty() {
+                        white_space -= tag.len() as i32;
                     }
 
                     if white_space < 0 {
@@ -313,7 +317,7 @@ impl Home {
                         "{}{}{}{:>20}",
                         name,
                         " ".repeat(white_space as usize),
-                        if added { added_tag } else { "" },
+                        tag,
                         version
                     );
 
@@ -702,7 +706,6 @@ impl Component for Home {
 
     fn init(&mut self, tui: &mut Tui) -> AppResult<()> {
         let _ = tui; // to appease clippy
-        self.update(Action::ReadProject, tui).ok();
         Ok(())
     }
 
@@ -921,19 +924,6 @@ impl Component for Home {
             Action::ToggleUsage => {
                 self.show_usage = !self.show_usage;
             }
-            Action::ReadProject => {
-                if let Ok(current_dir) = std::env::current_dir() {
-                    let tx = self.action_tx.clone();
-                    tokio::spawn(async move {
-                        if let Some(project) = Project::read(current_dir) {
-                            tx.send(Action::HandleReadProjectCompleted(project)).ok();
-                        }
-                    });
-                }
-            }
-            Action::HandleReadProjectCompleted(project) => {
-                self.project = Some(project);
-            }
             Action::Search(action) => match action {
                 SearchAction::Clear => self.reset()?,
                 SearchAction::Search(term, sort, page, status) => {
@@ -952,7 +942,7 @@ impl Component for Home {
                             page: Some(page),
                             scope: self.scope.clone(),
                         },
-                        &self.project,
+                        Arc::clone(&self.cargo_env),
                     );
 
                     return Ok(None);
@@ -975,19 +965,17 @@ impl Component for Home {
                 SearchAction::Scope(scope) => {
                     self.action_tx.send(Action::Focus(Focusable::Search))?;
 
+                    self.scope = scope;
+
                     if self.search_results.is_none() {
                         return Ok(None);
                     }
-
-                    let status = format!("Scoped to: {}", scope);
-
-                    self.scope = scope;
 
                     return Ok(Some(Action::Search(SearchAction::Search(
                         self.input.value().into(),
                         self.sort_dropdown.get_selected(),
                         1,
-                        Some(status),
+                        Some(format!("Scoped to: {}", self.scope)),
                     ))));
                 }
                 SearchAction::Render(mut results) => {
@@ -1051,18 +1039,18 @@ impl Component for Home {
                 CargoAction::Add(crate_name, version) => {
                     let _ = crate_name;
                     let _ = version;
-                    return Ok(Some(Action::ReadProject));
+                    return Ok(Some(Action::RefreshCargoEnv));
                 }
                 CargoAction::Remove(crate_name) => {
                     let _ = crate_name;
-                    return Ok(Some(Action::ReadProject));
+                    return Ok(Some(Action::RefreshCargoEnv));
                 }
                 CargoAction::Update(crate_name) => {
                     let _ = crate_name;
-                    return Ok(Some(Action::ReadProject));
+                    return Ok(Some(Action::RefreshCargoEnv));
                 }
                 CargoAction::UpdateAll => {
-                    return Ok(Some(Action::ReadProject));
+                    return Ok(Some(Action::RefreshCargoEnv));
                 }
             },
             Action::OpenReadme => {
@@ -1166,12 +1154,12 @@ mod tests {
 
     fn get_home() -> Home {
         let (action_tx, _) = mpsc::unbounded_channel();
-        Home::new(action_tx)
+        Home::new(Arc::new(Mutex::new(CargoEnv::new(None))), action_tx).unwrap()
     }
 
     fn get_home_and_tui() -> (Home, Tui) {
         let (action_tx, _) = mpsc::unbounded_channel();
-        (Home::new(action_tx), Tui::new().unwrap())
+        (Home::new(Arc::new(Mutex::new(CargoEnv::new(None))), action_tx).unwrap(), Tui::new().unwrap())
     }
 
     async fn execute_update(action: Action) -> (Home, Tui) {

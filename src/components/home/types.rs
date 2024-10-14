@@ -19,6 +19,8 @@ pub struct Crate {
     pub exact_match: bool,
     #[serde(default)]
     pub is_local: bool,
+    #[serde(default)]
+    pub is_installed: bool,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]

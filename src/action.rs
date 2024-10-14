@@ -6,7 +6,6 @@ use crate::components::home::sort_dropdown::Sort;
 use crate::components::home::types::SearchResults;
 use crate::components::home::Focusable;
 use crate::components::status_bar::{StatusDuration, StatusLevel};
-use crate::project::Project;
 
 #[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
 pub enum Action {
@@ -28,8 +27,7 @@ pub enum Action {
     UpdateStatus(StatusLevel, String),
     UpdateStatusWithDuration(StatusLevel, StatusDuration, String),
 
-    ReadProject,
-    HandleReadProjectCompleted(Project),
+    RefreshCargoEnv,
 
     Search(SearchAction),
     Cargo(CargoAction),

@@ -1,9 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 
+use crate::cargo::cargo_manager::CargoManager;
+use crate::cargo::metadata::Package;
 use crate::errors::AppResult;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -11,10 +12,11 @@ pub struct Project {
     pub manifest_file_path: PathBuf,
     pub packages: Vec<Package>,
     pub dependency_kinds: HashMap<String, Vec<String>>,
+    pub package_names: HashSet<String>,
 }
 
 impl Project {
-    pub fn read(path: PathBuf) -> Option<Project> {
+    pub fn from(path: PathBuf) -> Option<Project> {
         if !path.exists() || !path.is_dir() {
             return None;
         }
@@ -46,7 +48,16 @@ impl Project {
 
         let manifest_file_path = manifest_file.unwrap().path();
 
-        let metadata = Self::get_metadata(&manifest_file_path).ok()?;
+        Some(Project {
+            manifest_file_path,
+            packages: Vec::new(),
+            dependency_kinds: HashMap::new(),
+            package_names: HashSet::new(),
+        })
+    }
+
+    pub fn read(&mut self) -> AppResult<()> {
+        let metadata = CargoManager::get_metadata(&self.manifest_file_path)?;
 
         let packages = metadata.packages;
 
@@ -61,52 +72,15 @@ impl Project {
             }
         }
 
-        Some(Project {
-            manifest_file_path,
-            packages,
-            dependency_kinds,
-        })
-    }
+        self.package_names = HashSet::from_iter(packages.iter().map(|p| p.name.clone()));
+        self.packages = packages;
+        self.dependency_kinds = dependency_kinds;
 
-    fn get_metadata(manifest_path: &PathBuf) -> AppResult<Metadata> {
-        let output = Command::new("cargo")
-            .arg("metadata")
-            .arg("--no-deps")
-            .arg("--format-version")
-            .arg("1")
-            .arg("--manifest-path")
-            .arg(manifest_path)
-            .output()?;
-
-        let stdout = String::from_utf8(output.stdout)?;
-        let metadata: Metadata = serde_json::from_str(&stdout)?;
-        Ok(metadata)
+        Ok(())
     }
 
     #[allow(dead_code)]
-    pub fn contains_package(&self, package_name: String) -> bool {
-        self.packages.iter().any(|p| p.name == package_name)
+    pub fn contains_package(&self, package_name: &str) -> bool {
+        self.package_names.contains(package_name)
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Metadata {
-    packages: Vec<Package>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Package {
-    pub id: String,
-    pub name: String,
-    pub version: Option<String>,
-    pub description: Option<String>,
-    pub dependencies: Vec<Dependency>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Dependency {
-    pub name: String,
-    pub req: String,
-    pub kind: Option<String>,
-    pub optional: bool,
 }

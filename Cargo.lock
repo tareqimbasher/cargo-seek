@@ -509,6 +509,7 @@ dependencies = [
  "clap",
  "color-eyre",
  "config",
+ "crates_io_api",
  "crossterm",
  "derive_deref",
  "directories",
@@ -538,6 +539,23 @@ dependencies = [
  "tracing-subscriber",
  "tui-input",
  "vergen-gix",
+]
+
+[[package]]
+name = "crates_io_api"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "200ad30d24892baf2168f2df366939264d02f2fa0be0914f8e2da4bd3407c58c"
+dependencies = [
+ "chrono",
+ "futures",
+ "reqwest",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_path_to_error",
+ "tokio",
+ "url",
 ]
 
 [[package]]
@@ -2645,6 +2663,16 @@ dependencies = [
  "itoa",
  "memchr",
  "ryu",
+ "serde",
+]
+
+[[package]]
+name = "serde_path_to_error"
+version = "0.1.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af99884400da37c88f5e9146b7f1fd0fbcae8f6eec4e9da38b67d05486f814a6"
+dependencies = [
+ "itoa",
  "serde",
 ]
 

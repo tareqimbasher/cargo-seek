@@ -8,6 +8,9 @@ pub enum AppError {
     #[error("Network Request Error: {0}")]
     Http(#[from] reqwest::Error),
 
+    #[error(transparent)]
+    InvalidHeaderValue(#[from] reqwest::header::InvalidHeaderValue),
+
     #[error("Response had code {0}: {1}")]
     ResponseUnsuccessful(u16, String),
 
