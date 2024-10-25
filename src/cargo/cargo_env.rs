@@ -1,13 +1,16 @@
-﻿use crate::cargo::cargo_manager::CargoManager;
-use crate::cargo::metadata::InstalledPackage;
+﻿use std::collections::HashSet;
+use std::path::PathBuf;
+
+use crate::cargo::cargo_manager::CargoManager;
+use crate::cargo::metadata::InstalledBinary;
 use crate::cargo::project::Project;
 use crate::errors::AppResult;
-use std::path::PathBuf;
 
 pub struct CargoEnv {
     pub root: Option<PathBuf>,
     pub project: Option<Project>,
-    pub installed: Vec<InstalledPackage>,
+    pub installed: Vec<InstalledBinary>,
+    installed_bin_names: HashSet<String>,
 }
 
 impl CargoEnv {
@@ -21,6 +24,7 @@ impl CargoEnv {
             root,
             project,
             installed: Vec::new(),
+            installed_bin_names: HashSet::new(),
         }
     }
 
@@ -31,14 +35,21 @@ impl CargoEnv {
             }
         }
 
+        self.installed = CargoManager::get_installed_binaries()
+            .ok()
+            .unwrap_or_default();
+
+        self.installed_bin_names =
+            HashSet::from_iter(self.installed.iter().map(|i| i.name.clone()));
+
         if let Some(project) = self.project.as_mut() {
             project.read().ok();
         }
 
-        self.installed = CargoManager::get_globally_installed()
-            .ok()
-            .unwrap_or_default();
-
         Ok(())
+    }
+
+    pub fn is_installed(&self, name: &str) -> bool {
+        self.installed_bin_names.contains(name)
     }
 }

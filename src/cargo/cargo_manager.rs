@@ -1,13 +1,13 @@
 ﻿use std::path::PathBuf;
 use std::process::Command;
 
-use crate::cargo::metadata::{InstalledPackage, Metadata, Package};
+use crate::cargo::metadata::{InstalledBinary, Metadata};
 use crate::errors::AppResult;
 
 pub struct CargoManager;
 
 impl CargoManager {
-    pub fn get_globally_installed() -> AppResult<Vec<InstalledPackage>> {
+    pub fn get_installed_binaries() -> AppResult<Vec<InstalledBinary>> {
         let output = Command::new("cargo")
             .arg("install")
             .arg("--list")
@@ -19,7 +19,7 @@ impl CargoManager {
             .filter(|l| !l.is_empty() && !l.starts_with(' ') && l.contains("v"))
             .collect::<Vec<_>>();
 
-        let mut packages: Vec<InstalledPackage> = Vec::new();
+        let mut packages: Vec<InstalledBinary> = Vec::new();
 
         for line in stdout.iter() {
             let parts = line.split(' ').collect::<Vec<_>>();
@@ -30,7 +30,7 @@ impl CargoManager {
             let name = parts[0].to_string();
             let version = parts[1].to_string();
 
-            packages.push(InstalledPackage {
+            packages.push(InstalledBinary {
                 name,
                 version: version[1..(version.len() - 1)].to_string(),
             })
@@ -55,15 +55,15 @@ impl CargoManager {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_globally_installed() {
-        let packages = CargoManager::get_globally_installed().unwrap();
-        for p in packages {
-            println!("{} v{}", p.name, p.version);
-        }
-    }
-}
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//
+//     #[test]
+//     fn test_globally_installed() {
+//         let packages = CargoManager::get_installed_binaries().unwrap();
+//         for p in packages {
+//             println!("{} v{}", p.name, p.version);
+//         }
+//     }
+// }

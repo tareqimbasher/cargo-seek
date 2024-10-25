@@ -12,7 +12,7 @@ pub struct Project {
     pub manifest_file_path: PathBuf,
     pub packages: Vec<Package>,
     pub dependency_kinds: HashMap<String, Vec<String>>,
-    pub package_names: HashSet<String>,
+    package_names: HashSet<String>,
 }
 
 impl Project {
@@ -28,7 +28,7 @@ impl Project {
         }
 
         // Iterate over files and check if we have a match. Iteration was chosen because
-        // checking if specific paths exists is error prone. Ex: checking if "cargo.toml" exists
+        // checking if specific paths exists is error-prone. Ex: checking if "cargo.toml" exists
         // on Windows returns true when the file's name is called "Cargo.toml", this causes an
         // issue in that the cargo executable wants the exact file name.
         let manifest_file = files
@@ -79,7 +79,6 @@ impl Project {
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub fn contains_package(&self, package_name: &str) -> bool {
         self.package_names.contains(package_name)
     }

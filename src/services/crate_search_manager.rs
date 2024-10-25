@@ -8,15 +8,15 @@ use crate::action::{Action, SearchAction};
 use crate::cargo::cargo_env::CargoEnv;
 use crate::components::home::scope_dropdown::Scope;
 use crate::components::home::sort_dropdown::Sort;
-use crate::components::home::types::{Crate, Meta, SearchResults};
+use crate::components::home::types::{Crate, SearchResults};
 use crate::components::status_bar::StatusLevel;
 use crate::errors::AppResult;
-use crate::http_client;
 
 #[derive(Debug, Default)]
 pub struct SearchOptions {
     pub term: Option<String>,
     pub page: Option<usize>,
+    pub per_page: Option<usize>,
     pub sort: Sort,
     pub scope: Scope,
 }
@@ -58,13 +58,20 @@ impl CrateSearchManager {
             }
 
             let cargo_env = cargo_env.lock().await;
-
             let term = options.term.unwrap_or("".to_string()).to_lowercase();
+            let page = options.page.unwrap_or(1);
+            let per_page = options.per_page.unwrap_or(100);
 
-            let mut search_results = SearchResults::default();
+            let mut search_results = SearchResults::new(1);
 
+            // Globally installed cargo binaries
             if options.scope == Scope::All || options.scope == Scope::Installed {
+                search_results.total_count += &cargo_env.installed.len();
                 for package in &cargo_env.installed {
+                    if search_results.crates.len() >= per_page {
+                        break;
+                    }
+
                     if !package.name.to_lowercase().contains(&term) {
                         continue;
                     }
@@ -78,10 +85,10 @@ impl CrateSearchManager {
                         repository: None,
                         max_version: package.version.clone(),
                         max_stable_version: None,
-                        downloads: 0,
+                        downloads: None,
                         recent_downloads: None,
-                        created_at: Default::default(),
-                        updated_at: Default::default(),
+                        created_at: None,
+                        updated_at: None,
                         exact_match: package.name.to_lowercase() == term,
                         is_local: false,
                         is_installed: true,
@@ -89,74 +96,106 @@ impl CrateSearchManager {
                 }
             }
 
-            if options.scope == Scope::All || options.scope == Scope::Project {
-                let dependencies: Option<Vec<Crate>> = cargo_env.project.as_ref().map(|p| {
-                    p.packages
-                        .iter()
-                        .flat_map(|pp| pp.dependencies.clone()) // Collect all dependencies into a single iterator
-                        .filter_map(|dependency| {
-                            if dependency.name.to_lowercase().contains(&term) {
-                                Some(Crate {
-                                    id: dependency.name.clone(),
-                                    name: dependency.name.clone(),
-                                    description: None,
-                                    homepage: None,
-                                    documentation: None,
-                                    repository: None,
-                                    max_version: dependency.req.clone(),
-                                    max_stable_version: None,
-                                    downloads: 0,
-                                    recent_downloads: None,
-                                    created_at: Default::default(),
-                                    updated_at: Default::default(),
-                                    exact_match: dependency.name.to_lowercase() == term,
-                                    is_local: true,
-                                    is_installed: false,
-                                })
-                            } else {
-                                None
-                            }
-                        })
-                        .collect()
-                });
-
-                if let Some(mut dependencies) = dependencies {
-                    search_results.crates.append(&mut dependencies);
-                }
+            if cancel_rx.try_recv().is_ok() {
+                return;
             }
 
-            search_results.meta = Meta::default();
-            search_results.meta.total_count = search_results.crates.len();
-            search_results.meta.current_page = 1;
+            // Crates added to the current project
+            if search_results.crates.len() < per_page
+                && (options.scope == Scope::All || options.scope == Scope::Project)
+            {
+                if let Some(project) = &cargo_env.project {
+                    search_results.total_count += project.packages.len();
+                    for package in project.packages.iter() {
+                        if search_results.crates.len() >= per_page {
+                            break;
+                        }
+
+                        for dep in package.dependencies.iter() {
+                            if search_results.crates.len() >= per_page {
+                                break;
+                            }
+
+                            if !dep.name.to_lowercase().contains(&term) {
+                                continue;
+                            }
+
+                            search_results.crates.push(Crate {
+                                id: dep.name.clone(),
+                                name: dep.name.clone(),
+                                description: None,
+                                homepage: None,
+                                documentation: None,
+                                repository: None,
+                                max_version: dep.req.clone(),
+                                max_stable_version: None,
+                                downloads: None,
+                                recent_downloads: None,
+                                created_at: None,
+                                updated_at: None,
+                                exact_match: dep.name.to_lowercase() == term,
+                                is_local: true,
+                                is_installed: false,
+                            })
+                        }
+                    }
+                }
+            }
 
             if cancel_rx.try_recv().is_ok() {
                 return;
             }
 
-            if options.scope == Scope::All || options.scope == Scope::Online {
-                let result = http_client::INSTANCE
-                    .search(term.clone(), options.sort, 100, options.page.unwrap_or(1))
+            // Crates in registry
+            if search_results.crates.len() < per_page
+                && (options.scope == Scope::All || options.scope == Scope::Online)
+            {
+                let needed = per_page - search_results.crates.len();
+                let sort = match options.sort {
+                    Sort::Relevance => crates_io_api::Sort::Relevance,
+                    Sort::Name => crates_io_api::Sort::Alphabetical,
+                    Sort::Downloads => crates_io_api::Sort::Downloads,
+                    Sort::RecentDownloads => crates_io_api::Sort::RecentDownloads,
+                    Sort::RecentlyUpdated => crates_io_api::Sort::RecentUpdates,
+                    Sort::NewlyAdded => crates_io_api::Sort::NewlyAdded,
+                };
+
+                let result = crates_io_client
+                    .crates(
+                        CratesQuery::builder()
+                            .search(term)
+                            .sort(sort)
+                            .page_size(needed as u64)
+                            .page(page as u64)
+                            .build(),
+                    )
                     .await;
 
-                // let two = crates_io_client
-                //     .crates(
-                //         CratesQuery::builder()
-                //             .search(term)
-                //             .sort(crates_io_api::Sort::Relevance)
-                //             .page_size(100)
-                //             .page(options.page.unwrap_or(1) as u64)
-                //             .build(),
-                //     )
-                //     .await?;
-
-                if cancel_rx.try_recv().is_ok() {
-                    return;
-                }
-
                 match result {
-                    Ok(mut sr) => {
-                        search_results.crates.append(&mut sr.crates);
-                        search_results.meta = sr.meta;
+                    Ok(sr) => {
+                        search_results.total_count += sr.meta.total as usize;
+                        let mapped = &mut sr
+                            .crates
+                            .iter()
+                            .map(|c| Crate {
+                                id: c.id.clone(),
+                                name: c.name.to_string(),
+                                description: c.description.clone(),
+                                homepage: c.homepage.clone(),
+                                documentation: c.documentation.clone(),
+                                repository: c.repository.clone(),
+                                max_version: c.max_version.to_string(),
+                                max_stable_version: c.max_stable_version.clone(),
+                                downloads: Some(c.downloads),
+                                recent_downloads: c.recent_downloads,
+                                created_at: Some(c.created_at),
+                                updated_at: Some(c.updated_at),
+                                exact_match: c.exact_match.unwrap_or(false),
+                                is_local: false,
+                                is_installed: false,
+                            })
+                            .collect::<Vec<_>>();
+                        search_results.crates.append(mapped);
                     }
                     Err(err) => {
                         tx.send(Action::UpdateStatus(
@@ -168,8 +207,12 @@ impl CrateSearchManager {
                 };
             }
 
-            // todo optimize
+            if cancel_rx.try_recv().is_ok() {
+                return;
+            }
 
+            // Back-fill is_local and is_installed for search results that don't have it
+            // todo optimize
             for cr in &mut search_results.crates {
                 if !cr.is_local {
                     if let Some(proj) = &cargo_env.project {
@@ -178,7 +221,7 @@ impl CrateSearchManager {
                 }
 
                 if !cr.is_installed {
-                    // cr.is_installed = globally_installed_package_names.contains(&cr.name);
+                    cr.is_installed = cargo_env.is_installed(&cr.name);
                 }
             }
 

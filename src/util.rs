@@ -28,11 +28,15 @@ impl Util {
         }
     }
 
-    pub fn format_number<T>(number: T) -> String
+    pub fn format_number<T>(number: Option<T>) -> String
     where
         T: ToFormattedStr,
     {
-        let locale = Locale::from_str(LOCALE_STR.as_str()).unwrap_or(Locale::en);
-        number.to_formatted_string(&locale)
+        if let Some(number) = number {
+            let locale = Locale::from_str(LOCALE_STR.as_str()).unwrap_or(Locale::en);
+            number.to_formatted_string(&locale)
+        } else {
+            "".into()
+        }
     }
 }

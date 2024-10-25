@@ -4,12 +4,13 @@ pub mod types;
 
 use super::Component;
 
+use std::sync::Arc;
 use std::{fs, io::Write, iter::Cycle, process::Command};
-use std::sync::{Arc};
 
 use chrono::Utc;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use enum_iterator::{all, reverse_all, Sequence};
+use ratatui::style::Color;
 use ratatui::{
     layout::{Alignment, Constraint, Flex, Layout, Rect},
     style::{Style, Styled, Stylize},
@@ -26,6 +27,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Mutex;
 use tui_input::{backend::crossterm::EventHandler, Input};
 
+use crate::cargo::cargo_env::CargoEnv;
 use crate::components::button::{Button, State, BLUE, GRAY, ORANGE, PURPLE};
 use crate::components::home::scope_dropdown::{Scope, ScopeDropdown};
 use crate::components::home::sort_dropdown::SortDropdown;
@@ -41,7 +43,6 @@ use crate::{
     config::Config,
     http_client,
 };
-use crate::cargo::cargo_env::CargoEnv;
 
 #[derive(Default, PartialEq, Clone, Debug, Eq, Sequence, Serialize, Deserialize)]
 pub enum Focusable {
@@ -86,7 +87,10 @@ pub struct Home {
 }
 
 impl Home {
-    pub fn new(cargo_env: Arc<Mutex<CargoEnv>>, action_tx: UnboundedSender<Action>) -> AppResult<Self> {
+    pub fn new(
+        cargo_env: Arc<Mutex<CargoEnv>>,
+        action_tx: UnboundedSender<Action>,
+    ) -> AppResult<Self> {
         Ok(Self {
             cargo_env,
             input: Input::default(),
@@ -321,7 +325,13 @@ impl Home {
                         version
                     );
 
-                    ListItem::new(line)
+                    ListItem::new(if i.is_local {
+                        line.set_style(Style::default().fg(Color::LightCyan))
+                    } else if i.is_installed {
+                        line.set_style(Style::default().fg(Color::LightMagenta))
+                    } else {
+                        line.into()
+                    })
                 })
                 .collect();
 
@@ -359,8 +369,7 @@ impl Home {
                     block
                         .title(Title::from(format!(
                             " {}/{} ",
-                            selected_item_num_in_total,
-                            results.total_count()
+                            selected_item_num_in_total, results.total_count
                         )))
                         .title(
                             Title::from(format!(
@@ -519,7 +528,6 @@ impl Home {
             });
 
         let left_column_width = 25;
-        let updated_relative = Util::get_relative_time(krate.updated_at, Utc::now());
 
         let prop_style = self.config.styles[&Mode::Home][if details_focused {
             "accent_active"
@@ -559,24 +567,33 @@ impl Home {
             ]),
             Line::from(vec![
                 format!("{:<left_column_width$}", "Recent Downloads:").set_style(prop_style),
-                Util::format_number(krate.recent_downloads.unwrap_or_default()).into(),
+                Util::format_number(krate.recent_downloads).into(),
             ]),
             Line::from(vec![
                 format!("{:<left_column_width$}", "Created:").set_style(prop_style),
-                krate
-                    .created_at
-                    .format("%d/%m/%Y %H:%M:%S (UTC)")
-                    .to_string()
-                    .into(),
+                match krate.created_at.as_ref() {
+                    None => "".into(),
+                    Some(v) => v.format("%d/%m/%Y %H:%M:%S (UTC)").to_string().into(),
+                },
             ]),
             Line::from(vec![
                 format!("{:<left_column_width$}", "Updated:").set_style(prop_style),
-                format!(
-                    "{} ({})",
-                    krate.updated_at.format("%d/%m/%Y %H:%M:%S (UTC)"),
-                    updated_relative
-                )
-                .into(),
+                match krate.created_at.as_ref() {
+                    None => "".into(),
+                    Some(v) => {
+                        let updated_relative = match krate.updated_at {
+                            None => "".into(),
+                            Some(v) => Util::get_relative_time(v, Utc::now()),
+                        };
+
+                        format!(
+                            "{} ({})",
+                            v.format("%d/%m/%Y %H:%M:%S (UTC)"),
+                            updated_relative
+                        )
+                        .into()
+                    }
+                },
             ]),
             Line::from(vec![
                 format!("{:<left_column_width$}", "Description:").set_style(prop_style),
@@ -940,6 +957,7 @@ impl Component for Home {
                             term: Some(term),
                             sort,
                             page: Some(page),
+                            per_page: Some(100),
                             scope: self.scope.clone(),
                         },
                         Arc::clone(&self.cargo_env),
@@ -1159,7 +1177,10 @@ mod tests {
 
     fn get_home_and_tui() -> (Home, Tui) {
         let (action_tx, _) = mpsc::unbounded_channel();
-        (Home::new(Arc::new(Mutex::new(CargoEnv::new(None))), action_tx).unwrap(), Tui::new().unwrap())
+        (
+            Home::new(Arc::new(Mutex::new(CargoEnv::new(None))), action_tx).unwrap(),
+            Tui::new().unwrap(),
+        )
     }
 
     async fn execute_update(action: Action) -> (Home, Tui) {
@@ -1247,7 +1268,7 @@ mod tests {
         assert_eq!(true, home.input.value().is_empty());
 
         // simulate search
-        home.search_results = Some(SearchResults::default());
+        home.search_results = Some(SearchResults::new(1));
 
         execute_update_with_home(&mut home, &mut tui, Action::Search(SearchAction::Clear)).await;
 

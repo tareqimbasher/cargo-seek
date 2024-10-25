@@ -12,10 +12,10 @@ pub struct Crate {
     pub repository: Option<String>,
     pub max_version: String,
     pub max_stable_version: Option<String>,
-    pub downloads: u64,
+    pub downloads: Option<u64>,
     pub recent_downloads: Option<u64>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<DateTime<Utc>>,
     pub exact_match: bool,
     #[serde(default)]
     pub is_local: bool,
@@ -23,20 +23,15 @@ pub struct Crate {
     pub is_installed: bool,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SearchResults {
+    #[serde(default)]
+    pub total_count: usize,
+    #[serde(default)]
+    current_page: usize,
     pub crates: Vec<Crate>,
-    pub meta: Meta,
     #[serde(default)]
     state: ListState,
-}
-
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Meta {
-    #[serde(default)]
-    pub current_page: usize,
-    #[serde(rename = "total")]
-    pub total_count: usize,
 }
 
 impl Crate {
@@ -49,20 +44,21 @@ impl Crate {
 }
 
 impl SearchResults {
-    pub fn set_current_page(&mut self, page: usize) {
-        self.meta.current_page = page;
-    }
-
-    pub fn total_count(&self) -> usize {
-        self.meta.total_count
+    pub fn new(page: usize) -> Self {
+        SearchResults {
+            crates: Vec::default(),
+            current_page: page,
+            total_count: 0,
+            state: ListState::default(),
+        }
     }
 
     pub fn page_count(&self) -> usize {
-        self.meta.total_count.div_ceil(100)
+        self.total_count.div_ceil(100)
     }
 
     pub fn current_page(&self) -> usize {
-        self.meta.current_page
+        self.current_page
     }
 
     pub fn current_page_count(&self) -> usize {
@@ -70,12 +66,12 @@ impl SearchResults {
     }
 
     pub fn has_next_page(&self) -> bool {
-        let so_far = self.meta.current_page * 100;
-        so_far + 100 <= self.meta.total_count
+        let so_far = self.current_page * 100;
+        so_far + 100 <= self.total_count
     }
 
     pub fn has_prev_page(&self) -> bool {
-        self.meta.current_page > 1
+        self.current_page > 1
     }
 
     pub fn get_selected_index(&self) -> Option<usize> {

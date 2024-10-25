@@ -50,17 +50,11 @@ impl HttpClient {
             Ok(res) => {
                 let status_code = res.status();
                 match res.text().await {
-                    Ok(content) => {
-                        Ok((content, status_code))
-                    }
-                    Err(err) => {
-                        Err(AppError::from(err))
-                    }
+                    Ok(content) => Ok((content, status_code)),
+                    Err(err) => Err(AppError::from(err)),
                 }
             }
-            Err(err) => {
-                Err(AppError::from(err))
-            }
+            Err(err) => Err(AppError::from(err)),
         }
     }
 
@@ -133,7 +127,7 @@ impl HttpClient {
 
         let mut results = serde_json::from_str::<SearchResults>(&text)?;
 
-        results.set_current_page(page);
+        // results.set_current_page(page);
 
         Ok(results)
     }

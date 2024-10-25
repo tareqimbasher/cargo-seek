@@ -21,7 +21,7 @@ pub struct Dependency {
     pub optional: bool,
 }
 
-pub struct InstalledPackage {
+pub struct InstalledBinary {
     pub name: String,
     pub version: String,
 }
