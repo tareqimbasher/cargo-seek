@@ -79,6 +79,7 @@ pub struct Home {
     show_usage: bool,
     focused: Focusable,
     crate_search_manager: CrateSearchManager,
+    is_searching: bool,
     search_results: Option<SearchResults>,
     spinner_state: throbber_widgets_tui::ThrobberState,
     action_tx: UnboundedSender<Action>,
@@ -100,6 +101,7 @@ impl Home {
             focused: Focusable::default(),
             search_results: None,
             crate_search_manager: CrateSearchManager::new(action_tx.clone())?,
+            is_searching: false,
             spinner_state: throbber_widgets_tui::ThrobberState::default(),
             action_tx,
             config: Config::default(),
@@ -418,6 +420,10 @@ impl Home {
             Line::from(vec![
                 format!("{:<pad$}", "Ctrl + s:").set_style(prop_style),
                 "Sort".bold(),
+            ]),
+            Line::from(vec![
+                format!("{:<pad$}", "Ctrl + f:").set_style(prop_style),
+                "Filter".bold(),
             ]),
             Line::default(),
             Line::from(vec!["NAVIGATION".bold()]),
@@ -748,7 +754,7 @@ impl Component for Home {
                     Focusable::Sort
                 })));
             }
-            KeyCode::Char('p') if ctrl => {
+            KeyCode::Char('f') if ctrl => {
                 return Ok(Some(Action::Focus(if self.focused == Focusable::Scope {
                     Focusable::Search
                 } else {
@@ -952,6 +958,7 @@ impl Component for Home {
                         status.to_string(),
                     ))?;
 
+                    self.is_searching = true;
                     self.crate_search_manager.search(
                         SearchOptions {
                             term: Some(term),
@@ -1013,7 +1020,7 @@ impl Component for Home {
                     if results_len > 0 {
                         self.action_tx.send(Action::UpdateStatusWithDuration(
                             StatusLevel::Success,
-                            StatusDuration::Sticky,
+                            StatusDuration::Short,
                             format!("Loaded {results_len} results"),
                         ))?;
                     }

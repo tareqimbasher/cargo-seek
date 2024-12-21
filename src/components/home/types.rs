@@ -67,7 +67,7 @@ impl SearchResults {
 
     pub fn has_next_page(&self) -> bool {
         let so_far = self.current_page * 100;
-        so_far + 100 <= self.total_count
+        so_far < self.total_count
     }
 
     pub fn has_prev_page(&self) -> bool {

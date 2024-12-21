@@ -91,7 +91,7 @@ impl StatusBar {
                 self.cancel_tx = None;
             }
 
-            let sleep: Option<u64> = match duration {
+            let sleep_seconds: Option<u64> = match duration {
                 StatusDuration::None => Some(0),
                 StatusDuration::Short => Some(3),
                 StatusDuration::Long => Some(10),
@@ -99,13 +99,13 @@ impl StatusBar {
                 _ => None,
             };
 
-            if let Some(sleep) = sleep {
+            if let Some(sleep_seconds) = sleep_seconds {
                 let (cancel_tx, mut cancel_rx) = oneshot::channel();
                 self.cancel_tx = Some(cancel_tx);
 
                 let tx = self.action_tx.clone();
                 tokio::spawn(async move {
-                    tokio::time::sleep(tokio::time::Duration::from_secs(sleep)).await;
+                    tokio::time::sleep(tokio::time::Duration::from_secs(sleep_seconds)).await;
                     if cancel_rx.try_recv().is_ok() {
                         return;
                     }

@@ -32,7 +32,7 @@ pub enum AppError {
     #[error("Error sending action: {0}")]
     SendAction(#[from] tokio::sync::mpsc::error::SendError<Action>),
 
-    #[error("Unknown error: {0}")]
+    #[error("Error: {0}")]
     Unknown(String),
 }
 

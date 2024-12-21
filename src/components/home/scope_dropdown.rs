@@ -108,7 +108,7 @@ impl Component for ScopeDropdown {
         .areas(sort_by_dropdown_wrapper);
 
         let dropdown = Block::bordered()
-            .title(Title::from(" Scope: ").alignment(Alignment::Center))
+            .title(Title::from(" Search in: ").alignment(Alignment::Center))
             .border_style(self.config.styles[&Mode::Home]["accent"]);
 
         frame.render_widget(Clear, sort_by_dropdown_wrapper);
