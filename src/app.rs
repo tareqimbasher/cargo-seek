@@ -1,4 +1,4 @@
-use std::sync::{Arc};
+use std::sync::Arc;
 
 use crossterm::event::KeyEvent;
 use ratatui::layout::{Constraint, Layout, Rect};

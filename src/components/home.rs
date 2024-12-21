@@ -199,7 +199,7 @@ impl Home {
     }
 
     fn render_search(&mut self, frame: &mut Frame, area: Rect) -> AppResult<()> {
-        let spinner_len = if http_client::INSTANCE.is_working() {
+        let spinner_len = if http_client::INSTANCE.is_working() || self.is_searching {
             3
         } else {
             0
@@ -238,7 +238,7 @@ impl Home {
             ))
         }
 
-        if http_client::INSTANCE.is_working() {
+        if http_client::INSTANCE.is_working() || self.is_searching {
             let throbber_border = Block::default().padding(Padding::uniform(1));
             frame.render_widget(&throbber_border, spinner);
 
@@ -914,7 +914,7 @@ impl Component for Home {
         match action {
             Action::Tick => {
                 // add any logic here that should run on every tick
-                if http_client::INSTANCE.is_working() {
+                if http_client::INSTANCE.is_working() || self.is_searching {
                     self.spinner_state.calc_next();
                 }
             }
@@ -972,6 +972,12 @@ impl Component for Home {
 
                     return Ok(None);
                 }
+                SearchAction::Error(err) => {
+                    self.is_searching = false;
+                    self.action_tx
+                        .send(Action::UpdateStatus(StatusLevel::Error, err))
+                        .ok();
+                }
                 SearchAction::SortBy(sort) => {
                     self.action_tx.send(Action::Focus(Focusable::Search))?;
 
@@ -1004,6 +1010,8 @@ impl Component for Home {
                     ))));
                 }
                 SearchAction::Render(mut results) => {
+                    self.is_searching = false;
+
                     let results_len = results.current_page_count();
 
                     let exact_match_ix = results.crates.iter().position(|c| c.exact_match);

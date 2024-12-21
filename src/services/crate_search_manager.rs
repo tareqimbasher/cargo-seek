@@ -10,7 +10,6 @@ use crate::cargo::project::Project;
 use crate::components::home::scope_dropdown::Scope;
 use crate::components::home::sort_dropdown::Sort;
 use crate::components::home::types::{Crate, SearchResults};
-use crate::components::status_bar::StatusLevel;
 use crate::errors::{AppError, AppResult};
 
 #[derive(Debug, Default)]
@@ -40,7 +39,11 @@ impl CrateSearchManager {
         })
     }
 
-    pub fn search(&mut self, options: SearchOptions, cargo_env: Arc<Mutex<CargoEnv>>) -> JoinHandle<()> {
+    pub fn search(
+        &mut self,
+        options: SearchOptions,
+        cargo_env: Arc<Mutex<CargoEnv>>,
+    ) -> JoinHandle<()> {
         if let Some(cancel_tx) = self.cancel_tx.take() {
             let _ = cancel_tx.send(());
         }
@@ -98,8 +101,7 @@ impl CrateSearchManager {
             }
 
             // Crates in registry
-            if options.scope == Scope::All || options.scope == Scope::Online
-            {
+            if options.scope == Scope::All || options.scope == Scope::Online {
                 let result =
                     Self::search_registry(crates_io_client, &term, per_page, page, options.sort)
                         .await;
@@ -115,10 +117,7 @@ impl CrateSearchManager {
                         search_results.crates.extend(results.drain(..still_needed));
                     }
                     Err(err) => {
-                        tx.send(Action::UpdateStatus(
-                            StatusLevel::Error,
-                            format!("{:#}", err),
-                        ))
+                        tx.send(Action::Search(SearchAction::Error(format!("{:#}", err))))
                             .ok();
                     }
                 }

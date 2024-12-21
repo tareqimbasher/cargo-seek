@@ -41,6 +41,7 @@ pub enum Action {
 pub enum SearchAction {
     Clear,
     Search(String, Sort, usize, Option<String>),
+    Error(String),
     SortBy(Sort),
     Scope(Scope),
     Render(SearchResults),
