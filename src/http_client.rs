@@ -7,7 +7,7 @@ use std::sync::{
 use tokio::sync::Mutex;
 
 use crate::components::home::sort_dropdown::Sort;
-use crate::components::home::types::SearchResults;
+use crate::components::home::search_results::SearchResults;
 use crate::errors::{AppError, AppResult};
 
 lazy_static! {

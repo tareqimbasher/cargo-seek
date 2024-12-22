@@ -6,10 +6,11 @@ use tokio::task::JoinHandle;
 
 use crate::action::{Action, SearchAction};
 use crate::cargo::cargo_env::CargoEnv;
+use crate::cargo::metadata::Crate;
 use crate::cargo::project::Project;
 use crate::components::home::scope_dropdown::Scope;
+use crate::components::home::search_results::SearchResults;
 use crate::components::home::sort_dropdown::Sort;
-use crate::components::home::types::{Crate, SearchResults};
 use crate::errors::{AppError, AppResult};
 
 #[derive(Debug, Default)]

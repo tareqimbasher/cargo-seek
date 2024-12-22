@@ -25,7 +25,7 @@ pub enum AppError {
 
     #[error("Serialization Error: {0}")]
     Serialization(#[from] serde_json::Error),
-    
+
     #[error("FromUtf8 Error: {0}")]
     FromUtf8(#[from] std::string::FromUtf8Error),
 

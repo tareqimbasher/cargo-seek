@@ -1,6 +1,6 @@
 pub mod scope_dropdown;
+pub mod search_results;
 pub mod sort_dropdown;
-pub mod types;
 
 use super::Component;
 
@@ -28,10 +28,11 @@ use tokio::sync::Mutex;
 use tui_input::{backend::crossterm::EventHandler, Input};
 
 use crate::cargo::cargo_env::CargoEnv;
+use crate::cargo::metadata::Crate;
 use crate::components::button::{Button, State, BLUE, GRAY, ORANGE, PURPLE};
 use crate::components::home::scope_dropdown::{Scope, ScopeDropdown};
+use crate::components::home::search_results::SearchResults;
 use crate::components::home::sort_dropdown::SortDropdown;
-use crate::components::home::types::{Crate, SearchResults};
 use crate::components::status_bar::{StatusDuration, StatusLevel};
 use crate::errors::AppResult;
 use crate::services::crate_search_manager::{CrateSearchManager, SearchOptions};
@@ -199,11 +200,7 @@ impl Home {
     }
 
     fn render_search(&mut self, frame: &mut Frame, area: Rect) -> AppResult<()> {
-        let spinner_len = if http_client::INSTANCE.is_working() || self.is_searching {
-            3
-        } else {
-            0
-        };
+        let spinner_len = if self.is_searching { 3 } else { 0 };
 
         let [search, spinner] =
             Layout::horizontal([Constraint::Min(1), Constraint::Length(spinner_len)]).areas(area);
@@ -238,7 +235,7 @@ impl Home {
             ))
         }
 
-        if http_client::INSTANCE.is_working() || self.is_searching {
+        if self.is_searching {
             let throbber_border = Block::default().padding(Padding::uniform(1));
             frame.render_widget(&throbber_border, spinner);
 
@@ -914,7 +911,7 @@ impl Component for Home {
         match action {
             Action::Tick => {
                 // add any logic here that should run on every tick
-                if http_client::INSTANCE.is_working() || self.is_searching {
+                if self.is_searching {
                     self.spinner_state.calc_next();
                 }
             }

@@ -52,7 +52,6 @@ impl App {
             components.push(Box::new(FpsCounter::default()));
         }
 
-
         Ok(Self {
             cargo_env,
             tick_rate,
