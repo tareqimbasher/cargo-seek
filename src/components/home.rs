@@ -42,7 +42,6 @@ use crate::{
     action::{Action, CargoAction, SearchAction},
     app::Mode,
     config::Config,
-    http_client,
 };
 
 #[derive(Default, PartialEq, Clone, Debug, Eq, Sequence, Serialize, Deserialize)]
