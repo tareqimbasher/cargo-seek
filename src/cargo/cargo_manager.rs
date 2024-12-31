@@ -1,8 +1,9 @@
 ﻿use std::path::PathBuf;
 use std::process::Command;
 
-use crate::cargo::metadata::{InstalledBinary, Metadata};
 use crate::errors::AppResult;
+use crate::models::InstalledBinary;
+use crate::models::manifest_metadata::Metadata;
 
 pub struct CargoManager;
 

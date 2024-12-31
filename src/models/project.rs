@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::cargo::cargo_manager::CargoManager;
-use crate::cargo::metadata::Package;
 use crate::errors::AppResult;
+use crate::models::manifest_metadata::Package;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Project {

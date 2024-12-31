@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 use strum::Display;
 
 use crate::components::home::scope_dropdown::Scope;
-use crate::components::home::search_results::SearchResults;
 use crate::components::home::sort_dropdown::Sort;
 use crate::components::home::Focusable;
 use crate::components::status_bar::{StatusDuration, StatusLevel};
+use crate::services::crate_search_manager::SearchResults;
 
 #[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
 pub enum Action {

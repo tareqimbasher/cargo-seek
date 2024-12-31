@@ -1,5 +1,4 @@
 pub mod scope_dropdown;
-pub mod search_results;
 pub mod sort_dropdown;
 
 use super::Component;
@@ -28,13 +27,13 @@ use tokio::sync::Mutex;
 use tui_input::{backend::crossterm::EventHandler, Input};
 
 use crate::cargo::cargo_env::CargoEnv;
-use crate::cargo::metadata::Crate;
 use crate::components::button::{Button, State, BLUE, GRAY, ORANGE, PURPLE};
 use crate::components::home::scope_dropdown::{Scope, ScopeDropdown};
-use crate::components::home::search_results::SearchResults;
 use crate::components::home::sort_dropdown::SortDropdown;
 use crate::components::status_bar::{StatusDuration, StatusLevel};
 use crate::errors::AppResult;
+use crate::models::Crate;
+use crate::services::crate_search_manager::SearchResults;
 use crate::services::crate_search_manager::{CrateSearchManager, SearchOptions};
 use crate::tui::Tui;
 use crate::util::Util;
