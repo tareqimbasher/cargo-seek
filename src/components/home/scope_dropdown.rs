@@ -81,7 +81,7 @@ impl Component for ScopeDropdown {
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect) -> AppResult<()> {
+    fn draw(&mut self, mode: &Mode, frame: &mut Frame, area: Rect) -> AppResult<()> {
         if !self.is_focused {
             return Ok(());
         }
@@ -109,7 +109,7 @@ impl Component for ScopeDropdown {
 
         let dropdown = Block::bordered()
             .title(Title::from(" Search in: ").alignment(Alignment::Center))
-            .border_style(self.config.styles[&Mode::Home]["accent"]);
+            .border_style(self.config.styles[&Mode::App]["accent"]);
 
         frame.render_widget(Clear, sort_by_dropdown_wrapper);
         frame.render_widget(&dropdown, sort_by_dropdown);
@@ -120,7 +120,7 @@ impl Component for ScopeDropdown {
             ListItem::new("Project"),
             ListItem::new("Installed"),
         ])
-        .highlight_style(self.config.styles[&Mode::Home]["accent"].bold())
+        .highlight_style(self.config.styles[&Mode::App]["accent"].bold())
         .highlight_symbol("> ");
 
         frame.render_stateful_widget(list, dropdown.inner(sort_by_dropdown), &mut self.state);

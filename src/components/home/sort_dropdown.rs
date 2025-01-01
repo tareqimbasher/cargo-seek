@@ -110,7 +110,7 @@ impl Component for SortDropdown {
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect) -> AppResult<()> {
+    fn draw(&mut self, mode: &Mode, frame: &mut Frame, area: Rect) -> AppResult<()> {
         if !self.is_focused {
             return Ok(());
         }
@@ -138,7 +138,7 @@ impl Component for SortDropdown {
 
         let dropdown = Block::bordered()
             .title(Title::from(" Sort by: ").alignment(Alignment::Center))
-            .border_style(self.config.styles[&Mode::Home]["accent"]);
+            .border_style(self.config.styles[&Mode::App]["accent"]);
 
         frame.render_widget(Clear, sort_by_dropdown_wrapper);
         frame.render_widget(&dropdown, sort_by_dropdown);
@@ -151,7 +151,7 @@ impl Component for SortDropdown {
             ListItem::new("Recently updated"),
             ListItem::new("Newly added"),
         ])
-        .highlight_style(self.config.styles[&Mode::Home]["accent"].bold())
+        .highlight_style(self.config.styles[&Mode::App]["accent"].bold())
         .highlight_symbol("> ");
 
         frame.render_stateful_widget(list, dropdown.inner(sort_by_dropdown), &mut self.state);

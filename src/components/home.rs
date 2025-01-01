@@ -191,8 +191,8 @@ impl Home {
 
         self.render_search(frame, search)?;
         self.render_results(frame, results)?;
-        self.sort_dropdown.draw(frame, area)?;
-        self.scope_dropdown.draw(frame, area)?;
+        self.scope_dropdown.draw(&Mode::Home, frame, area)?;
+        self.sort_dropdown.draw(&Mode::Home, frame, area)?;
 
         Ok(())
     }
@@ -217,7 +217,7 @@ impl Home {
                     .title(" Search ")
                     .borders(Borders::ALL)
                     .border_style(match self.focused {
-                        Focusable::Search => self.config.styles[&Mode::Home]["accent_active"],
+                        Focusable::Search => self.config.styles[&Mode::App]["accent_active"],
                         _ => Style::default(),
                     }),
             );
@@ -238,7 +238,7 @@ impl Home {
             frame.render_widget(&throbber_border, spinner);
 
             let throbber = throbber_widgets_tui::Throbber::default()
-                .style(self.config.styles[&Mode::Home]["throbber"])
+                .style(self.config.styles[&Mode::App]["throbber"])
                 .throbber_set(throbber_widgets_tui::BRAILLE_EIGHT)
                 .use_type(throbber_widgets_tui::WhichUse::Spin);
 
@@ -256,14 +256,14 @@ impl Home {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(match self.focused {
-                Focusable::Results => self.config.styles[&Mode::Home]["accent_active"],
+                Focusable::Results => self.config.styles[&Mode::App]["accent_active"],
                 _ => Style::default(),
             })
             .title(
                 Title::from(
-                    format!(" ▼ {} ", self.sort_dropdown.get_selected()).set_style(
-                        if self.focused == Focusable::Sort {
-                            self.config.styles[&Mode::Home]["title"]
+                    format!(" ▼ {} ", self.scope_dropdown.get_selected()).set_style(
+                        if self.focused == Focusable::Scope {
+                            self.config.styles[&Mode::App]["title"]
                         } else {
                             Style::default()
                         },
@@ -273,9 +273,9 @@ impl Home {
             )
             .title(
                 Title::from(
-                    format!(" ▼ {} ", self.scope_dropdown.get_selected()).set_style(
-                        if self.focused == Focusable::Scope {
-                            self.config.styles[&Mode::Home]["title"]
+                    format!(" ▼ {} ", self.sort_dropdown.get_selected()).set_style(
+                        if self.focused == Focusable::Sort {
+                            self.config.styles[&Mode::App]["title"]
                         } else {
                             Style::default()
                         },
@@ -378,7 +378,7 @@ impl Home {
                             .alignment(Alignment::Right),
                         ),
                 )
-                .highlight_style(self.config.styles[&Mode::Home]["accent"].bold())
+                .highlight_style(self.config.styles[&Mode::App]["accent"].bold())
                 .highlight_symbol("> ");
 
             frame.render_stateful_widget(list, area, results.list_state());
@@ -403,7 +403,7 @@ impl Home {
     }
 
     fn render_usage(&self, frame: &mut Frame, area: Rect) -> AppResult<()> {
-        let prop_style = self.config.styles[&Mode::Home]["accent"].bold();
+        let prop_style = self.config.styles[&Mode::App]["accent"].bold();
         let pad = 25;
 
         let text = Text::from(vec![
@@ -495,7 +495,7 @@ impl Home {
 
         let block = Block::default()
             .title(" 📖 Usage ")
-            .title_style(self.config.styles[&Mode::Home]["title"])
+            .title_style(self.config.styles[&Mode::App]["title"])
             .padding(Padding::uniform(1))
             .borders(Borders::ALL);
 
@@ -519,18 +519,18 @@ impl Home {
 
         let main_block = Block::default()
             .title(format!(" 🧐 {} ", krate.name))
-            .title_style(self.config.styles[&Mode::Home]["title"])
+            .title_style(self.config.styles[&Mode::App]["title"])
             .padding(Padding::uniform(1))
             .borders(Borders::ALL)
             .border_style(if details_focused {
-                self.config.styles[&Mode::Home]["accent_active"]
+                self.config.styles[&Mode::App]["accent_active"]
             } else {
                 Style::default()
             });
 
         let left_column_width = 25;
 
-        let prop_style = self.config.styles[&Mode::Home][if details_focused {
+        let prop_style = self.config.styles[&Mode::App][if details_focused {
             "accent_active"
         } else {
             "accent"
@@ -687,7 +687,7 @@ impl Home {
     fn render_no_results(&self, frame: &mut Frame, area: Rect) -> AppResult<()> {
         let main_block = Block::default()
             .title(" No results ")
-            .title_style(self.config.styles[&Mode::Home]["title"])
+            .title_style(self.config.styles[&Mode::App]["title"])
             .padding(Padding::uniform(1))
             .borders(Borders::ALL);
 
@@ -719,11 +719,6 @@ impl Component for Home {
         self.scope_dropdown
             .register_config_handler(config.clone())?;
         self.config = config;
-        Ok(())
-    }
-
-    fn init(&mut self, tui: &mut Tui) -> AppResult<()> {
-        let _ = tui; // to appease clippy
         Ok(())
     }
 
@@ -1157,7 +1152,11 @@ impl Component for Home {
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect) -> AppResult<()> {
+    fn draw(&mut self, mode: &Mode, frame: &mut Frame, area: Rect) -> AppResult<()> {
+        if *mode != Mode::Home {
+            return Ok(());
+        }
+
         let [left, right] =
             Layout::horizontal([Constraint::Percentage(40), Constraint::Percentage(60)])
                 .areas(area);

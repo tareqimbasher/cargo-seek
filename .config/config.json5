@@ -1,16 +1,26 @@
 {
   "keybindings": {
-    "Home": {
+    "App": {
       "<Ctrl-c>": "Quit", // Quit the application
-      "<Ctrl-z>": "Suspend" // Suspend the application
+      "<Ctrl-z>": "Suspend", // Suspend the application
+      "<Alt-s>": "ToggleSettings",
     },
+    "Home": {
+    },
+    "Settings": {
+      "<Ctrl-s>": {
+        "Settings": "Save"
+      },
+    }
   },
   "styles": {
-    "Home": {
+    "App": {
       "accent": "yellow",
       "accent_active": "lightyellow",
       "title": "bold lightyellow",
-      "throbber": "lightyellow",
+      "throbber": "lightyellow"
+    },
+    "Home": {
 //      "accent": "cyan",
 //      "accent_active": "lightcyan",
 //      "title": "bold lightcyan",

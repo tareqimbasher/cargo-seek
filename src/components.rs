@@ -3,6 +3,7 @@ pub mod button;
 pub mod fps;
 pub mod home;
 pub mod status_bar;
+pub mod settings;
 
 use std::any::Any;
 
@@ -12,6 +13,7 @@ use ratatui::{layout::Rect, Frame};
 use crate::errors::AppResult;
 use crate::tui::Tui;
 use crate::{action::Action, config::Config, tui::Event};
+use crate::app::Mode;
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 ///
@@ -101,13 +103,14 @@ pub trait Component: Any {
     ///
     /// # Arguments
     ///
+    /// * `mode` - Current mode.
     /// * `f` - A frame used for rendering.
     /// * `area` - The area in which the component should be drawn.
     ///
     /// # Returns
     ///
     /// * `Result<()>` - An Ok result or an error.
-    fn draw(&mut self, frame: &mut Frame, area: Rect) -> AppResult<()>;
+    fn draw(&mut self, mode: &Mode, frame: &mut Frame, area: Rect) -> AppResult<()>;
 
     fn as_any(&self) -> &dyn Any;
 }

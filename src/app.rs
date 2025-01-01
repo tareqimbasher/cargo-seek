@@ -10,7 +10,10 @@ use crate::cargo::cargo_env::CargoEnv;
 use crate::errors::AppResult;
 use crate::{
     action::Action,
-    components::{app_id::AppId, fps::FpsCounter, home::Home, status_bar::StatusBar, Component},
+    components::{
+        app_id::AppId, fps::FpsCounter, home::Home, settings::Settings, status_bar::StatusBar,
+        Component,
+    },
     config::Config,
     tui::{Event, Tui},
 };
@@ -31,8 +34,10 @@ pub struct App {
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Mode {
+    App,
     #[default]
     Home,
+    Settings,
 }
 
 impl App {
@@ -44,6 +49,7 @@ impl App {
 
         let mut components: Vec<Box<dyn Component>> = vec![
             Box::new(Home::new(Arc::clone(&cargo_env), action_tx.clone())?),
+            Box::new(Settings::new()),
             Box::new(AppId::new()),
             Box::new(StatusBar::new(action_tx.clone())),
         ];
@@ -125,15 +131,15 @@ impl App {
 
     fn handle_key_event(&mut self, key: KeyEvent) -> AppResult<()> {
         let action_tx = self.action_tx.clone();
-        let Some(keymap) = self.config.keybindings.get(&self.mode) else {
-            return Ok(());
-        };
-        match keymap.get(&vec![key]) {
-            Some(action) => {
-                info!("Got action: {action:?}");
-                action_tx.send(action.clone())?;
-            }
-            _ => {
+
+        for mode in [&self.mode, &Mode::App] {
+            if let Some(keymap) = self.config.keybindings.get(mode) {
+                if let Some(action) = keymap.get(&vec![key]) {
+                    info!("Got action: {action:?}");
+                    action_tx.send(action.clone())?;
+                    return Ok(());
+                }
+
                 // If the key was not handled as a single key action,
                 // then consider it for multi-key combinations.
                 self.last_tick_key_events.push(key);
@@ -142,9 +148,11 @@ impl App {
                 if let Some(action) = keymap.get(&self.last_tick_key_events) {
                     info!("Got action: {action:?}");
                     action_tx.send(action.clone())?;
+                    return Ok(());
                 }
             }
         }
+
         Ok(())
     }
 
@@ -166,6 +174,13 @@ impl App {
                 Action::ClearScreen => tui.terminal.clear()?,
                 Action::Resize(w, h) => self.handle_resize(tui, w, h)?,
                 Action::Render => self.render(tui)?,
+                Action::ToggleSettings => {
+                    self.mode = if self.mode == Mode::Settings {
+                        Mode::Home
+                    } else {
+                        Mode::Settings
+                    };
+                },
                 _ => {}
             }
 
@@ -196,7 +211,7 @@ impl App {
                     area = status_bar_area;
                 }
 
-                if let Err(err) = component.draw(frame, area) {
+                if let Err(err) = component.draw(&self.mode, frame, area) {
                     let _ = self
                         .action_tx
                         .send(Action::Error(format!("Failed to draw: {:?}", err)));

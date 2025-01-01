@@ -35,6 +35,9 @@ pub enum Action {
     OpenReadme,
     RenderReadme(String),
     OpenDocs,
+
+    ToggleSettings,
+    Settings(SettingsAction),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
@@ -63,4 +66,9 @@ pub enum CargoAction {
     Remove(String),
     Update(String),
     UpdateAll,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
+pub enum SettingsAction {
+    Save,
 }

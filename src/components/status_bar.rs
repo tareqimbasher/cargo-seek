@@ -181,7 +181,7 @@ impl Component for StatusBar {
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect) -> AppResult<()> {
+    fn draw(&mut self, mode: &Mode, frame: &mut Frame, area: Rect) -> AppResult<()> {
         let [left, right] =
             Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
                 .areas(area);
@@ -202,7 +202,7 @@ impl Component for StatusBar {
             frame.render_widget(Paragraph::new(text), left);
         }
 
-        let accent = self.config.styles[&Mode::Home]["accent"];
+        let accent = self.config.styles[&Mode::App]["accent"];
         frame.render_widget(
             Paragraph::new(Text::from(Line::from(vec![
                 "/: ".set_style(accent),
