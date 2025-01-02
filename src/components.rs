@@ -1,8 +1,8 @@
 pub mod app_id;
 pub mod fps;
 pub mod home;
-pub mod status_bar;
 pub mod settings;
+pub mod status_bar;
 pub mod ux;
 
 use std::any::Any;
@@ -10,10 +10,10 @@ use std::any::Any;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::{layout::Rect, Frame};
 
+use crate::app::Mode;
 use crate::errors::AppResult;
 use crate::tui::Tui;
 use crate::{action::Action, config::Config, tui::Event};
-use crate::app::Mode;
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 ///

@@ -1,7 +1,7 @@
 ﻿use crates_io_api::{AsyncClient, CratesQuery};
-use std::sync::Arc;
 use ratatui::widgets::ListState;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{oneshot, Mutex};
 use tokio::task::JoinHandle;
@@ -21,7 +21,6 @@ pub struct SearchOptions {
     pub sort: Sort,
     pub scope: Scope,
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SearchResults {
@@ -238,7 +237,7 @@ impl CrateSearchManager {
         let mut results: Vec<Crate> = Vec::new();
 
         for package in &cargo_env.installed {
-            if package.name.to_lowercase().contains(&term) {
+            if package.name.to_lowercase().contains(term) {
                 results.push(Crate {
                     id: package.name.clone(),
                     name: package.name.clone(),
@@ -268,7 +267,7 @@ impl CrateSearchManager {
 
         for package in project.packages.iter() {
             for dep in package.dependencies.iter() {
-                if dep.name.to_lowercase().contains(&term) {
+                if dep.name.to_lowercase().contains(term) {
                     results.push(Crate {
                         id: dep.name.clone(),
                         name: dep.name.clone(),

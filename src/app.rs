@@ -180,7 +180,7 @@ impl App {
                     } else {
                         Mode::Settings
                     };
-                },
+                }
                 _ => {}
             }
 

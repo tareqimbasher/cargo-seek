@@ -30,10 +30,14 @@ impl Component for Settings {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> AppResult<Option<Action>> {
+        let _ = key;
         Ok(None)
     }
 
     fn update(&mut self, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
+        let _ = action;
+        let _ = tui;
+
         Ok(None)
     }
 
@@ -42,7 +46,7 @@ impl Component for Settings {
             return Ok(());
         }
 
-        let [left, right] =
+        let [left, _] =
             Layout::horizontal([Constraint::Length(30), Constraint::Fill(1)]).areas(area);
 
         frame.render_widget(Paragraph::new(Line::from("Theme")), left);

@@ -11,12 +11,11 @@ pub enum AppError {
     #[error(transparent)]
     InvalidHeaderValue(#[from] reqwest::header::InvalidHeaderValue),
 
-    #[error("Response had code {0}: {1}")]
-    ResponseUnsuccessful(u16, String),
-
-    #[error("URL Parse Error: {0}")]
-    Url(String),
-
+    // #[error("Response had code {0}: {1}")]
+    // ResponseUnsuccessful(u16, String),
+    //
+    // #[error("URL Parse Error: {0}")]
+    // Url(String),
     #[error("I/O Error: {0}")]
     Io(#[from] std::io::Error),
 

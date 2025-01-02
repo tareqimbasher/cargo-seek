@@ -66,4 +66,3 @@ impl std::fmt::Display for Sort {
         write!(f, "{}", output)
     }
 }
-

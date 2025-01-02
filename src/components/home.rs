@@ -24,9 +24,9 @@ use tokio::sync::Mutex;
 use tui_input::{backend::crossterm::EventHandler, Input};
 
 use crate::cargo::CargoEnv;
-use crate::components::ux::{Button, Dropdown, State, BLUE, GRAY, ORANGE, PURPLE};
 use crate::components::home::enums::{Focusable, Scope, Sort};
 use crate::components::status_bar::{StatusDuration, StatusLevel};
+use crate::components::ux::{Button, Dropdown, State, BLUE, GRAY, ORANGE, PURPLE};
 use crate::errors::AppResult;
 use crate::models::Crate;
 use crate::services::crate_search_manager::SearchResults;

@@ -2,9 +2,9 @@
 use std::path::PathBuf;
 
 use crate::cargo::cargo_manager::CargoManager;
-use crate::models::Project;
 use crate::errors::AppResult;
 use crate::models::InstalledBinary;
+use crate::models::Project;
 
 pub struct CargoEnv {
     pub root: Option<PathBuf>,

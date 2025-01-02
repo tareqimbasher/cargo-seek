@@ -2,8 +2,8 @@
 use std::process::Command;
 
 use crate::errors::AppResult;
-use crate::models::InstalledBinary;
 use crate::models::manifest_metadata::Metadata;
+use crate::models::InstalledBinary;
 
 pub struct CargoManager;
 
