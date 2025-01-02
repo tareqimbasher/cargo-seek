@@ -7,9 +7,8 @@ use tokio::sync::{oneshot, Mutex};
 use tokio::task::JoinHandle;
 
 use crate::action::{Action, SearchAction};
-use crate::cargo::cargo_env::CargoEnv;
-use crate::components::home::scope_dropdown::Scope;
-use crate::components::home::sort_dropdown::Sort;
+use crate::cargo::CargoEnv;
+use crate::components::home::enums::{Scope, Sort};
 use crate::errors::{AppError, AppResult};
 use crate::models::Crate;
 use crate::models::Project;

@@ -81,7 +81,7 @@ impl Component for FpsCounter {
         Ok(None)
     }
 
-    fn draw(&mut self, mode: &Mode, frame: &mut Frame, area: Rect) -> AppResult<()> {
+    fn draw(&mut self, _: &Mode, frame: &mut Frame, area: Rect) -> AppResult<()> {
         let [top, _] = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(area);
         let message = format!(
             "{:.2} ticks/sec, {:.2} FPS",

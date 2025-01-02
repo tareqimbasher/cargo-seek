@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, Mutex};
 use tracing::{debug, info};
 
-use crate::cargo::cargo_env::CargoEnv;
+use crate::cargo::CargoEnv;
 use crate::errors::AppResult;
 use crate::{
     action::Action,

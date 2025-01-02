@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::cargo::cargo_manager::CargoManager;
+use crate::cargo::CargoManager;
 use crate::errors::AppResult;
 use crate::models::manifest_metadata::Package;
 

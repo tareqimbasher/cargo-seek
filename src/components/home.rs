@@ -1,14 +1,12 @@
-pub mod scope_dropdown;
-pub mod sort_dropdown;
+pub mod enums;
 
 use super::Component;
 
 use std::sync::Arc;
-use std::{fs, io::Write, iter::Cycle, process::Command};
+use std::{fs, io::Write, process::Command};
 
 use chrono::Utc;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use enum_iterator::{all, reverse_all, Sequence};
 use ratatui::style::Color;
 use ratatui::{
     layout::{Alignment, Constraint, Flex, Layout, Rect},
@@ -21,15 +19,13 @@ use ratatui::{
     Frame,
 };
 use reqwest::Url;
-use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Mutex;
 use tui_input::{backend::crossterm::EventHandler, Input};
 
-use crate::cargo::cargo_env::CargoEnv;
-use crate::components::button::{Button, State, BLUE, GRAY, ORANGE, PURPLE};
-use crate::components::home::scope_dropdown::{Scope, ScopeDropdown};
-use crate::components::home::sort_dropdown::SortDropdown;
+use crate::cargo::CargoEnv;
+use crate::components::ux::{Button, Dropdown, State, BLUE, GRAY, ORANGE, PURPLE};
+use crate::components::home::enums::{Focusable, Scope, Sort};
 use crate::components::status_bar::{StatusDuration, StatusLevel};
 use crate::errors::AppResult;
 use crate::models::Crate;
@@ -43,38 +39,11 @@ use crate::{
     config::Config,
 };
 
-#[derive(Default, PartialEq, Clone, Debug, Eq, Sequence, Serialize, Deserialize)]
-pub enum Focusable {
-    #[default]
-    Search,
-    Sort,
-    Scope,
-    Results,
-    AddButton,
-    InstallButton,
-    ReadmeButton,
-    DocsButton,
-}
-
-impl Focusable {
-    pub fn next(&self) -> Focusable {
-        let mut variants: Cycle<_> = all::<Focusable>().cycle();
-        variants.find(|v| v == self);
-        variants.next().unwrap()
-    }
-
-    pub fn prev(&self) -> Focusable {
-        let mut variants: Cycle<_> = reverse_all::<Focusable>().cycle();
-        variants.find(|v| v == self);
-        variants.next().unwrap()
-    }
-}
-
 pub struct Home {
     cargo_env: Arc<Mutex<CargoEnv>>,
     input: Input,
-    sort_dropdown: SortDropdown,
-    scope_dropdown: ScopeDropdown,
+    scope_dropdown: Dropdown<Scope>,
+    sort_dropdown: Dropdown<Sort>,
     show_usage: bool,
     focused: Focusable,
     crate_search_manager: CrateSearchManager,
@@ -91,11 +60,26 @@ impl Home {
         cargo_env: Arc<Mutex<CargoEnv>>,
         action_tx: UnboundedSender<Action>,
     ) -> AppResult<Self> {
+        let tx = action_tx.clone();
+        let tx2 = action_tx.clone();
+
         Ok(Self {
             cargo_env,
             input: Input::default(),
-            sort_dropdown: SortDropdown::new(),
-            scope_dropdown: ScopeDropdown::new(),
+            scope_dropdown: Dropdown::new(
+                "Search in".into(),
+                Box::new(move |selected: &Scope| {
+                    tx.send(Action::Search(SearchAction::Scope(selected.clone())))
+                        .unwrap();
+                }),
+            ),
+            sort_dropdown: Dropdown::new(
+                "Sort by".into(),
+                Box::new(move |selected: &Sort| {
+                    tx2.send(Action::Search(SearchAction::SortBy(selected.clone())))
+                        .unwrap();
+                }),
+            ),
             show_usage: true,
             focused: Focusable::default(),
             search_results: None,

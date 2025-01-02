@@ -26,12 +26,12 @@ impl AppId {
 }
 
 impl Component for AppId {
-    fn register_config_handler(&mut self, config: crate::config::Config) -> AppResult<()> {
+    fn register_config_handler(&mut self, config: Config) -> AppResult<()> {
         self.config = config;
         Ok(())
     }
 
-    fn draw(&mut self, mode: &Mode, frame: &mut Frame, area: Rect) -> AppResult<()> {
+    fn draw(&mut self, _: &Mode, frame: &mut Frame, area: Rect) -> AppResult<()> {
         let [left, _] = Layout::horizontal([Constraint::Min(0), Constraint::Length(1)]).areas(area);
         let span = Span::styled(&self.id, self.config.styles[&Mode::App]["title"]);
         let paragraph = Paragraph::new(span).right_aligned();

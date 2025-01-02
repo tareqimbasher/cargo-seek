@@ -528,6 +528,7 @@ dependencies = [
  "signal-hook",
  "strip-ansi-escapes",
  "strum",
+ "strum_macros",
  "sys-locale",
  "tempfile",
  "thiserror",

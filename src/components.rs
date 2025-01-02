@@ -1,9 +1,9 @@
 pub mod app_id;
-pub mod button;
 pub mod fps;
 pub mod home;
 pub mod status_bar;
 pub mod settings;
+pub mod ux;
 
 use std::any::Any;
 

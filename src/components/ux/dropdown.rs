@@ -1,40 +1,34 @@
-use crate::action::{Action, SearchAction};
+﻿use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::layout::{Alignment, Constraint, Layout, Rect};
+use ratatui::prelude::Stylize;
+use ratatui::widgets::block::Title;
+use ratatui::widgets::{Block, Clear, List, ListItem, ListState};
+use ratatui::Frame;
+use std::fmt::Display;
+use strum::IntoEnumIterator;
+
+use crate::action::Action;
 use crate::app::Mode;
 use crate::components::Component;
 use crate::config::Config;
 use crate::errors::AppResult;
-use crossterm::event::{KeyCode, KeyEvent};
-use enum_iterator::{all, Sequence};
-use ratatui::{
-    layout::{Alignment, Constraint, Layout, Rect},
-    style::Stylize,
-    widgets::{block::Title, Block, Clear, List, ListItem, ListState},
-    Frame,
-};
-use serde::{Deserialize, Serialize};
-use strum::Display;
 
-#[derive(Debug, Default, Display, Clone, PartialEq, Eq, Sequence, Serialize, Deserialize)]
-pub enum Scope {
-    All,
-    #[default]
-    Online,
-    Project,
-    Installed,
-}
-
-pub struct ScopeDropdown {
+pub struct Dropdown<T> {
+    header: String,
     config: Config,
     is_focused: bool,
     state: ListState,
+    on_enter: Box<dyn Fn(&T) + Send>,
 }
 
-impl ScopeDropdown {
-    pub fn new() -> Self {
-        ScopeDropdown {
+impl<T: IntoEnumIterator + Default + Clone + 'static> Dropdown<T> {
+    pub fn new(header: String, on_enter: Box<dyn Fn(&T) + Send>) -> Self {
+        Dropdown {
+            header,
             config: Config::default(),
             is_focused: false,
             state: ListState::default().with_selected(Some(1)),
+            on_enter,
         }
     }
 
@@ -42,17 +36,17 @@ impl ScopeDropdown {
         self.is_focused = focused;
     }
 
-    pub fn get_selected(&self) -> Scope {
+    pub fn get_selected(&self) -> T {
         if let Some(ix) = self.state.selected() {
-            if let Some(value) = all::<Scope>().nth(ix) {
-                return value;
+            if let Some(value) = T::iter().nth(ix) {
+                return value.clone();
             }
         }
-        Scope::default()
+        T::default()
     }
 }
 
-impl Component for ScopeDropdown {
+impl<T: IntoEnumIterator + Default + Display + Clone + 'static> Component for Dropdown<T> {
     fn register_config_handler(&mut self, config: Config) -> AppResult<()> {
         self.config = config;
         Ok(())
@@ -71,9 +65,8 @@ impl Component for ScopeDropdown {
                 self.state.select_next();
             }
             KeyCode::Enter => {
-                return Ok(Some(Action::Search(SearchAction::Scope(
-                    self.get_selected(),
-                ))));
+                let selected_value = self.get_selected();
+                self.on_enter.as_ref()(&selected_value);
             }
             _ => {}
         }
@@ -81,7 +74,7 @@ impl Component for ScopeDropdown {
         Ok(None)
     }
 
-    fn draw(&mut self, mode: &Mode, frame: &mut Frame, area: Rect) -> AppResult<()> {
+    fn draw(&mut self, _: &Mode, frame: &mut Frame, area: Rect) -> AppResult<()> {
         if !self.is_focused {
             return Ok(());
         }
@@ -97,33 +90,28 @@ impl Component for ScopeDropdown {
         ])
         .areas(area);
 
-        let [_, sort_by_dropdown_wrapper] =
+        let [_, dropdown_wrapper_rect] =
             Layout::vertical([Constraint::Length(4), Constraint::Length(8)]).areas(main);
 
-        let [_, sort_by_dropdown, _] = Layout::horizontal([
+        let [_, dropdown_rect, _] = Layout::horizontal([
             Constraint::Min(0),
             Constraint::Length(35),
             Constraint::Min(0),
         ])
-        .areas(sort_by_dropdown_wrapper);
+        .areas(dropdown_wrapper_rect);
 
         let dropdown = Block::bordered()
-            .title(Title::from(" Search in: ").alignment(Alignment::Center))
+            .title(Title::from(format!(" {0}: ", self.header)).alignment(Alignment::Center))
             .border_style(self.config.styles[&Mode::App]["accent"]);
 
-        frame.render_widget(Clear, sort_by_dropdown_wrapper);
-        frame.render_widget(&dropdown, sort_by_dropdown);
+        frame.render_widget(Clear, dropdown_wrapper_rect);
+        frame.render_widget(&dropdown, dropdown_rect);
 
-        let list = List::new(vec![
-            ListItem::new("All"),
-            ListItem::new("Online"),
-            ListItem::new("Project"),
-            ListItem::new("Installed"),
-        ])
-        .highlight_style(self.config.styles[&Mode::App]["accent"].bold())
-        .highlight_symbol("> ");
+        let list = List::new(T::iter().map(|x| ListItem::new(x.to_string())))
+            .highlight_style(self.config.styles[&Mode::App]["accent"].bold())
+            .highlight_symbol("> ");
 
-        frame.render_stateful_widget(list, dropdown.inner(sort_by_dropdown), &mut self.state);
+        frame.render_stateful_widget(list, dropdown.inner(dropdown_rect), &mut self.state);
 
         Ok(())
     }
