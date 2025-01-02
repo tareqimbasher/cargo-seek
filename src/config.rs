@@ -516,7 +516,7 @@ mod tests {
         let c = Config::new()?;
         assert_eq!(
             c.keybindings
-                .get(&Mode::Home)
+                .get(&Mode::App)
                 .unwrap()
                 .get(&parse_key_sequence("<Ctrl-c>").unwrap_or_default())
                 .unwrap(),
