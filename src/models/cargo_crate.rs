@@ -9,7 +9,8 @@ pub struct Crate {
     pub homepage: Option<String>,
     pub documentation: Option<String>,
     pub repository: Option<String>,
-    pub max_version: String,
+    pub version: String,
+    pub max_version: Option<String>,
     pub max_stable_version: Option<String>,
     pub downloads: Option<u64>,
     pub recent_downloads: Option<u64>,
@@ -22,11 +23,3 @@ pub struct Crate {
     pub is_installed: bool,
 }
 
-impl Crate {
-    pub fn version(&self) -> &str {
-        match &self.max_stable_version {
-            Some(v) => v,
-            None => self.max_version.as_str(),
-        }
-    }
-}

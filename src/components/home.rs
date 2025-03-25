@@ -287,7 +287,7 @@ impl Home {
                     };
 
                     let name = i.name.to_string();
-                    let version = i.version();
+                    let version = i.version.to_string();
 
                     let mut white_space = area.width as i32 - name.len() as i32 - 20 - correction;
                     if !tag.is_empty() {
@@ -524,11 +524,11 @@ impl Home {
         let text = Text::from(vec![
             Line::from(vec![
                 format!("{:<left_column_width$}", "Version:").set_style(prop_style),
-                krate.version().into(),
+                krate.version.to_string().into(),
             ]),
             Line::from(vec![
                 format!("{:<left_column_width$}", "Latest Version:").set_style(prop_style),
-                krate.max_version.to_string().into(),
+                krate.max_version.clone().unwrap_or_default().into(),
             ]),
             Line::from(vec![
                 format!("{:<left_column_width$}", "Home Page:").set_style(prop_style),

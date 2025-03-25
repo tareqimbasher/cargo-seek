@@ -237,7 +237,8 @@ impl CrateSearchManager {
         let mut results: Vec<Crate> = Vec::new();
 
         for package in &cargo_env.installed {
-            if package.name.to_lowercase().contains(term) {
+            let name_lower = package.name.to_lowercase();
+            if name_lower.contains(term) {
                 results.push(Crate {
                     id: package.name.clone(),
                     name: package.name.clone(),
@@ -245,13 +246,14 @@ impl CrateSearchManager {
                     homepage: None,
                     documentation: None,
                     repository: None,
-                    max_version: package.version.clone(),
+                    version: package.version.clone(),
+                    max_version: None,
                     max_stable_version: None,
                     downloads: None,
                     recent_downloads: None,
                     created_at: None,
                     updated_at: None,
-                    exact_match: package.name.to_lowercase() == term,
+                    exact_match: name_lower == term,
                     is_local: false,
                     is_installed: true,
                 });
@@ -265,9 +267,10 @@ impl CrateSearchManager {
     fn search_project(term: &str, project: &Project) -> Vec<Crate> {
         let mut results: Vec<Crate> = Vec::new();
 
-        for package in project.packages.iter() {
-            for dep in package.dependencies.iter() {
-                if dep.name.to_lowercase().contains(term) {
+        for package in &project.packages {
+            for dep in &package.dependencies {
+                let name_lower = dep.name.to_lowercase();
+                if name_lower.contains(term) {
                     results.push(Crate {
                         id: dep.name.clone(),
                         name: dep.name.clone(),
@@ -275,13 +278,14 @@ impl CrateSearchManager {
                         homepage: None,
                         documentation: None,
                         repository: None,
-                        max_version: dep.req.clone(),
+                        version: dep.req.clone(),
+                        max_version: None,
                         max_stable_version: None,
                         downloads: None,
                         recent_downloads: None,
                         created_at: None,
                         updated_at: None,
-                        exact_match: dep.name.to_lowercase() == term,
+                        exact_match: name_lower == term,
                         is_local: true,
                         is_installed: false,
                     });
@@ -321,18 +325,22 @@ impl CrateSearchManager {
 
         match result {
             Ok(sr) => {
-                let results = &mut sr
+                let results = sr
                     .crates
-                    .iter()
+                    .into_iter()
                     .map(|c| Crate {
-                        id: c.id.clone(),
-                        name: c.name.to_string(),
-                        description: c.description.clone(),
-                        homepage: c.homepage.clone(),
-                        documentation: c.documentation.clone(),
-                        repository: c.repository.clone(),
-                        max_version: c.max_version.to_string(),
-                        max_stable_version: c.max_stable_version.clone(),
+                        id: c.id,
+                        name: c.name,
+                        description: c.description,
+                        homepage: c.homepage,
+                        documentation: c.documentation,
+                        repository: c.repository,
+                        version: c
+                            .max_stable_version
+                            .clone()
+                            .unwrap_or(c.max_version.clone()),
+                        max_version: Some(c.max_version),
+                        max_stable_version: c.max_stable_version,
                         downloads: Some(c.downloads),
                         recent_downloads: c.recent_downloads,
                         created_at: Some(c.created_at),
@@ -341,8 +349,8 @@ impl CrateSearchManager {
                         is_local: false,
                         is_installed: false,
                     })
-                    .collect::<Vec<_>>();
-                Ok((results.to_vec(), sr.meta.total as usize))
+                    .collect();
+                Ok((results, sr.meta.total as usize))
             }
             Err(err) => Err(AppError::Unknown(format!("{:#}", err))),
         }

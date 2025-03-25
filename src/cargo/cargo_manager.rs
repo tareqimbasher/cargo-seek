@@ -17,7 +17,7 @@ impl CargoManager {
         let stdout = String::from_utf8(output.stdout)?;
         let stdout = stdout
             .split('\n')
-            .filter(|l| !l.is_empty() && !l.starts_with(' ') && l.contains("v"))
+            .filter(|l| !l.is_empty() && !l.starts_with(' ') && l.contains(" v"))
             .collect::<Vec<_>>();
 
         let mut packages: Vec<InstalledBinary> = Vec::new();
