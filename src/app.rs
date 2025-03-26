@@ -1,13 +1,14 @@
-use std::sync::Arc;
-
 use crossterm::event::KeyEvent;
 use ratatui::layout::{Constraint, Layout, Rect};
 use serde::{Deserialize, Serialize};
-use tokio::sync::{mpsc, Mutex};
+use std::sync::Arc;
+use tokio::sync::{mpsc, RwLock};
 use tracing::{debug, info};
 
-use crate::cargo::CargoEnv;
-use crate::errors::AppResult;
+use crate::action::CargoAction;
+use crate::cargo::{add, install, remove, uninstall, CargoEnv};
+use crate::components::status_bar::StatusLevel;
+use crate::errors::{AppError, AppResult};
 use crate::{
     action::Action,
     components::{
@@ -19,7 +20,7 @@ use crate::{
 };
 
 pub struct App {
-    cargo_env: Arc<Mutex<CargoEnv>>,
+    cargo_env: Arc<RwLock<CargoEnv>>,
     config: Config,
     tick_rate: f64,
     frame_rate: f64,
@@ -45,7 +46,7 @@ impl App {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
 
         let root = std::env::current_dir().ok();
-        let cargo_env = Arc::new(Mutex::new(CargoEnv::new(root)));
+        let cargo_env = Arc::new(RwLock::new(CargoEnv::new(root)));
 
         let mut components: Vec<Box<dyn Component>> = vec![
             Box::new(Home::new(Arc::clone(&cargo_env), action_tx.clone())?),
@@ -80,7 +81,7 @@ impl App {
             .frame_rate(self.frame_rate);
         tui.enter()?;
 
-        self.cargo_env.lock().await.read().ok();
+        self.cargo_env.write().await.read().ok();
 
         for component in self.components.iter_mut() {
             component.register_config_handler(self.config.clone())?;
@@ -92,7 +93,7 @@ impl App {
         let action_tx = self.action_tx.clone();
         loop {
             self.handle_events(&mut tui).await?;
-            self.handle_actions(&mut tui)?;
+            self.handle_actions(&mut tui).await?;
             if self.should_suspend {
                 tui.suspend()?;
                 action_tx.send(Action::Resume)?;
@@ -156,7 +157,7 @@ impl App {
         Ok(())
     }
 
-    fn handle_actions(&mut self, tui: &mut Tui) -> AppResult<()> {
+    async fn handle_actions(&mut self, tui: &mut Tui) -> AppResult<()> {
         while let Ok(action) = self.action_rx.try_recv() {
             if action != Action::Tick && action != Action::Render {
                 debug!("{action:?}");
@@ -181,11 +182,136 @@ impl App {
                         Mode::Settings
                     };
                 }
+                Action::Cargo(action) => {
+                    return match action {
+                        CargoAction::Add(crate_name, version) => {
+                            self.action_tx.send(Action::UpdateStatus(
+                                StatusLevel::Info,
+                                format!("adding {} v{}", crate_name, version),
+                            ))?;
+
+                            tui.exit()?;
+                            let tx = self.action_tx.clone();
+                            tokio::spawn(async move {
+                                if let Err(_) = add(crate_name.clone(), Some(version.clone()), true)
+                                {
+                                    tx.send(Action::UpdateStatus(
+                                        StatusLevel::Error,
+                                        format!("failed to add {crate_name}"),
+                                    ))?;
+                                    // TODO should user full error message (in a popup maybe)
+                                    return Ok(());
+                                }
+                                tx.send(Action::UpdateStatus(
+                                    StatusLevel::Info,
+                                    format!("added {crate_name} v{version}"),
+                                ))?;
+                                tx.send(Action::RefreshCargoEnv)?;
+                                Ok::<(), AppError>(())
+                            })
+                                .await??;
+
+                            tui.enter()?;
+                            tui.terminal.clear()?;
+                            Ok(())
+                        }
+                        CargoAction::Remove(crate_name) => {
+                            self.action_tx.send(Action::UpdateStatus(
+                                StatusLevel::Info,
+                                format!("removing {}", crate_name),
+                            ))?;
+
+                            let tx = self.action_tx.clone();
+                            tokio::spawn(async move {
+                                if let Err(_) = remove(crate_name.clone(), false) {
+                                    tx.send(Action::UpdateStatus(
+                                        StatusLevel::Error,
+                                        format!("failed to remove {crate_name}"),
+                                    ))?;
+                                    // TODO should user full error message (in a popup maybe)
+                                    return Ok(());
+                                }
+                                tx.send(Action::UpdateStatus(
+                                    StatusLevel::Info,
+                                    format!("removed {crate_name}"),
+                                ))?;
+                                tx.send(Action::RefreshCargoEnv)?;
+                                Ok::<(), AppError>(())
+                            });
+                            Ok(())
+                        }
+                        // CargoAction::Update(crate_name) => {
+                        //     let _ = crate_name;
+                        //     Ok(Some(Action::RefreshCargoEnv))
+                        // }
+                        // CargoAction::UpdateAll => Ok(Some(Action::RefreshCargoEnv)),
+                        CargoAction::Install(crate_name, version) => {
+                            self.action_tx.send(Action::UpdateStatus(
+                                StatusLevel::Info,
+                                format!("installing {crate_name} v{version}"),
+                            ))?;
+
+                            tui.exit()?;
+                            let tx = self.action_tx.clone();
+                            tokio::spawn(async move {
+                                if let Err(_) = install(crate_name.clone(), Some(version.clone()), true)
+                                {
+                                    tx.send(Action::UpdateStatus(
+                                        StatusLevel::Error,
+                                        format!("failed to install {crate_name}"),
+                                    ))?;
+                                    // TODO should user full error message (in a popup maybe)
+                                    return Ok(());
+                                }
+                                tx.send(Action::UpdateStatus(
+                                    StatusLevel::Info,
+                                    format!("installed {crate_name} v{version}"),
+                                ))?;
+                                tx.send(Action::RefreshCargoEnv)?;
+                                Ok::<(), AppError>(())
+                            })
+                                .await??;
+
+                            tui.enter()?;
+                            tui.terminal.clear()?;
+                            Ok(())
+                        }
+                        CargoAction::Uninstall(crate_name) => {
+                            self.action_tx.send(Action::UpdateStatus(
+                                StatusLevel::Info,
+                                format!("uninstalling {crate_name}"),
+                            ))?;
+
+                            let tx = self.action_tx.clone();
+                            tokio::spawn(async move {
+                                if let Err(_) = uninstall(crate_name.clone(), false) {
+                                    tx.send(Action::UpdateStatus(
+                                        StatusLevel::Error,
+                                        format!("failed to uninstall {crate_name}"),
+                                    ))?;
+                                    // TODO should user full error message (in a popup maybe)
+                                    return Ok(());
+                                }
+                                tx.send(Action::UpdateStatus(
+                                    StatusLevel::Info,
+                                    format!("uninstalled {crate_name}"),
+                                ))?;
+                                tx.send(Action::RefreshCargoEnv)?;
+                                Ok::<(), AppError>(())
+                            });
+                            Ok(())
+                        }
+                    };
+                }
+                Action::RefreshCargoEnv => {
+                    self.cargo_env.write().await.read()?;
+                    self.action_tx.send(Action::CargoEnvRefreshed)?;
+                }
                 _ => {}
             }
 
             for component in self.components.iter_mut() {
-                if let Some(sub_action) = component.update(clone.clone(), tui)? {
+                if let Some(sub_action) = component.update(clone.clone(), tui).await? {
                     self.action_tx.send(sub_action)?
                 };
             }

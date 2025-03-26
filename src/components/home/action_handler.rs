@@ -2,15 +2,19 @@
 use std::sync::Arc;
 use std::{fs, io::Write, process::Command};
 
-use crate::action::{Action, CargoAction, SearchAction};
+use crate::action::{Action, SearchAction};
 use crate::components::home::enums::Focusable;
 use crate::components::home::Home;
 use crate::components::status_bar::{StatusDuration, StatusLevel};
 use crate::errors::AppResult;
-use crate::search::SearchOptions;
+use crate::search::{CrateSearchManager, SearchOptions};
 use crate::tui::Tui;
 
-pub fn handle_action(home: &mut Home, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
+pub async fn handle_action(
+    home: &mut Home,
+    action: Action,
+    tui: &mut Tui,
+) -> AppResult<Option<Action>> {
     match action {
         Action::Tick => {
             // add any logic here that should run on every tick
@@ -168,24 +172,12 @@ pub fn handle_action(home: &mut Home, action: Action, tui: &mut Tui) -> AppResul
                 }
             }
         },
-        Action::Cargo(action) => return match action {
-            CargoAction::Add(crate_name, version) => {
-                let _ = crate_name;
-                let _ = version;
-                Ok(Some(Action::RefreshCargoEnv))
+        Action::CargoEnvRefreshed => {
+            if let Some(search_results) = &mut home.search_results {
+                let cargo_env = home.cargo_env.read().await;
+                CrateSearchManager::update_results(search_results, &cargo_env);
             }
-            CargoAction::Remove(crate_name) => {
-                let _ = crate_name;
-                Ok(Some(Action::RefreshCargoEnv))
-            }
-            CargoAction::Update(crate_name) => {
-                let _ = crate_name;
-                Ok(Some(Action::RefreshCargoEnv))
-            }
-            CargoAction::UpdateAll => {
-                Ok(Some(Action::RefreshCargoEnv))
-            }
-        },
+        }
         Action::OpenReadme => {
             // TODO setting if open in browser or cli
             if let Some(url) = home

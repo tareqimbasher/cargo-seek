@@ -26,6 +26,7 @@ pub enum Action {
     UpdateStatusWithDuration(StatusLevel, StatusDuration, String),
 
     RefreshCargoEnv,
+    CargoEnvRefreshed,
 
     Search(SearchAction),
     Cargo(CargoAction),
@@ -62,8 +63,10 @@ pub enum SearchAction {
 pub enum CargoAction {
     Add(String, String),
     Remove(String),
-    Update(String),
-    UpdateAll,
+    // Update(String),
+    // UpdateAll,
+    Install(String, String),
+    Uninstall(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]

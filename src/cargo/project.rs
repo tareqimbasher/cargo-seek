@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -7,11 +7,16 @@ use crate::cargo::{get_metadata, Package};
 use crate::errors::AppResult;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct DependencyInfo {
+    kinds: Vec<String>,
+    version: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Project {
     pub manifest_file_path: PathBuf,
     pub packages: Vec<Package>,
-    pub dependency_kinds: HashMap<String, Vec<String>>,
-    dependency_names: HashSet<String>,
+    dependencies: HashMap<String, DependencyInfo>,
 }
 
 impl Project {
@@ -50,8 +55,7 @@ impl Project {
         Some(Project {
             manifest_file_path,
             packages: Vec::new(),
-            dependency_kinds: HashMap::new(),
-            dependency_names: HashSet::new(),
+            dependencies: HashMap::new(),
         })
     }
 
@@ -60,27 +64,29 @@ impl Project {
 
         let packages = metadata.packages;
 
-        let mut dependency_names = HashSet::new();
-        let mut dependency_kinds: HashMap<String, Vec<String>> = HashMap::new();
+        let mut dependencies: HashMap<String, DependencyInfo> = HashMap::new();
 
         for package in packages.iter() {
             for dependency in &package.dependencies {
-                dependency_names.insert(dependency.name.clone());
-                dependency_kinds
+                let info = dependencies
                     .entry(dependency.name.clone())
-                    .or_default()
-                    .push(dependency.kind.clone().unwrap_or_default());
+                    .or_insert(DependencyInfo {
+                        kinds: vec![],
+                        version: String::new(),
+                    });
+
+                info.kinds.push(dependency.kind.clone().unwrap_or_default());
+                info.version = dependency.req.clone();
             }
         }
 
-        self.dependency_names = dependency_names;
         self.packages = packages;
-        self.dependency_kinds = dependency_kinds;
+        self.dependencies = dependencies;
 
         Ok(())
     }
 
-    pub fn contains_dependency(&self, package_name: &str) -> bool {
-        self.dependency_names.contains(package_name)
+    pub fn get_local_version(&self, package_name: &str) -> Option<String> {
+        self.dependencies.get(package_name).map(|dep| dep.version.clone())
     }
 }

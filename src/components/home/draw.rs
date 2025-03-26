@@ -135,9 +135,9 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
             .crates
             .iter()
             .map(|i| {
-                let tag = if i.is_local {
+                let tag = if i.local_version.is_some() {
                     "[local]"
-                } else if i.is_installed {
+                } else if i.installed_version.is_some() {
                     "[installed]"
                 } else {
                     ""
@@ -159,9 +159,9 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
                     version
                 );
 
-                ListItem::new(if i.is_local {
+                ListItem::new(if i.local_version.is_some() {
                     line.set_style(Style::default().fg(Color::LightCyan))
-                } else if i.is_installed {
+                } else if i.installed_version.is_some() {
                     line.set_style(Style::default().fg(Color::LightMagenta))
                 } else {
                     line.into()
@@ -386,7 +386,23 @@ fn render_crate_details(
     }]
     .bold();
 
-    let text = Text::from(vec![
+    let mut text = Text::default();
+    
+    if let Some(local_version) = &krate.local_version {
+        text.lines.push(Line::from(vec![
+            format!("{:<left_column_width$}", "Project Version:").light_cyan(),
+            local_version.to_string().into(),
+        ]));
+    }
+
+    if let Some(installed_version) = &krate.installed_version {
+        text.lines.push(Line::from(vec![
+            format!("{:<left_column_width$}", "Installed Version:").light_magenta(),
+            installed_version.to_string().into(),
+        ]));
+    }
+
+    text.lines.extend(vec![
         Line::from(vec![
             format!("{:<left_column_width$}", "Version:").set_style(prop_style),
             krate.version.to_string().into(),
@@ -395,6 +411,9 @@ fn render_crate_details(
             format!("{:<left_column_width$}", "Latest Version:").set_style(prop_style),
             krate.max_version.clone().unwrap_or_default().into(),
         ]),
+    ]);
+
+    text.lines.extend(vec![
         Line::from(vec![
             format!("{:<left_column_width$}", "Home Page:").set_style(prop_style),
             krate.homepage.clone().unwrap_or_default().into(),
@@ -553,11 +572,7 @@ fn render_no_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResul
     Ok(())
 }
 
-fn center(
-    area: Rect,
-    horizontal: Constraint,
-    vertical: Constraint,
-) -> AppResult<Rect> {
+fn center(area: Rect, horizontal: Constraint, vertical: Constraint) -> AppResult<Rect> {
     let [area] = Layout::horizontal([horizontal])
         .flex(Flex::Center)
         .areas(area);

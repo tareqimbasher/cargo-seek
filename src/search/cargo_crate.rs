@@ -18,8 +18,8 @@ pub struct Crate {
     pub updated_at: Option<DateTime<Utc>>,
     pub exact_match: bool,
     #[serde(default)]
-    pub is_local: bool,
+    pub local_version: Option<String>,
     #[serde(default)]
-    pub is_installed: bool,
+    pub installed_version: Option<String>,
 }
 

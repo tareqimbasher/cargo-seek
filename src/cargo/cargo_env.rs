@@ -1,4 +1,4 @@
-﻿use std::collections::HashSet;
+﻿use std::collections::{HashMap};
 use std::path::PathBuf;
 
 use crate::cargo::{get_installed_binaries, InstalledBinary, Project};
@@ -8,7 +8,7 @@ pub struct CargoEnv {
     pub root: Option<PathBuf>,
     pub project: Option<Project>,
     pub installed: Vec<InstalledBinary>,
-    installed_bin_names: HashSet<String>,
+    installed_map: HashMap<String, String>,
 }
 
 /// The current cargo environment (installed binaries and current project, if any)
@@ -23,7 +23,7 @@ impl CargoEnv {
             root,
             project,
             installed: Vec::new(),
-            installed_bin_names: HashSet::new(),
+            installed_map: HashMap::new(),
         }
     }
 
@@ -37,8 +37,10 @@ impl CargoEnv {
 
         self.installed = get_installed_binaries().ok().unwrap_or_default();
 
-        self.installed_bin_names =
-            HashSet::from_iter(self.installed.iter().map(|i| i.name.clone()));
+        self.installed_map = self.installed
+            .iter()
+            .map(|bin| (bin.name.clone(), bin.version.clone()))
+            .collect();
 
         if let Some(project) = self.project.as_mut() {
             project.read().ok();
@@ -47,28 +49,7 @@ impl CargoEnv {
         Ok(())
     }
 
-    /// Checks if a given binary is installed.
-    ///
-    /// # Arguments
-    ///
-    /// * `name` - The name of the binary to check.
-    ///
-    /// # Returns
-    ///
-    /// Returns `true` if the binary name is found in the list of installed binaries,
-    /// otherwise `false`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let installed = manager.is_installed("my_binary");
-    /// if installed {
-    ///     println!("Binary is installed!");
-    /// } else {
-    ///     println!("Binary is not installed!");
-    /// }
-    /// ```
-    pub fn is_installed(&self, name: &str) -> bool {
-        self.installed_bin_names.contains(name)
+    pub fn get_installed_version(&self, name: &str) -> Option<String> {
+        self.installed_map.get(name).cloned()
     }
 }

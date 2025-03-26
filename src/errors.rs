@@ -19,8 +19,14 @@ pub enum AppError {
     FromUtf8(#[from] std::string::FromUtf8Error),
     #[error(transparent)]
     SendAction(#[from] tokio::sync::mpsc::error::SendError<Action>),
+    #[error(transparent)]
+    Join(#[from] tokio::task::JoinError),
     #[error("Error: {0}")]
     Unknown(String),
+    
+    // Custom
+    #[error("{0}")]
+    Cargo(String)
 }
 
 /// Catch-all: if an error that implements std::error::Error occurs

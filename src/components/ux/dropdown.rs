@@ -1,4 +1,5 @@
-﻿use crossterm::event::{KeyCode, KeyEvent};
+﻿use async_trait::async_trait;
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::prelude::Stylize;
 use ratatui::widgets::block::Title;
@@ -18,11 +19,11 @@ pub struct Dropdown<T> {
     config: Config,
     is_focused: bool,
     state: ListState,
-    on_enter: Box<dyn Fn(&T) + Send>,
+    on_enter: Box<dyn Fn(&T) + Send + Sync>,
 }
 
-impl<T: IntoEnumIterator + Default + Clone + 'static> Dropdown<T> {
-    pub fn new(header: String, on_enter: Box<dyn Fn(&T) + Send>) -> Self {
+impl<T: IntoEnumIterator + Default + Clone> Dropdown<T> {
+    pub fn new(header: String, on_enter: Box<dyn Fn(&T) + Send + Sync>) -> Self {
         Dropdown {
             header,
             config: Config::default(),
@@ -46,6 +47,7 @@ impl<T: IntoEnumIterator + Default + Clone + 'static> Dropdown<T> {
     }
 }
 
+#[async_trait]
 impl<T: IntoEnumIterator + Default + Display + Clone + 'static> Component for Dropdown<T> {
     fn register_config_handler(&mut self, config: Config) -> AppResult<()> {
         self.config = config;

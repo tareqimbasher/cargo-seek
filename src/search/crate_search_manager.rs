@@ -1,7 +1,7 @@
 ﻿use crates_io_api::{AsyncClient, CratesQuery};
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{oneshot, RwLock};
 use tokio::task::JoinHandle;
 
 use crate::action::{Action, SearchAction};
@@ -17,11 +17,13 @@ pub struct CrateSearchManager {
 
 impl CrateSearchManager {
     pub fn new(action_tx: UnboundedSender<Action>) -> AppResult<Self> {
+        let client = AsyncClient::new(
+            "seekr (github:tareqimbasher/seekr)",
+            std::time::Duration::from_millis(1000),
+        )?;
+        
         Ok(CrateSearchManager {
-            crates_io_client: Arc::new(AsyncClient::new(
-                "seekr (github:tareqimbasher/seekr)",
-                std::time::Duration::from_millis(1000),
-            )?),
+            crates_io_client: Arc::new(client),
             cancel_tx: None,
             action_tx,
         })
@@ -30,7 +32,7 @@ impl CrateSearchManager {
     pub fn search(
         &mut self,
         options: SearchOptions,
-        cargo_env: Arc<Mutex<CargoEnv>>,
+        cargo_env: Arc<RwLock<CargoEnv>>,
     ) -> JoinHandle<()> {
         if let Some(cancel_tx) = self.cancel_tx.take() {
             let _ = cancel_tx.send(());
@@ -47,7 +49,7 @@ impl CrateSearchManager {
                 return;
             }
 
-            let cargo_env = cargo_env.lock().await;
+            let cargo_env = cargo_env.read().await;
             let term = options.term.unwrap_or("".to_string()).to_lowercase();
             let page = options.page.unwrap_or(1);
             let per_page = options.per_page.unwrap_or(100);
@@ -117,21 +119,21 @@ impl CrateSearchManager {
 
             // Back-fill is_local and is_installed for search results that don't have it
             // todo optimize
-            for cr in &mut search_results.crates {
-                if !cr.is_local {
-                    if let Some(proj) = &cargo_env.project {
-                        cr.is_local = proj.contains_dependency(&cr.name);
-                    }
-                }
-
-                if !cr.is_installed {
-                    cr.is_installed = cargo_env.is_installed(&cr.name);
-                }
-            }
+            Self::update_results(&mut search_results, &cargo_env);
 
             tx.send(Action::Search(SearchAction::Render(search_results)))
                 .ok();
         })
+    }
+
+    pub fn update_results(search_results: &mut SearchResults, cargo_env: &CargoEnv) {
+        for cr in &mut search_results.crates {
+            if let Some(proj) = &cargo_env.project {
+                cr.local_version = proj.get_local_version(&cr.name);
+            }
+
+            cr.installed_version = cargo_env.get_installed_version(&cr.name);
+        }
     }
 
     fn search_binaries(term: &str, cargo_env: &CargoEnv) -> Vec<Crate> {
@@ -155,8 +157,8 @@ impl CrateSearchManager {
                     created_at: None,
                     updated_at: None,
                     exact_match: name_lower == term,
-                    is_local: false,
-                    is_installed: true,
+                    local_version: None,
+                    installed_version: Some(package.version.clone()),
                 });
             }
         }
@@ -187,8 +189,8 @@ impl CrateSearchManager {
                         created_at: None,
                         updated_at: None,
                         exact_match: name_lower == term,
-                        is_local: true,
-                        is_installed: false,
+                        local_version: Some(dep.req.clone()),
+                        installed_version: None,
                     });
                 }
             }
@@ -247,8 +249,8 @@ impl CrateSearchManager {
                         created_at: Some(c.created_at),
                         updated_at: Some(c.updated_at),
                         exact_match: c.exact_match.unwrap_or(false),
-                        is_local: false,
-                        is_installed: false,
+                        local_version: None,
+                        installed_version: None,
                     })
                     .collect();
                 Ok((results, sr.meta.total as usize))

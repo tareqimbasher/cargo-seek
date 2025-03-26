@@ -1,5 +1,5 @@
 use std::time::Instant;
-
+use async_trait::async_trait;
 use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Style, Stylize},
@@ -69,8 +69,9 @@ impl FpsCounter {
     }
 }
 
+#[async_trait]
 impl Component for FpsCounter {
-    fn update(&mut self, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
+    async fn update(&mut self, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
         let _ = tui; // to appease clippy
 
         match action {

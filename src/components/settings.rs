@@ -1,4 +1,5 @@
-﻿use crossterm::event::KeyEvent;
+﻿use async_trait::async_trait;
+use crossterm::event::KeyEvent;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
@@ -23,6 +24,7 @@ impl Settings {
     }
 }
 
+#[async_trait]
 impl Component for Settings {
     fn register_config_handler(&mut self, config: Config) -> AppResult<()> {
         self.config = config;
@@ -34,7 +36,7 @@ impl Component for Settings {
         Ok(None)
     }
 
-    fn update(&mut self, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
+    async fn update(&mut self, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
         let _ = action;
         let _ = tui;
 

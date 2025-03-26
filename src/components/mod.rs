@@ -6,7 +6,7 @@ pub mod status_bar;
 pub mod ux;
 
 use std::any::Any;
-
+use async_trait::async_trait;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::{layout::Rect, Frame};
 
@@ -19,7 +19,9 @@ use crate::{action::Action, config::Config, tui::Event};
 ///
 /// Implementors of this trait can be registered with the main application loop and will be able to
 /// receive events, update state, and be rendered on the screen.
-pub trait Component: Any {
+
+#[async_trait]
+pub trait Component: Any + Send + Sync {
     /// Register a configuration handler that provides configuration settings if necessary.
     ///
     /// # Arguments
@@ -94,7 +96,7 @@ pub trait Component: Any {
     /// # Returns
     ///
     /// * `Result<Option<Action>>` - An action to be processed or none.
-    fn update(&mut self, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
+    async fn update(&mut self, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
         let _ = action; // to appease clippy
         let _ = tui;
         Ok(None)

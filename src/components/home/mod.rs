@@ -6,11 +6,11 @@ mod key_handler;
 use super::Component;
 
 use std::sync::Arc;
-
+use async_trait::async_trait;
 use crossterm::event::KeyEvent;
 use ratatui::{layout::Rect, Frame};
 use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::Mutex;
+use tokio::sync::{RwLock};
 use tui_input::Input;
 
 use crate::cargo::CargoEnv;
@@ -30,7 +30,7 @@ use crate::{
 };
 
 pub struct Home {
-    cargo_env: Arc<Mutex<CargoEnv>>,
+    cargo_env: Arc<RwLock<CargoEnv>>,
     input: Input,
     scope_dropdown: Dropdown<Scope>,
     sort_dropdown: Dropdown<Sort>,
@@ -47,7 +47,7 @@ pub struct Home {
 
 impl Home {
     pub fn new(
-        cargo_env: Arc<Mutex<CargoEnv>>,
+        cargo_env: Arc<RwLock<CargoEnv>>,
         action_tx: UnboundedSender<Action>,
     ) -> AppResult<Self> {
         let tx = action_tx.clone();
@@ -86,7 +86,7 @@ impl Home {
         self.input.reset();
         self.search_results = None;
         self.action_tx
-            .send(Action::UpdateStatus(StatusLevel::Info, "Ready".into()))?;
+            .send(Action::UpdateStatus(StatusLevel::Info, "ready".into()))?;
         Ok(())
     }
 
@@ -160,6 +160,7 @@ impl Home {
     }
 }
 
+#[async_trait]
 impl Component for Home {
     fn register_config_handler(&mut self, config: Config) -> AppResult<()> {
         self.sort_dropdown.register_config_handler(config.clone())?;
@@ -173,8 +174,8 @@ impl Component for Home {
         handle_key(self, key)
     }
 
-    fn update(&mut self, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
-        handle_action(self, action, tui)
+    async fn update(&mut self, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
+        handle_action(self, action, tui).await
     }
 
     fn draw(&mut self, mode: &Mode, frame: &mut Frame, area: Rect) -> AppResult<()> {
@@ -199,13 +200,13 @@ mod tests {
 
     fn get_home() -> Home {
         let (action_tx, _) = mpsc::unbounded_channel();
-        Home::new(Arc::new(Mutex::new(CargoEnv::new(None))), action_tx).unwrap()
+        Home::new(Arc::new(RwLock::new(CargoEnv::new(None))), action_tx).unwrap()
     }
 
     fn get_home_and_tui() -> (Home, Tui) {
         let (action_tx, _) = mpsc::unbounded_channel();
         (
-            Home::new(Arc::new(Mutex::new(CargoEnv::new(None))), action_tx).unwrap(),
+            Home::new(Arc::new(RwLock::new(CargoEnv::new(None))), action_tx).unwrap(),
             Tui::new().unwrap(),
         )
     }
@@ -222,7 +223,7 @@ mod tests {
         let mut ac: Option<Action> = Some(action);
 
         while ac.is_some() {
-            match home.update(ac.clone().unwrap(), tui) {
+            match home.update(ac.clone().unwrap(), tui).await {
                 Ok(action) => {
                     ac = action;
                 }

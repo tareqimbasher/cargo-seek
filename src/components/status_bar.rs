@@ -1,5 +1,5 @@
 ﻿use std::cmp::PartialEq;
-
+use async_trait::async_trait;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Styled, Stylize};
 use ratatui::text::{Line, Text};
@@ -109,7 +109,7 @@ impl StatusBar {
                     if cancel_rx.try_recv().is_ok() {
                         return;
                     }
-                    tx.send(Action::UpdateStatus(Info, "Ready".into())).unwrap();
+                    tx.send(Action::UpdateStatus(Info, "ready".into())).unwrap();
                 });
             }
         }
@@ -148,6 +148,7 @@ impl StatusBar {
     }
 }
 
+#[async_trait]
 impl Component for StatusBar {
     fn register_config_handler(&mut self, config: Config) -> AppResult<()> {
         self.config = config;
@@ -160,7 +161,7 @@ impl Component for StatusBar {
         Ok(())
     }
 
-    fn update(&mut self, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
+    async fn update(&mut self, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
         let _ = tui;
         match action {
             Action::UpdateStatus(level, message) => match level {

@@ -1,8 +1,8 @@
 ﻿use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tui_input::backend::crossterm::EventHandler;
 
-use crate::action::{Action, SearchAction};
-use crate::components::home::enums::Focusable;
+use crate::action::{Action, CargoAction, SearchAction};
+use crate::components::home::enums::{is_results_or_details_focused, Focusable};
 use crate::components::home::Home;
 use crate::components::Component;
 use crate::errors::AppResult;
@@ -103,6 +103,52 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
             }
             _ => {}
         },
+        KeyCode::Char('a') => {
+            if is_results_or_details_focused(&home.focused) {
+                if let Some(search_results) = home.search_results.as_ref() {
+                    if let Some(selected) = search_results.get_selected() {
+                        return Ok(Some(Action::Cargo(CargoAction::Add(
+                            selected.name.clone(),
+                            selected.version.clone(),
+                        ))));
+                    }
+                }
+            }
+        }
+        KeyCode::Char('r') => {
+            if is_results_or_details_focused(&home.focused) {
+                if let Some(search_results) = home.search_results.as_ref() {
+                    if let Some(selected) = search_results.get_selected() {
+                        return Ok(Some(Action::Cargo(CargoAction::Remove(
+                            selected.name.clone(),
+                        ))));
+                    }
+                }
+            }
+        }
+        KeyCode::Char('i') => {
+            if is_results_or_details_focused(&home.focused) {
+                if let Some(search_results) = home.search_results.as_ref() {
+                    if let Some(selected) = search_results.get_selected() {
+                        return Ok(Some(Action::Cargo(CargoAction::Install(
+                            selected.name.clone(),
+                            selected.version.clone(),
+                        ))));
+                    }
+                }
+            }
+        }
+        KeyCode::Char('u') => {
+            if is_results_or_details_focused(&home.focused) {
+                if let Some(search_results) = home.search_results.as_ref() {
+                    if let Some(selected) = search_results.get_selected() {
+                        return Ok(Some(Action::Cargo(CargoAction::Uninstall(
+                            selected.name.clone(),
+                        ))));
+                    }
+                }
+            }
+        }
         _ => {}
     }
 
