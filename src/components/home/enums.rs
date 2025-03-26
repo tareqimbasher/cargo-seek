@@ -1,8 +1,8 @@
 ﻿use enum_iterator::{all, reverse_all, Sequence};
 use serde::{Deserialize, Serialize};
 use std::iter::Cycle;
-use strum::Display;
-use strum_macros::EnumIter;
+
+use crate::search::Sort;
 
 #[derive(Default, PartialEq, Clone, Debug, Eq, Sequence, Serialize, Deserialize)]
 pub enum Focusable {
@@ -29,28 +29,6 @@ impl Focusable {
         variants.find(|v| v == self);
         variants.next().unwrap()
     }
-}
-
-#[derive(
-    Debug, Default, Display, Clone, EnumIter, PartialEq, Eq, Sequence, Serialize, Deserialize,
-)]
-pub enum Scope {
-    All,
-    #[default]
-    Online,
-    Project,
-    Installed,
-}
-
-#[derive(Debug, Default, Clone, EnumIter, PartialEq, Eq, Sequence, Serialize, Deserialize)]
-pub enum Sort {
-    #[default]
-    Relevance,
-    Name,
-    Downloads,
-    RecentDownloads,
-    RecentlyUpdated,
-    NewlyAdded,
 }
 
 impl std::fmt::Display for Sort {

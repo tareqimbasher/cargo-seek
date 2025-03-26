@@ -22,6 +22,31 @@ pub struct AppConfig {
     pub config_dir: PathBuf,
 }
 
+#[derive(Clone, Debug, Default, Deref, DerefMut)]
+pub struct KeyBindings(pub HashMap<Mode, HashMap<Vec<KeyEvent>, Action>>);
+
+impl<'de> Deserialize<'de> for KeyBindings {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let parsed_map = HashMap::<Mode, HashMap<String, Action>>::deserialize(deserializer)?;
+
+        let keybindings = parsed_map
+            .into_iter()
+            .map(|(mode, inner_map)| {
+                let converted_inner_map = inner_map
+                    .into_iter()
+                    .map(|(key_str, cmd)| (parse_key_sequence(&key_str).unwrap(), cmd))
+                    .collect();
+                (mode, converted_inner_map)
+            })
+            .collect();
+
+        Ok(KeyBindings(keybindings))
+    }
+}
+
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct Config {
     #[serde(default, flatten)]
@@ -121,31 +146,6 @@ fn project_directory() -> Option<ProjectDirs> {
     ProjectDirs::from("com", "kdheepak", env!("CARGO_PKG_NAME"))
 }
 
-#[derive(Clone, Debug, Default, Deref, DerefMut)]
-pub struct KeyBindings(pub HashMap<Mode, HashMap<Vec<KeyEvent>, Action>>);
-
-impl<'de> Deserialize<'de> for KeyBindings {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let parsed_map = HashMap::<Mode, HashMap<String, Action>>::deserialize(deserializer)?;
-
-        let keybindings = parsed_map
-            .into_iter()
-            .map(|(mode, inner_map)| {
-                let converted_inner_map = inner_map
-                    .into_iter()
-                    .map(|(key_str, cmd)| (parse_key_sequence(&key_str).unwrap(), cmd))
-                    .collect();
-                (mode, converted_inner_map)
-            })
-            .collect();
-
-        Ok(KeyBindings(keybindings))
-    }
-}
-
 fn parse_key_event(raw: &str) -> Result<KeyEvent, String> {
     let raw_lower = raw.to_ascii_lowercase();
     let (remaining, modifiers) = extract_modifiers(&raw_lower);
@@ -227,7 +227,7 @@ fn parse_key_code_with_modifiers(
     Ok(KeyEvent::new(c, modifiers))
 }
 
-pub fn key_event_to_string(key_event: &KeyEvent) -> String {
+fn key_event_to_string(key_event: &KeyEvent) -> String {
     let char;
     let key_code = match key_event.code {
         KeyCode::Backspace => "backspace",
@@ -290,7 +290,7 @@ pub fn key_event_to_string(key_event: &KeyEvent) -> String {
     key
 }
 
-pub fn parse_key_sequence(raw: &str) -> Result<Vec<KeyEvent>, String> {
+fn parse_key_sequence(raw: &str) -> Result<Vec<KeyEvent>, String> {
     if raw.chars().filter(|c| *c == '>').count() != raw.chars().filter(|c| *c == '<').count() {
         return Err(format!("Unable to parse `{}`", raw));
     }
@@ -342,7 +342,7 @@ impl<'de> Deserialize<'de> for Styles {
     }
 }
 
-pub fn parse_style(line: &str) -> Style {
+fn parse_style(line: &str) -> Style {
     let (foreground, background) =
         line.split_at(line.to_lowercase().find("on ").unwrap_or(line.len()));
     let foreground = process_color_string(foreground);

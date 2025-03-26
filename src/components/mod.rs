@@ -1,4 +1,4 @@
-pub mod app_id;
+﻿pub mod app_id;
 pub mod fps;
 pub mod home;
 pub mod settings;

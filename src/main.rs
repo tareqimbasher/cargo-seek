@@ -2,14 +2,13 @@ mod action;
 mod app;
 mod cargo;
 mod cli;
-mod components;
 mod config;
 mod errors;
 mod logging;
-mod models;
-mod services;
+mod search;
 mod tui;
 mod util;
+mod components;
 
 use clap::Parser;
 use cli::Cli;

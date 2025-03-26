@@ -1,7 +1,7 @@
 ﻿use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Metadata {
+pub struct ManifestMetadata {
     pub packages: Vec<Package>,
 }
 

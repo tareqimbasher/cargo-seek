@@ -3,16 +3,15 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::cargo::CargoManager;
+use crate::cargo::{get_metadata, Package};
 use crate::errors::AppResult;
-use crate::models::manifest_metadata::Package;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Project {
     pub manifest_file_path: PathBuf,
     pub packages: Vec<Package>,
     pub dependency_kinds: HashMap<String, Vec<String>>,
-    package_names: HashSet<String>,
+    dependency_names: HashSet<String>,
 }
 
 impl Project {
@@ -52,19 +51,21 @@ impl Project {
             manifest_file_path,
             packages: Vec::new(),
             dependency_kinds: HashMap::new(),
-            package_names: HashSet::new(),
+            dependency_names: HashSet::new(),
         })
     }
 
     pub fn read(&mut self) -> AppResult<()> {
-        let metadata = CargoManager::get_metadata(&self.manifest_file_path)?;
+        let metadata = get_metadata(&self.manifest_file_path)?;
 
         let packages = metadata.packages;
 
+        let mut dependency_names = HashSet::new();
         let mut dependency_kinds: HashMap<String, Vec<String>> = HashMap::new();
 
         for package in packages.iter() {
             for dependency in &package.dependencies {
+                dependency_names.insert(dependency.name.clone());
                 dependency_kinds
                     .entry(dependency.name.clone())
                     .or_default()
@@ -72,14 +73,14 @@ impl Project {
             }
         }
 
-        self.package_names = HashSet::from_iter(packages.iter().map(|p| p.name.clone()));
+        self.dependency_names = dependency_names;
         self.packages = packages;
         self.dependency_kinds = dependency_kinds;
 
         Ok(())
     }
 
-    pub fn contains_package(&self, package_name: &str) -> bool {
-        self.package_names.contains(package_name)
+    pub fn contains_dependency(&self, package_name: &str) -> bool {
+        self.dependency_names.contains(package_name)
     }
 }
