@@ -58,3 +58,9 @@ async-trait = "0.1"
 [build-dependencies]
 anyhow = "1.0.86"
 vergen-gix = { version = "1.0.2", features = ["build", "cargo"] }
+
+[profile.release]
+opt-level = "z"  # Optimize for size.
+strip = true  # Automatically strip symbols from the binary.
+lto = true
+panic = "abort"

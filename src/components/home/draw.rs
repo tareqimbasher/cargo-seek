@@ -131,41 +131,48 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
             None => 2,
         };
 
+        const VERSION_PADDING: usize = 15;
+
         let list_items: Vec<ListItem> = results
             .crates
             .iter()
             .map(|i| {
                 let tag = if i.local_version.is_some() {
-                    "[+]"
+                    "+ "
                 } else if i.installed_version.is_some() {
-                    "[i]"
+                    "i "
                 } else {
-                    ""
+                    "  "
                 };
 
                 let name = i.name.to_string();
                 let version = i.version.to_string();
 
-                let mut white_space = area.width as i32 - name.len() as i32 - 19 - correction;
-                if white_space < 0 {
+                let mut white_space =
+                    area.width as i32 - name.len() as i32 - tag.len() as i32 - VERSION_PADDING as i32 - correction;
+                if white_space < 1 {
                     white_space = 1;
                 }
 
                 let line = format!(
-                    "{}{}{:>4}{:>15}",
+                    "{}{}{:>VERSION_PADDING$}",
                     name,
                     " ".repeat(white_space as usize),
-                    tag,
                     version
                 );
 
-                ListItem::new(if i.local_version.is_some() {
-                    line.set_style(Style::default().fg(Color::LightCyan))
+                let style = if i.local_version.is_some() {
+                    Style::default().fg(Color::LightCyan)
                 } else if i.installed_version.is_some() {
-                    line.set_style(Style::default().fg(Color::LightMagenta))
+                    Style::default().fg(Color::LightMagenta)
                 } else {
+                    Style::default()
+                };
+
+                ListItem::new(Line::from(vec![
+                    tag.bold(),
                     line.into()
-                })
+                ]).set_style(style))
             })
             .collect();
 
@@ -215,8 +222,9 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
                         .alignment(Alignment::Right),
                     ),
             )
-            .highlight_style(home.config.styles[&Mode::App]["accent"].bold())
-            .highlight_symbol("> ");
+            //.highlight_style(home.config.styles[&Mode::App]["accent"].bold())
+            .highlight_style(Style::default().bold())
+            .highlight_symbol(">");
 
         frame.render_stateful_widget(list, area, results.list_state());
     } else {
@@ -248,86 +256,88 @@ fn render_right(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
 
 fn render_usage(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> {
     let prop_style = home.config.styles[&Mode::App]["accent"].bold();
-    let pad = 25;
+    const PAD: usize = 20;
 
     let text = Text::from(vec![
+        Line::from(vec![
+            format!("{:<PAD$}", "SYMBOLS:").bold(),
+            "+ ".light_cyan().bold(),
+            "added".bold(),
+            "   ".into(),
+            "i ".light_magenta().bold(),
+            "installed".bold(),
+        ]),
+        Line::default(),
+
         Line::from(vec!["SEARCH".bold()]),
         Line::from(vec![
-            format!("{:<pad$}", "ENTER:").set_style(prop_style),
+            format!("{:<PAD$}", "Enter:").set_style(prop_style),
             "Search".bold(),
         ]),
         Line::from(vec![
-            format!("{:<pad$}", "Ctrl + s:").set_style(prop_style),
+            format!("{:<PAD$}", "Ctrl + s:").set_style(prop_style),
             "Sort".bold(),
         ]),
         Line::from(vec![
-            format!("{:<pad$}", "Ctrl + f:").set_style(prop_style),
+            format!("{:<PAD$}", "Ctrl + f:").set_style(prop_style),
             "Filter".bold(),
         ]),
         Line::default(),
         Line::from(vec!["NAVIGATION".bold()]),
         Line::from(vec![
-            format!("{:<pad$}", "TAB:").set_style(prop_style),
+            format!("{:<PAD$}", "TAB:").set_style(prop_style),
             "Switch between boxes".bold(),
         ]),
         Line::from(vec![
-            format!("{:<pad$}", "ESC:").set_style(prop_style),
-            "Go back to search; clear results".bold(),
+            format!("{:<PAD$}", "ESC:").set_style(prop_style),
+            "Go back to search; again to clear results".bold(),
         ]),
         Line::from(vec![
-            format!("{:<pad$}", "Ctrl + h:").set_style(prop_style),
+            format!("{:<PAD$}", "Ctrl + h:").set_style(prop_style),
             "Toggle this usage screen".bold(),
         ]),
         Line::from(vec![
-            format!("{:<pad$}", "Ctrl + z:").set_style(prop_style),
+            format!("{:<PAD$}", "Ctrl + z:").set_style(prop_style),
             "Suspend".bold(),
         ]),
         Line::from(vec![
-            format!("{:<pad$}", "Ctrl + c:").set_style(prop_style),
+            format!("{:<PAD$}", "Ctrl + c:").set_style(prop_style),
             "Quit".bold(),
         ]),
         Line::default(),
-        Line::from(vec!["LIST".bold()]),
+        Line::from(vec!["RESULTS".bold()]),
         Line::from(vec![
-            format!("{:<pad$}", "Up/Down:").set_style(prop_style),
+            format!("{:<PAD$}", "Up, Down:").set_style(prop_style),
             "Scroll in crate list".bold(),
         ]),
         Line::from(vec![
-            format!("{:<pad$}", "Home/End:").set_style(prop_style),
+            format!("{:<PAD$}", "Home, End:").set_style(prop_style),
             "Go to first/last crate in list".bold(),
         ]),
         Line::from(vec![
-            format!("{:<pad$}", "a:").set_style(prop_style),
-            "Add".bold(),
+            format!("{:<PAD$}", "a, r:").set_style(prop_style),
+            "Add/remove to current project".bold(),
         ]),
         Line::from(vec![
-            format!("{:<pad$}", "r:").set_style(prop_style),
-            "Remove".bold(),
+            format!("{:<PAD$}", "i, u:").set_style(prop_style),
+            "Install/uninstall binary".bold(),
         ]),
         Line::from(vec![
-            format!("{:<pad$}", "i:").set_style(prop_style),
-            "Install".bold(),
-        ]),
-        Line::from(vec![
-            format!("{:<pad$}", "u:").set_style(prop_style),
-            "Uninstall".bold(),
-        ]),
-        Line::from(vec![
-            format!("{:<pad$}", "Ctrl + d:").set_style(prop_style),
+            format!("{:<PAD$}", "Ctrl + d:").set_style(prop_style),
             "Open docs".bold(),
         ]),
         Line::default(),
         Line::from(vec!["PAGING".bold()]),
         Line::from(vec![
-            format!("{:<pad$}", "Left/Right:").set_style(prop_style),
+            format!("{:<PAD$}", "Left, Right:").set_style(prop_style),
             "Go backward/forward a page".bold(),
         ]),
         Line::from(vec![
-            format!("{:<pad$}", "Ctrl + Left/Right:").set_style(prop_style),
+            format!("{:<PAD$}", "Ctrl + Left/Right:").set_style(prop_style),
             "Go backward/forward 10 pages".bold(),
         ]),
         Line::from(vec![
-            format!("{:<pad$}", "Ctrl + Home/End:").set_style(prop_style),
+            format!("{:<PAD$}", "Ctrl + Home/End:").set_style(prop_style),
             "Go to first/last page".bold(),
         ]),
     ]);
@@ -413,19 +423,27 @@ fn render_crate_details(
 
     if let Some(local_version) = &krate.local_version {
         text.lines.push(Line::from(vec![
-            format!("{:<left_column_width$}", "Project Version:").light_cyan().bold(),
+            format!("{:<left_column_width$}", "Project Version:")
+                .light_cyan()
+                .bold(),
             local_version.to_string().bold(),
         ]));
     }
 
     if let Some(installed_version) = &krate.installed_version {
         text.lines.push(Line::from(vec![
-            format!("{:<left_column_width$}", "Installed Version:").light_magenta().bold(),
+            format!("{:<left_column_width$}", "Installed Version:")
+                .light_magenta()
+                .bold(),
             installed_version.to_string().bold(),
         ]));
     }
 
     text.lines.extend(vec![
+        Line::from(vec![
+            format!("{:<left_column_width$}", "Description:").set_style(prop_style),
+            krate.description.clone().unwrap_or_default().bold(),
+        ]),
         Line::from(vec![
             format!("{:<left_column_width$}", "Home Page:").set_style(prop_style),
             krate.homepage.clone().unwrap_or_default().into(),
@@ -476,10 +494,6 @@ fn render_crate_details(
                 }
             },
         ]),
-        Line::from(vec![
-            format!("{:<left_column_width$}", "Description:").set_style(prop_style),
-            krate.description.clone().unwrap_or_default().bold(),
-        ]),
     ]);
 
     let details_paragraph_lines = text.lines.len();
@@ -506,8 +520,7 @@ fn render_crate_details(
     ]);
 
     // Buttons row 1
-    let [_, button1_area, _, button2_area] =
-        buttons_row_layout.areas(buttons_row1_area);
+    let [_, button1_area, _, button2_area] = buttons_row_layout.areas(buttons_row1_area);
 
     let mut button_areas = vec![button1_area, button2_area];
 
@@ -536,8 +549,7 @@ fn render_crate_details(
     }
 
     // Buttons row 2
-    let [_, button1_area, _, button2_area] =
-        buttons_row_layout.areas(buttons_row2_area);
+    let [_, button1_area, _, button2_area] = buttons_row_layout.areas(buttons_row2_area);
 
     frame.render_widget(
         Button::new("crates.io").theme(YELLOW).state(
