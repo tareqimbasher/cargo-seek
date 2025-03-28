@@ -62,7 +62,7 @@ pub async fn handle_action(
                     Ok(Some(Action::Focus(Focusable::Usage)))
                 };
             }
-            
+
             let mut prev = home.focused.prev();
             while prev == Focusable::Usage || prev == Focusable::Sort || prev == Focusable::Scope {
                 prev = prev.prev();
@@ -152,9 +152,9 @@ pub async fn handle_action(
                 let results_len = results.current_page_count();
 
                 let exact_match_ix = results.crates.iter().position(|c| c.exact_match);
-
                 if exact_match_ix.is_some() {
                     results.select_index(exact_match_ix);
+                    home.action_tx.send(Action::Focus(Focusable::Results))?;
                 } else if results_len > 0 {
                     results.select_index(Some(0));
                 }
@@ -278,6 +278,26 @@ pub async fn handle_action(
                 .and_then(|results| results.get_selected())
                 .and_then(|krate| krate.documentation.as_ref())
                 .and_then(|docs| Url::parse(docs).ok())
+            {
+                open::that(url.to_string())?;
+            }
+        }
+        Action::OpenCratesIo => {
+            if let Some(url) = home
+                .search_results
+                .as_ref()
+                .and_then(|results| results.get_selected())
+                .and_then(|krate| Url::parse(format!("https://crates.io/crates/{}", krate.id).as_str()).ok())
+            {
+                open::that(url.to_string())?;
+            }
+        }
+        Action::OpenLibRs => {
+            if let Some(url) = home
+                .search_results
+                .as_ref()
+                .and_then(|results| results.get_selected())
+                .and_then(|krate| Url::parse(format!("https://lib.rs/crates/{}", krate.id).as_str()).ok())
             {
                 open::that(url.to_string())?;
             }

@@ -1,5 +1,7 @@
 ﻿use crates_io_api::{AsyncClient, CratesQuery};
+use reqwest::{header, Client};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{oneshot, RwLock};
 use tokio::task::JoinHandle;
@@ -17,11 +19,20 @@ pub struct CrateSearchManager {
 
 impl CrateSearchManager {
     pub fn new(action_tx: UnboundedSender<Action>) -> AppResult<Self> {
-        let client = AsyncClient::new(
-            "seekr (github:tareqimbasher/seekr)",
-            std::time::Duration::from_millis(1000),
-        )?;
-        
+        let mut headers = header::HeaderMap::new();
+        headers.insert(
+            header::USER_AGENT,
+            header::HeaderValue::from_str("seekr (github:tareqimbasher/seekr)")?,
+        );
+
+        let client = AsyncClient::with_http_client(
+            Client::builder()
+                .default_headers(headers)
+                .timeout(Duration::from_secs(15))
+                .build()?,
+            Duration::from_millis(1000),
+        );
+
         Ok(CrateSearchManager {
             crates_io_client: Arc::new(client),
             cancel_tx: None,

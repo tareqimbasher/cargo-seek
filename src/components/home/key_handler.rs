@@ -55,22 +55,26 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
                 ))));
             }
             Focusable::Results => {}
-            Focusable::AddButton => {}
-            Focusable::InstallButton => {}
+            Focusable::DocsButton => {
+                return Ok(Some(Action::OpenDocs));
+            }
             Focusable::ReadmeButton => {
                 return Ok(Some(Action::OpenReadme));
             }
-            Focusable::DocsButton => {
-                return Ok(Some(Action::OpenDocs));
+            Focusable::CratesIoButton => {
+                return Ok(Some(Action::OpenCratesIo));
+            }
+            Focusable::LibRsButton => {
+                return Ok(Some(Action::OpenLibRs));
             }
             _ => {}
         },
         KeyCode::Up => match home.focused {
-            Focusable::ReadmeButton => {
-                return Ok(Some(Action::Focus(Focusable::AddButton)));
+            Focusable::CratesIoButton => {
+                return Ok(Some(Action::Focus(Focusable::DocsButton)));
             }
-            Focusable::DocsButton => {
-                return Ok(Some(Action::Focus(Focusable::InstallButton)));
+            Focusable::LibRsButton => {
+                return Ok(Some(Action::Focus(Focusable::ReadmeButton)));
             }
             Focusable::Usage => {
                 if home.vertical_usage_scroll > 0 {
@@ -80,11 +84,11 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
             _ => {}
         },
         KeyCode::Down => match home.focused {
-            Focusable::AddButton => {
-                return Ok(Some(Action::Focus(Focusable::ReadmeButton)));
+            Focusable::DocsButton => {
+                return Ok(Some(Action::Focus(Focusable::CratesIoButton)));
             }
-            Focusable::InstallButton => {
-                return Ok(Some(Action::Focus(Focusable::DocsButton)));
+            Focusable::ReadmeButton => {
+                return Ok(Some(Action::Focus(Focusable::LibRsButton)));
             }
             Focusable::Usage => {
                 if home.vertical_usage_scroll < 21 {
@@ -94,11 +98,11 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
             _ => {}
         },
         KeyCode::Left => match home.focused {
-            Focusable::InstallButton => {
-                return Ok(Some(Action::Focus(Focusable::AddButton)));
+            Focusable::ReadmeButton => {
+                return Ok(Some(Action::Focus(Focusable::DocsButton)));
             }
-            Focusable::DocsButton => {
-                return Ok(Some(Action::Focus(Focusable::ReadmeButton)));
+            Focusable::LibRsButton => {
+                return Ok(Some(Action::Focus(Focusable::CratesIoButton)));
             }
             Focusable::Usage => {
                 return Ok(Some(Action::Focus(Focusable::Search)));
@@ -106,11 +110,11 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
             _ => {}
         },
         KeyCode::Right => match home.focused {
-            Focusable::AddButton => {
-                return Ok(Some(Action::Focus(Focusable::InstallButton)));
+            Focusable::DocsButton => {
+                return Ok(Some(Action::Focus(Focusable::ReadmeButton)));
             }
-            Focusable::ReadmeButton => {
-                return Ok(Some(Action::Focus(Focusable::DocsButton)));
+            Focusable::CratesIoButton => {
+                return Ok(Some(Action::Focus(Focusable::LibRsButton)));
             }
             Focusable::Search => {
                 if home.show_usage {
@@ -234,6 +238,12 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
                 }
                 _ => {}
             }
+        }
+    }
+
+    if is_results_or_details_focused(&home.focused) {
+        if ctrl && key.code == KeyCode::Char('d') {
+            return Ok(Some(Action::OpenDocs));
         }
     }
 

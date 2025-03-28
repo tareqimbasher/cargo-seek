@@ -23,12 +23,12 @@ pub struct Dropdown<T> {
 }
 
 impl<T: IntoEnumIterator + Default + Clone> Dropdown<T> {
-    pub fn new(header: String, on_enter: Box<dyn Fn(&T) + Send + Sync>) -> Self {
+    pub fn new(header: String, selected_ix: usize, on_enter: Box<dyn Fn(&T) + Send + Sync>) -> Self {
         Dropdown {
             header,
             config: Config::default(),
             is_focused: false,
-            state: ListState::default().with_selected(Some(1)),
+            state: ListState::default().with_selected(Some(selected_ix)),
             on_enter,
         }
     }

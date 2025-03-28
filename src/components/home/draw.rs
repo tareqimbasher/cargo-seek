@@ -11,7 +11,7 @@ use ratatui::{
 use crate::app::Mode;
 use crate::components::home::enums::Focusable;
 use crate::components::home::Home;
-use crate::components::ux::{Button, State, BLUE, GRAY, ORANGE, PURPLE};
+use crate::components::ux::{Button, State, GRAY, ORANGE, PURPLE, YELLOW};
 use crate::components::Component;
 use crate::errors::AppResult;
 use crate::search::Crate;
@@ -136,9 +136,9 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
             .iter()
             .map(|i| {
                 let tag = if i.local_version.is_some() {
-                    "[local]"
+                    "[+]"
                 } else if i.installed_version.is_some() {
-                    "[installed]"
+                    "[i]"
                 } else {
                     ""
                 };
@@ -146,13 +146,13 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
                 let name = i.name.to_string();
                 let version = i.version.to_string();
 
-                let mut white_space = area.width as i32 - name.len() as i32 - 27 - correction;
+                let mut white_space = area.width as i32 - name.len() as i32 - 19 - correction;
                 if white_space < 0 {
                     white_space = 1;
                 }
 
                 let line = format!(
-                    "{}{}{:>12}{:>15}",
+                    "{}{}{:>4}{:>15}",
                     name,
                     " ".repeat(white_space as usize),
                     tag,
@@ -299,27 +299,22 @@ fn render_usage(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
         Line::from(vec![
             format!("{:<pad$}", "a:").set_style(prop_style),
             "Add".bold(),
-            " (WIP)".gray(),
         ]),
         Line::from(vec![
             format!("{:<pad$}", "r:").set_style(prop_style),
             "Remove".bold(),
-            " (WIP)".gray(),
         ]),
         Line::from(vec![
             format!("{:<pad$}", "i:").set_style(prop_style),
             "Install".bold(),
-            " (WIP)".gray(),
         ]),
         Line::from(vec![
             format!("{:<pad$}", "u:").set_style(prop_style),
             "Uninstall".bold(),
-            " (WIP)".gray(),
         ]),
         Line::from(vec![
-            format!("{:<pad$}", "Ctrl + o:").set_style(prop_style),
-            "Open docs URL".bold(),
-            " (WIP)".gray(),
+            format!("{:<pad$}", "Ctrl + d:").set_style(prop_style),
+            "Open docs".bold(),
         ]),
         Line::default(),
         Line::from(vec!["PAGING".bold()]),
@@ -356,7 +351,6 @@ fn render_usage(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
         block.inner(area),
     );
 
-
     // let paragraph = Paragraph::new(text.clone())
     //     .gray()
     //     .block(block)
@@ -379,15 +373,15 @@ fn render_crate_details(
     frame: &mut Frame,
     area: Rect,
 ) -> AppResult<()> {
-    let details_focused = home.focused == Focusable::AddButton
-        || home.focused == Focusable::InstallButton
+    let details_focused = home.focused == Focusable::DocsButton
         || home.focused == Focusable::ReadmeButton
-        || home.focused == Focusable::DocsButton;
+        || home.focused == Focusable::CratesIoButton
+        || home.focused == Focusable::LibRsButton;
 
     let main_block = Block::default()
         .title(format!(" 🧐 {} ", krate.name))
         .title_style(home.config.styles[&Mode::App]["title"])
-        .padding(Padding::uniform(1))
+        .padding(Padding::horizontal(1))
         .borders(Borders::ALL)
         .border_style(if details_focused {
             home.config.styles[&Mode::App]["accent_active"]
@@ -405,20 +399,6 @@ fn render_crate_details(
     .bold();
 
     let mut text = Text::default();
-    
-    if let Some(local_version) = &krate.local_version {
-        text.lines.push(Line::from(vec![
-            format!("{:<left_column_width$}", "Project Version:").light_cyan(),
-            local_version.to_string().into(),
-        ]));
-    }
-
-    if let Some(installed_version) = &krate.installed_version {
-        text.lines.push(Line::from(vec![
-            format!("{:<left_column_width$}", "Installed Version:").light_magenta(),
-            installed_version.to_string().into(),
-        ]));
-    }
 
     text.lines.extend(vec![
         Line::from(vec![
@@ -430,6 +410,20 @@ fn render_crate_details(
             krate.max_version.clone().unwrap_or_default().into(),
         ]),
     ]);
+
+    if let Some(local_version) = &krate.local_version {
+        text.lines.push(Line::from(vec![
+            format!("{:<left_column_width$}", "Project Version:").light_cyan().bold(),
+            local_version.to_string().bold(),
+        ]));
+    }
+
+    if let Some(installed_version) = &krate.installed_version {
+        text.lines.push(Line::from(vec![
+            format!("{:<left_column_width$}", "Installed Version:").light_magenta().bold(),
+            installed_version.to_string().bold(),
+        ]));
+    }
 
     text.lines.extend(vec![
         Line::from(vec![
@@ -445,7 +439,7 @@ fn render_crate_details(
             krate.repository.clone().unwrap_or_default().into(),
         ]),
         Line::from(vec![
-            format!("{:<left_column_width$}", "crates.io Page:").set_style(prop_style),
+            format!("{:<left_column_width$}", "crates.io:").set_style(prop_style),
             format!("https://crates.io/crates/{}", krate.id).into(),
         ]),
         Line::from(vec![
@@ -506,54 +500,16 @@ fn render_crate_details(
 
     let buttons_row_layout = Layout::horizontal([
         Constraint::Length(left_column_width as u16),
-        Constraint::Length(10),
+        Constraint::Length(12),
         Constraint::Length(1),
-        Constraint::Length(10),
+        Constraint::Length(12),
     ]);
 
     // Buttons row 1
-    let [property_area, button1_area, _, button2_area] =
+    let [_, button1_area, _, button2_area] =
         buttons_row_layout.areas(buttons_row1_area);
 
-    frame.render_widget(Text::from("Cargo:").set_style(prop_style), property_area);
-    frame.render_widget(
-        Button::new("Add")
-            .theme(BLUE)
-            .state(match home.focused == Focusable::AddButton {
-                true => State::Selected,
-                _ => State::Normal,
-            }),
-        button1_area,
-    );
-    frame.render_widget(
-        Button::new("Install").theme(PURPLE).state(
-            match home.focused == Focusable::InstallButton {
-                true => State::Selected,
-                _ => State::Normal,
-            },
-        ),
-        button2_area,
-    );
-
-    // Buttons row 2
-    let [property_area, button1_area, _, button2_area] =
-        buttons_row_layout.areas(buttons_row2_area);
-
-    frame.render_widget(Text::from("Links:").set_style(prop_style), property_area);
-
     let mut button_areas = vec![button1_area, button2_area];
-
-    if krate.repository.is_some() {
-        frame.render_widget(
-            Button::new("README").theme(GRAY).state(
-                match home.focused == Focusable::ReadmeButton {
-                    true => State::Selected,
-                    _ => State::Normal,
-                },
-            ),
-            button_areas.remove(0),
-        );
-    }
 
     if krate.documentation.is_some() {
         frame.render_widget(
@@ -566,6 +522,41 @@ fn render_crate_details(
             button_areas.remove(0),
         );
     }
+
+    if krate.repository.is_some() {
+        frame.render_widget(
+            Button::new("Repository").theme(GRAY).state(
+                match home.focused == Focusable::ReadmeButton {
+                    true => State::Selected,
+                    _ => State::Normal,
+                },
+            ),
+            button_areas.remove(0),
+        );
+    }
+
+    // Buttons row 2
+    let [_, button1_area, _, button2_area] =
+        buttons_row_layout.areas(buttons_row2_area);
+
+    frame.render_widget(
+        Button::new("crates.io").theme(YELLOW).state(
+            match home.focused == Focusable::CratesIoButton {
+                true => State::Selected,
+                _ => State::Normal,
+            },
+        ),
+        button1_area,
+    );
+    frame.render_widget(
+        Button::new("lib.rs")
+            .theme(PURPLE)
+            .state(match home.focused == Focusable::LibRsButton {
+                true => State::Selected,
+                _ => State::Normal,
+            }),
+        button2_area,
+    );
 
     Ok(())
 }

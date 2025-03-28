@@ -31,9 +31,11 @@ pub enum Action {
     Search(SearchAction),
     Cargo(CargoAction),
 
+    OpenDocs,
     OpenReadme,
     RenderReadme(String),
-    OpenDocs,
+    OpenCratesIo,
+    OpenLibRs,
 
     ToggleSettings,
     Settings(SettingsAction),
