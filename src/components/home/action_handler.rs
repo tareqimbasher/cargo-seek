@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::{fs, io::Write, process::Command};
 
 use crate::action::{Action, SearchAction};
-use crate::components::home::enums::Focusable;
+use crate::components::home::focusable::Focusable;
 use crate::components::home::Home;
 use crate::components::status_bar::{StatusDuration, StatusLevel};
 use crate::errors::AppResult;
@@ -287,7 +287,9 @@ pub async fn handle_action(
                 .search_results
                 .as_ref()
                 .and_then(|results| results.get_selected())
-                .and_then(|krate| Url::parse(format!("https://crates.io/crates/{}", krate.id).as_str()).ok())
+                .and_then(|krate| {
+                    Url::parse(format!("https://crates.io/crates/{}", krate.id).as_str()).ok()
+                })
             {
                 open::that(url.to_string())?;
             }
@@ -297,7 +299,9 @@ pub async fn handle_action(
                 .search_results
                 .as_ref()
                 .and_then(|results| results.get_selected())
-                .and_then(|krate| Url::parse(format!("https://lib.rs/crates/{}", krate.id).as_str()).ok())
+                .and_then(|krate| {
+                    Url::parse(format!("https://lib.rs/crates/{}", krate.id).as_str()).ok()
+                })
             {
                 open::that(url.to_string())?;
             }

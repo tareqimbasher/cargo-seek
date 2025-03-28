@@ -1,9 +1,7 @@
+use crate::components::{Focusable, StatusDuration, StatusLevel};
+use crate::search::{Scope, SearchResults, Sort};
 use serde::{Deserialize, Serialize};
 use strum::Display;
-
-use crate::components::home::enums::Focusable;
-use crate::components::status_bar::{StatusDuration, StatusLevel};
-use crate::search::{Scope, SearchResults, Sort};
 
 #[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
 pub enum Action {

@@ -1,4 +1,3 @@
-﻿use std::cmp::PartialEq;
 use async_trait::async_trait;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Styled, Stylize};
@@ -6,6 +5,7 @@ use ratatui::text::{Line, Text};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 use serde::{Deserialize, Serialize};
+use std::cmp::PartialEq;
 use strum::Display;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::oneshot;
@@ -108,7 +108,8 @@ impl StatusBar {
                     if cancel_rx.try_recv().is_ok() {
                         return;
                     }
-                    tx.send(Action::UpdateStatus(StatusLevel::Info, "ready".into())).unwrap();
+                    tx.send(Action::UpdateStatus(StatusLevel::Info, "ready".into()))
+                        .unwrap();
                 });
             }
         }
@@ -213,8 +214,7 @@ impl Component for StatusBar {
         }
 
         frame.render_widget(
-            Paragraph::new(Text::from(Line::from(text)))
-            .alignment(Alignment::Right),
+            Paragraph::new(Text::from(Line::from(text))).alignment(Alignment::Right),
             right,
         );
 

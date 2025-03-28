@@ -1,14 +1,20 @@
-﻿pub mod app_id;
-pub mod fps;
-pub mod home;
-pub mod settings;
-pub mod status_bar;
-pub mod ux;
+mod app_id;
+mod fps;
+mod home;
+mod settings;
+mod status_bar;
+mod ux;
 
-use std::any::Any;
 use async_trait::async_trait;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::{layout::Rect, Frame};
+use std::any::Any;
+
+pub use app_id::*;
+pub use fps::FpsCounter;
+pub use home::*;
+pub use settings::Settings;
+pub use status_bar::{StatusBar, StatusDuration, StatusLevel};
 
 use crate::app::Mode;
 use crate::errors::AppResult;

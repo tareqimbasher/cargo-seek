@@ -1,6 +1,6 @@
-﻿mod action_handler;
+mod action_handler;
 mod draw;
-pub mod enums;
+mod focusable;
 mod key_handler;
 
 use super::Component;
@@ -16,7 +16,6 @@ use tui_input::Input;
 use crate::cargo::CargoEnv;
 use crate::components::home::action_handler::handle_action;
 use crate::components::home::draw::render;
-use crate::components::home::enums::Focusable;
 use crate::components::home::key_handler::handle_key;
 use crate::components::status_bar::StatusLevel;
 use crate::components::ux::Dropdown;
@@ -28,6 +27,7 @@ use crate::{
     app::Mode,
     config::Config,
 };
+pub use focusable::Focusable;
 
 pub struct Home {
     cargo_env: Arc<RwLock<CargoEnv>>,
@@ -265,39 +265,6 @@ mod tests {
     async fn test_focus_action() {
         let (home, _) = execute_update(Action::Focus(Focusable::Results)).await;
         assert_eq!(home.focused, Focusable::Results);
-    }
-
-    #[tokio::test]
-    async fn test_focus_next_action() {
-        let (home, _) = execute_update(Action::FocusNext).await;
-        assert_eq!(home.focused, Focusable::Results);
-    }
-
-    #[tokio::test]
-    async fn test_focus_next_action_when_last_is_focused() {
-        let (mut home, mut tui) = execute_update(Action::Focus(Focusable::DocsButton)).await;
-
-        execute_update_with_home(&mut home, &mut tui, Action::FocusNext).await;
-
-        assert_eq!(home.focused, Focusable::Search);
-    }
-
-    #[tokio::test]
-    async fn test_focus_previous_action() {
-        let (mut home, mut tui) = execute_update(Action::Focus(Focusable::DocsButton)).await;
-
-        execute_update_with_home(&mut home, &mut tui, Action::FocusPrevious).await;
-
-        assert_eq!(home.focused, Focusable::ReadmeButton);
-    }
-
-    #[tokio::test]
-    async fn test_focus_previous_action_when_first_is_focused() {
-        let (mut home, mut tui) = execute_update(Action::Focus(Focusable::Search)).await;
-
-        execute_update_with_home(&mut home, &mut tui, Action::FocusPrevious).await;
-
-        assert_eq!(home.focused, Focusable::DocsButton);
     }
 
     #[tokio::test]

@@ -1,4 +1,4 @@
-﻿use ratatui::widgets::ListState;
+use ratatui::widgets::ListState;
 use serde::{Deserialize, Serialize};
 
 use crate::search::Crate;

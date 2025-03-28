@@ -2,8 +2,6 @@
 use serde::{Deserialize, Serialize};
 use std::iter::Cycle;
 
-use crate::search::Sort;
-
 #[derive(Default, PartialEq, Clone, Debug, Eq, Sequence, Serialize, Deserialize)]
 pub enum Focusable {
     Usage,
@@ -29,20 +27,6 @@ impl Focusable {
         let mut variants: Cycle<_> = reverse_all::<Focusable>().cycle();
         variants.find(|v| v == self);
         variants.next().unwrap()
-    }
-}
-
-impl std::fmt::Display for Sort {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let output = match self {
-            Sort::Relevance => "Relevance",
-            Sort::Name => "Name",
-            Sort::Downloads => "Downloads",
-            Sort::RecentDownloads => "Recent Downloads",
-            Sort::RecentlyUpdated => "Recently Updated",
-            Sort::NewlyAdded => "Newly Added",
-        };
-        write!(f, "{}", output)
     }
 }
 

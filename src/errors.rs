@@ -23,10 +23,10 @@ pub enum AppError {
     Join(#[from] tokio::task::JoinError),
     #[error("Error: {0}")]
     Unknown(String),
-    
+
     // Custom
     #[error("{0}")]
-    Cargo(String)
+    Cargo(String),
 }
 
 /// Catch-all: if an error that implements std::error::Error occurs

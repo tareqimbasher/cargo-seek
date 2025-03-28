@@ -7,6 +7,12 @@ authors = ["Tareq Imbasher <https://github.com/tareqimbasher"]
 build = "build.rs"
 repository = "https://github.com/tareqimbasher/seekr"
 
+[profile.release]
+opt-level = "z"  # Optimize for size.
+strip = true  # Automatically strip symbols from the binary.
+lto = true
+panic = "abort"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -58,9 +64,3 @@ async-trait = "0.1"
 [build-dependencies]
 anyhow = "1.0.86"
 vergen-gix = { version = "1.0.2", features = ["build", "cargo"] }
-
-[profile.release]
-opt-level = "z"  # Optimize for size.
-strip = true  # Automatically strip symbols from the binary.
-lto = true
-panic = "abort"

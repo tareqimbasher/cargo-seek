@@ -1,10 +1,12 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::fs;
+use std::fs::DirEntry;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use crate::cargo::{get_metadata, Package};
-use crate::errors::AppResult;
+use crate::errors::{AppError, AppResult};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct DependencyInfo {
@@ -20,46 +22,30 @@ pub struct Project {
 }
 
 impl Project {
-    pub fn from(path: PathBuf) -> Option<Project> {
-        if !path.exists() || !path.is_dir() {
+    pub fn from(path: &Path) -> Option<Project> {
+        if !path.try_exists().ok().unwrap_or_default() || !path.is_dir() {
             return None;
         }
 
-        let files = std::fs::read_dir(path);
-
-        if files.is_err() {
-            return None;
+        if let Ok(Some(manifest_file_path)) = find_project_manifest(path) {
+            Some(Project {
+                manifest_file_path,
+                packages: Vec::new(),
+                dependencies: HashMap::new(),
+            })
+        } else {
+            None
         }
-
-        // Iterate over files and check if we have a match. Iteration was chosen because
-        // checking if specific paths exists is error-prone. Ex: checking if "cargo.toml" exists
-        // on Windows returns true when the file's name is called "Cargo.toml", this causes an
-        // issue in that the cargo executable wants the exact file name.
-        let manifest_file = files
-            .unwrap()
-            .find(|f| {
-                if let Ok(file) = f {
-                    let file_name = file.file_name().to_str().unwrap_or_default().to_string();
-                    if file_name == "Cargo.toml" || file_name == "cargo.toml" {
-                        return true;
-                    }
-                }
-                false
-            })?
-            .ok();
-
-        manifest_file.as_ref()?;
-
-        let manifest_file_path = manifest_file.unwrap().path();
-
-        Some(Project {
-            manifest_file_path,
-            packages: Vec::new(),
-            dependencies: HashMap::new(),
-        })
     }
 
+    /// Reads the current project and updates internal state.
     pub fn read(&mut self) -> AppResult<()> {
+        if !self.manifest_file_path.exists() {
+            return Err(AppError::Unknown(
+                "Manifest file no longer exists".to_owned(),
+            ));
+        }
+
         let metadata = get_metadata(&self.manifest_file_path)?;
 
         let packages = metadata.packages;
@@ -86,7 +72,42 @@ impl Project {
         Ok(())
     }
 
+    /// Gets the local project version of the given crate name, if any.
     pub fn get_local_version(&self, package_name: &str) -> Option<String> {
-        self.dependencies.get(package_name).map(|dep| dep.version.clone())
+        self.dependencies
+            .get(package_name)
+            .map(|dep| dep.version.clone())
+    }
+}
+
+fn find_project_manifest(starting_dir_path: &Path) -> AppResult<Option<PathBuf>> {
+    let mut search_path = Some(starting_dir_path);
+    let mut manifest_file: Option<DirEntry> = None;
+
+    while search_path.is_some() && manifest_file.is_none() {
+        let path = search_path.unwrap();
+
+        let found = fs::read_dir(path)?.find(|f| {
+            if let Ok(file) = f {
+                let file_name = file.file_name().to_string_lossy().to_lowercase();
+                if file_name == "cargo.toml" {
+                    return true;
+                }
+            }
+            false
+        });
+
+        if let Some(found) = found {
+            manifest_file = Some(found?);
+            break;
+        }
+
+        search_path = path.parent();
+    }
+
+    if let Some(manifest_file) = manifest_file {
+        Ok(Some(manifest_file.path()))
+    } else {
+        Ok(None)
     }
 }

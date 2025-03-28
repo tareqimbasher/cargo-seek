@@ -1,4 +1,3 @@
-use std::time::Instant;
 use async_trait::async_trait;
 use ratatui::{
     layout::{Constraint, Layout, Rect},
@@ -7,6 +6,7 @@ use ratatui::{
     widgets::Paragraph,
     Frame,
 };
+use std::time::Instant;
 
 use super::Component;
 

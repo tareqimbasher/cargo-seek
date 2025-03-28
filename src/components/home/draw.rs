@@ -1,4 +1,4 @@
-﻿use chrono::Utc;
+use chrono::Utc;
 use ratatui::prelude::{Color, Line, Text};
 use ratatui::widgets::block::{Position, Title};
 use ratatui::widgets::{Block, Borders, List, ListItem, Padding, Paragraph, Wrap};
@@ -9,7 +9,7 @@ use ratatui::{
 };
 
 use crate::app::Mode;
-use crate::components::home::enums::Focusable;
+use crate::components::home::focusable::Focusable;
 use crate::components::home::Home;
 use crate::components::ux::{Button, State, GRAY, ORANGE, PURPLE, YELLOW};
 use crate::components::Component;
@@ -148,8 +148,11 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
                 let name = i.name.to_string();
                 let version = i.version.to_string();
 
-                let mut white_space =
-                    area.width as i32 - name.len() as i32 - tag.len() as i32 - VERSION_PADDING as i32 - correction;
+                let mut white_space = area.width as i32
+                    - name.len() as i32
+                    - tag.len() as i32
+                    - VERSION_PADDING as i32
+                    - correction;
                 if white_space < 1 {
                     white_space = 1;
                 }
@@ -169,10 +172,7 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
                     Style::default()
                 };
 
-                ListItem::new(Line::from(vec![
-                    tag.bold(),
-                    line.into()
-                ]).set_style(style))
+                ListItem::new(Line::from(vec![tag.bold(), line.into()]).set_style(style))
             })
             .collect();
 
@@ -268,7 +268,6 @@ fn render_usage(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
             "installed".bold(),
         ]),
         Line::default(),
-
         Line::from(vec!["SEARCH".bold()]),
         Line::from(vec![
             format!("{:<PAD$}", "Enter:").set_style(prop_style),

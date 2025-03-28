@@ -28,7 +28,7 @@ impl CrateSearchManager {
         let client = AsyncClient::with_http_client(
             Client::builder()
                 .default_headers(headers)
-                .timeout(Duration::from_secs(15))
+                .timeout(Duration::from_secs(10))
                 .build()?,
             Duration::from_millis(1000),
         );
@@ -129,7 +129,6 @@ impl CrateSearchManager {
             }
 
             // Back-fill is_local and is_installed for search results that don't have it
-            // todo optimize
             Self::update_results(&mut search_results, &cargo_env);
 
             tx.send(Action::Search(SearchAction::Render(search_results)))

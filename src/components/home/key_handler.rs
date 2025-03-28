@@ -1,8 +1,8 @@
-﻿use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tui_input::backend::crossterm::EventHandler;
 
 use crate::action::{Action, CargoAction, SearchAction};
-use crate::components::home::enums::{is_results_or_details_focused, Focusable};
+use crate::components::home::focusable::{is_results_or_details_focused, Focusable};
 use crate::components::home::Home;
 use crate::components::Component;
 use crate::errors::AppResult;
@@ -179,8 +179,10 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
 
     if home.focused == Focusable::Search {
         match key.code {
-            KeyCode::Down => if home.search_results.is_some() {
-                return Ok(Some(Action::Focus(Focusable::Results)));
+            KeyCode::Down => {
+                if home.search_results.is_some() {
+                    return Ok(Some(Action::Focus(Focusable::Results)));
+                }
             }
             _ => {
                 // Send to input box
@@ -241,10 +243,8 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
         }
     }
 
-    if is_results_or_details_focused(&home.focused) {
-        if ctrl && key.code == KeyCode::Char('d') {
-            return Ok(Some(Action::OpenDocs));
-        }
+    if is_results_or_details_focused(&home.focused) && ctrl && key.code == KeyCode::Char('d') {
+        return Ok(Some(Action::OpenDocs));
     }
 
     if home.focused == Focusable::Sort {

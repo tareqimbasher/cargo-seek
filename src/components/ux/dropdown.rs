@@ -1,4 +1,4 @@
-﻿use async_trait::async_trait;
+use async_trait::async_trait;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::prelude::Stylize;
@@ -23,7 +23,11 @@ pub struct Dropdown<T> {
 }
 
 impl<T: IntoEnumIterator + Default + Clone> Dropdown<T> {
-    pub fn new(header: String, selected_ix: usize, on_enter: Box<dyn Fn(&T) + Send + Sync>) -> Self {
+    pub fn new(
+        header: String,
+        selected_ix: usize,
+        on_enter: Box<dyn Fn(&T) + Send + Sync>,
+    ) -> Self {
         Dropdown {
             header,
             config: Config::default(),

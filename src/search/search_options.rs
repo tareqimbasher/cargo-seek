@@ -1,4 +1,4 @@
-﻿use enum_iterator::Sequence;
+use enum_iterator::Sequence;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter};
 
@@ -22,6 +22,20 @@ pub enum Sort {
     RecentDownloads,
     RecentlyUpdated,
     NewlyAdded,
+}
+
+impl std::fmt::Display for Sort {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let output = match self {
+            Sort::Relevance => "Relevance",
+            Sort::Name => "Name",
+            Sort::Downloads => "Downloads",
+            Sort::RecentDownloads => "Recent Downloads",
+            Sort::RecentlyUpdated => "Recently Updated",
+            Sort::NewlyAdded => "Newly Added",
+        };
+        write!(f, "{}", output)
+    }
 }
 
 #[derive(Debug, Default)]

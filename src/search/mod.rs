@@ -1,7 +1,7 @@
-﻿mod cargo_crate;
+mod cargo_crate;
 mod crate_search_manager;
-mod search_results;
 mod search_options;
+mod search_results;
 
 pub use cargo_crate::*;
 pub use crate_search_manager::*;

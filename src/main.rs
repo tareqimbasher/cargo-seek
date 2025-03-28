@@ -2,22 +2,21 @@ mod action;
 mod app;
 mod cargo;
 mod cli;
+mod components;
 mod config;
 mod errors;
 mod logging;
 mod search;
 mod tui;
 mod util;
-mod components;
 
 use clap::Parser;
 use cli::Cli;
-use color_eyre::Result;
 
 use crate::app::App;
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> color_eyre::Result<()> {
     errors::init()?;
     logging::init()?;
 

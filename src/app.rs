@@ -5,29 +5,22 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use tracing::{debug, info};
 
-use crate::action::CargoAction;
+use crate::action::{Action, CargoAction};
 use crate::cargo::{add, install, remove, uninstall, CargoEnv};
-use crate::components::status_bar::StatusLevel;
+use crate::components::{AppId, Component, FpsCounter, Home, Settings, StatusBar, StatusLevel};
+use crate::config::Config;
 use crate::errors::{AppError, AppResult};
-use crate::{
-    action::Action,
-    components::{
-        app_id::AppId, fps::FpsCounter, home::Home, settings::Settings, status_bar::StatusBar,
-        Component,
-    },
-    config::Config,
-    tui::{Event, Tui},
-};
+use crate::tui::{Event, Tui};
 
 pub struct App {
     cargo_env: Arc<RwLock<CargoEnv>>,
     config: Config,
     tick_rate: f64,
     frame_rate: f64,
+    mode: Mode,
     components: Vec<Box<dyn Component>>,
     should_quit: bool,
     should_suspend: bool,
-    mode: Mode,
     last_tick_key_events: Vec<KeyEvent>,
     action_tx: mpsc::UnboundedSender<Action>,
     action_rx: mpsc::UnboundedReceiver<Action>,
@@ -49,9 +42,9 @@ impl App {
         let cargo_env = Arc::new(RwLock::new(CargoEnv::new(root)));
 
         let mut components: Vec<Box<dyn Component>> = vec![
+            Box::new(AppId::new()),
             Box::new(Home::new(Arc::clone(&cargo_env), action_tx.clone())?),
             Box::new(Settings::new()),
-            Box::new(AppId::new()),
             Box::new(StatusBar::new(action_tx.clone())),
         ];
 
