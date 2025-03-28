@@ -43,9 +43,7 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
             return Ok(Some(Action::FocusPrevious));
         }
         KeyCode::Tab => {
-            if home.search_results.is_some() {
-                return Ok(Some(Action::FocusNext));
-            }
+            return Ok(Some(Action::FocusNext));
         }
         KeyCode::Enter => match home.focused {
             Focusable::Search => {
@@ -74,6 +72,11 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
             Focusable::DocsButton => {
                 return Ok(Some(Action::Focus(Focusable::InstallButton)));
             }
+            Focusable::Usage => {
+                if home.vertical_usage_scroll > 0 {
+                    home.vertical_usage_scroll -= 1;
+                }
+            }
             _ => {}
         },
         KeyCode::Down => match home.focused {
@@ -82,6 +85,11 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
             }
             Focusable::InstallButton => {
                 return Ok(Some(Action::Focus(Focusable::DocsButton)));
+            }
+            Focusable::Usage => {
+                if home.vertical_usage_scroll < 21 {
+                    home.vertical_usage_scroll += 1;
+                }
             }
             _ => {}
         },
@@ -92,6 +100,9 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
             Focusable::DocsButton => {
                 return Ok(Some(Action::Focus(Focusable::ReadmeButton)));
             }
+            Focusable::Usage => {
+                return Ok(Some(Action::Focus(Focusable::Search)));
+            }
             _ => {}
         },
         KeyCode::Right => match home.focused {
@@ -100,6 +111,16 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
             }
             Focusable::ReadmeButton => {
                 return Ok(Some(Action::Focus(Focusable::DocsButton)));
+            }
+            Focusable::Search => {
+                if home.show_usage {
+                    return Ok(Some(Action::Focus(Focusable::Usage)));
+                }
+            }
+            Focusable::Results => {
+                if home.show_usage {
+                    return Ok(Some(Action::Focus(Focusable::Usage)));
+                }
             }
             _ => {}
         },
@@ -154,7 +175,7 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
 
     if home.focused == Focusable::Search {
         match key.code {
-            KeyCode::Down => {
+            KeyCode::Down => if home.search_results.is_some() {
                 return Ok(Some(Action::Focus(Focusable::Results)));
             }
             _ => {

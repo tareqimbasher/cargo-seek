@@ -341,16 +341,34 @@ fn render_usage(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
         .title(" 📖 Usage ")
         .title_style(home.config.styles[&Mode::App]["title"])
         .padding(Padding::uniform(1))
-        .borders(Borders::ALL);
+        .borders(Borders::ALL)
+        .border_style(match home.focused {
+            Focusable::Usage => home.config.styles[&Mode::App]["accent_active"],
+            _ => Style::default(),
+        });
 
     frame.render_widget(&block, area);
 
     frame.render_widget(
         Paragraph::new(text)
             .wrap(Wrap { trim: false })
-            .scroll((0, 0)),
+            .scroll((home.vertical_usage_scroll as u16, 0)),
         block.inner(area),
     );
+
+
+    // let paragraph = Paragraph::new(text.clone())
+    //     .gray()
+    //     .block(block)
+    //     .scroll((home.vertical_usage_scroll as u16, 0));
+    // frame.render_widget(paragraph, area);
+    // frame.render_stateful_widget(
+    //     Scrollbar::new(ScrollbarOrientation::VerticalRight)
+    //         .begin_symbol(Some("↑"))
+    //         .end_symbol(Some("↓")),
+    //     area,
+    //     &mut home.vertical_usage_scroll_state,
+    // );
 
     Ok(())
 }

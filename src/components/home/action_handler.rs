@@ -33,23 +33,56 @@ pub async fn handle_action(
             home.focused = focusable;
         }
         Action::FocusNext => {
+            let has_search_results = home.search_results.is_some();
+            let show_usage = home.show_usage;
+
+            if !has_search_results || show_usage {
+                return if home.focused == Focusable::Usage {
+                    Ok(Some(Action::Focus(Focusable::Search)))
+                } else {
+                    Ok(Some(Action::Focus(Focusable::Usage)))
+                };
+            }
+
             let mut next = home.focused.next();
-            while next == Focusable::Sort || next == Focusable::Scope {
+            while next == Focusable::Usage || next == Focusable::Sort || next == Focusable::Scope {
                 next = next.next();
             }
 
             return Ok(Some(Action::Focus(next)));
         }
         Action::FocusPrevious => {
+            let has_search_results = home.search_results.is_some();
+            let show_usage = home.show_usage;
+
+            if !has_search_results || show_usage {
+                return if home.focused == Focusable::Usage {
+                    Ok(Some(Action::Focus(Focusable::Search)))
+                } else {
+                    Ok(Some(Action::Focus(Focusable::Usage)))
+                };
+            }
+            
             let mut prev = home.focused.prev();
-            while prev == Focusable::Sort || prev == Focusable::Scope {
+            while prev == Focusable::Usage || prev == Focusable::Sort || prev == Focusable::Scope {
+                prev = prev.prev();
+            }
+
+            if !home.show_usage && prev == Focusable::Usage {
                 prev = prev.prev();
             }
 
             return Ok(Some(Action::Focus(prev)));
         }
         Action::ToggleUsage => {
+            let was_showing = home.show_usage;
             home.show_usage = !home.show_usage;
+            home.vertical_usage_scroll = 0;
+            return if was_showing {
+                Ok(Some(Action::Focus(Focusable::Search)))
+            } else {
+                Ok(Some(Action::Focus(Focusable::Usage)))
+            };
         }
         Action::Search(action) => match action {
             SearchAction::Clear => home.reset()?,

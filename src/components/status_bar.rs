@@ -12,7 +12,6 @@ use tokio::sync::oneshot;
 
 use crate::action::Action;
 use crate::app::Mode;
-use crate::components::status_bar::StatusLevel::Info;
 use crate::components::Component;
 use crate::config::Config;
 use crate::errors::AppResult;
@@ -109,7 +108,7 @@ impl StatusBar {
                     if cancel_rx.try_recv().is_ok() {
                         return;
                     }
-                    tx.send(Action::UpdateStatus(Info, "ready".into())).unwrap();
+                    tx.send(Action::UpdateStatus(StatusLevel::Info, "ready".into())).unwrap();
                 });
             }
         }
@@ -183,8 +182,18 @@ impl Component for StatusBar {
     }
 
     fn draw(&mut self, _: &Mode, frame: &mut Frame, area: Rect) -> AppResult<()> {
+        let accent = self.config.styles[&Mode::App]["accent"];
+        let text = vec![
+            "/: ".set_style(accent),
+            "search".into(),
+            "  ".into(),
+            "ctrl+h: ".set_style(accent),
+            "help".into(),
+        ];
+        let text_length = text.iter().map(|x| x.content.len()).sum::<usize>();
+
         let [left, right] =
-            Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+            Layout::horizontal([Constraint::Min(1), Constraint::Length(text_length as u16)])
                 .areas(area);
 
         if let Some(status) = &self.status {
@@ -203,27 +212,8 @@ impl Component for StatusBar {
             frame.render_widget(Paragraph::new(text), left);
         }
 
-        let accent = self.config.styles[&Mode::App]["accent"];
         frame.render_widget(
-            Paragraph::new(Text::from(Line::from(vec![
-                "/: ".set_style(accent),
-                "search".into(),
-                " ".into(),
-                "a: ".set_style(accent),
-                "add".into(),
-                " ".into(),
-                "r: ".set_style(accent),
-                "remove".into(),
-                " ".into(),
-                "i: ".set_style(accent),
-                "install".into(),
-                " ".into(),
-                "u: ".set_style(accent),
-                "uninstall".into(),
-                " ".into(),
-                "Ctrl+h: ".set_style(accent),
-                "help".into(),
-            ])))
+            Paragraph::new(Text::from(Line::from(text)))
             .alignment(Alignment::Right),
             right,
         );

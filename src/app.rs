@@ -193,8 +193,7 @@ impl App {
                             tui.exit()?;
                             let tx = self.action_tx.clone();
                             tokio::spawn(async move {
-                                if let Err(_) = add(crate_name.clone(), Some(version.clone()), true)
-                                {
+                                if add(crate_name.clone(), Some(version.clone()), true).is_err() {
                                     tx.send(Action::UpdateStatus(
                                         StatusLevel::Error,
                                         format!("failed to add {crate_name}"),
@@ -209,7 +208,7 @@ impl App {
                                 tx.send(Action::RefreshCargoEnv)?;
                                 Ok::<(), AppError>(())
                             })
-                                .await??;
+                            .await??;
 
                             tui.enter()?;
                             tui.terminal.clear()?;
@@ -223,7 +222,7 @@ impl App {
 
                             let tx = self.action_tx.clone();
                             tokio::spawn(async move {
-                                if let Err(_) = remove(crate_name.clone(), false) {
+                                if remove(crate_name.clone(), false).is_err() {
                                     tx.send(Action::UpdateStatus(
                                         StatusLevel::Error,
                                         format!("failed to remove {crate_name}"),
@@ -254,7 +253,7 @@ impl App {
                             tui.exit()?;
                             let tx = self.action_tx.clone();
                             tokio::spawn(async move {
-                                if let Err(_) = install(crate_name.clone(), Some(version.clone()), true)
+                                if install(crate_name.clone(), Some(version.clone()), true).is_err()
                                 {
                                     tx.send(Action::UpdateStatus(
                                         StatusLevel::Error,
@@ -270,7 +269,7 @@ impl App {
                                 tx.send(Action::RefreshCargoEnv)?;
                                 Ok::<(), AppError>(())
                             })
-                                .await??;
+                            .await??;
 
                             tui.enter()?;
                             tui.terminal.clear()?;
@@ -284,7 +283,7 @@ impl App {
 
                             let tx = self.action_tx.clone();
                             tokio::spawn(async move {
-                                if let Err(_) = uninstall(crate_name.clone(), false) {
+                                if uninstall(crate_name.clone(), false).is_err() {
                                     tx.send(Action::UpdateStatus(
                                         StatusLevel::Error,
                                         format!("failed to uninstall {crate_name}"),

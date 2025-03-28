@@ -6,6 +6,7 @@ use crate::search::Sort;
 
 #[derive(Default, PartialEq, Clone, Debug, Eq, Sequence, Serialize, Deserialize)]
 pub enum Focusable {
+    Usage,
     #[default]
     Search,
     Sort,

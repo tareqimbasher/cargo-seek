@@ -5,12 +5,12 @@ mod key_handler;
 
 use super::Component;
 
-use std::sync::Arc;
 use async_trait::async_trait;
 use crossterm::event::KeyEvent;
 use ratatui::{layout::Rect, Frame};
+use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::{RwLock};
+use tokio::sync::RwLock;
 use tui_input::Input;
 
 use crate::cargo::CargoEnv;
@@ -43,6 +43,7 @@ pub struct Home {
     action_tx: UnboundedSender<Action>,
     config: Config,
     scope: Scope,
+    pub vertical_usage_scroll: usize,
 }
 
 impl Home {
@@ -79,6 +80,7 @@ impl Home {
             action_tx,
             config: Config::default(),
             scope: Scope::default(),
+            vertical_usage_scroll: 0,
         })
     }
 
