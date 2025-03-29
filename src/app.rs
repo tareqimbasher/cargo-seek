@@ -1,6 +1,7 @@
 use crossterm::event::KeyEvent;
 use ratatui::layout::{Constraint, Layout, Rect};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use tracing::{debug, info};
@@ -35,11 +36,15 @@ pub enum Mode {
 }
 
 impl App {
-    pub fn new(tick_rate: f64, frame_rate: f64, show_counter: bool) -> AppResult<Self> {
+    pub fn new(
+        tick_rate: f64,
+        frame_rate: f64,
+        show_counter: bool,
+        proj_path: Option<PathBuf>,
+    ) -> AppResult<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
 
-        let root = std::env::current_dir().ok();
-        let cargo_env = Arc::new(RwLock::new(CargoEnv::new(root)));
+        let cargo_env = Arc::new(RwLock::new(CargoEnv::new(proj_path)));
 
         let mut components: Vec<Box<dyn Component>> = vec![
             Box::new(AppId::new()),

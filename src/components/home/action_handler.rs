@@ -162,13 +162,15 @@ pub async fn handle_action(
                 home.search_results = Some(results);
                 home.show_usage = false;
 
-                if results_len > 0 {
-                    home.action_tx.send(Action::UpdateStatusWithDuration(
-                        StatusLevel::Success,
-                        StatusDuration::Short,
-                        format!("Loaded {results_len} results"),
-                    ))?;
-                }
+                home.action_tx.send(Action::UpdateStatusWithDuration(
+                    StatusLevel::Success,
+                    StatusDuration::Short,
+                    if results_len > 0 {
+                        format!("Loaded {results_len} results")
+                    } else {
+                        "No results".to_string()
+                    },
+                ))?;
             }
             SearchAction::NavPagesForward(pages) => {
                 home.go_pages_forward(pages, home.input.value().to_string())?;
