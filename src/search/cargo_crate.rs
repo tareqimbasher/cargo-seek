@@ -18,7 +18,13 @@ pub struct Crate {
     pub updated_at: Option<DateTime<Utc>>,
     pub exact_match: bool,
     #[serde(default)]
-    pub local_version: Option<String>,
+    pub project_version: Option<String>,
     #[serde(default)]
     pub installed_version: Option<String>,
+}
+
+impl Crate {
+    pub fn is_metadata_loaded(&self) -> bool {
+        self.created_at.is_some()
+    }
 }

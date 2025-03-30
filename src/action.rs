@@ -3,7 +3,7 @@ use crate::search::{Scope, SearchResults, Sort};
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
-#[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
+#[derive(Debug, Clone, Display, Serialize, Deserialize)]
 pub enum Action {
     Tick,
     Render,
@@ -23,11 +23,12 @@ pub enum Action {
     UpdateStatus(StatusLevel, String),
     UpdateStatusWithDuration(StatusLevel, StatusDuration, String),
 
-    RefreshCargoEnv,
-    CargoEnvRefreshed,
-
     Search(SearchAction),
     Cargo(CargoAction),
+
+    RefreshCargoEnv,
+    CargoEnvRefreshed,
+    CrateDataLoaded(Box<crates_io_api::Crate>),
 
     OpenDocs,
     OpenReadme,
@@ -42,7 +43,7 @@ pub enum Action {
 #[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
 pub enum SearchAction {
     Clear,
-    Search(String, Sort, usize, Option<String>),
+    Search(String, Scope, Sort, usize, Option<String>),
     Error(String),
     SortBy(Sort),
     Scope(Scope),

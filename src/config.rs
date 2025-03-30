@@ -143,7 +143,7 @@ pub fn get_config_dir() -> PathBuf {
 }
 
 fn project_directory() -> Option<ProjectDirs> {
-    ProjectDirs::from("com", "kdheepak", env!("CARGO_PKG_NAME"))
+    ProjectDirs::from("com", "crate-seek", env!("CARGO_PKG_NAME"))
 }
 
 fn parse_key_event(raw: &str) -> Result<KeyEvent, String> {
@@ -462,7 +462,7 @@ fn parse_color(s: &str) -> Option<Color> {
 mod tests {
     use super::*;
     use crate::errors::AppResult;
-    use pretty_assertions::assert_eq;
+    use pretty_assertions::{assert_eq, assert_matches};
 
     #[test]
     fn test_parse_style_default() {
@@ -514,7 +514,7 @@ mod tests {
     #[test]
     fn test_config() -> AppResult<()> {
         let c = Config::new()?;
-        assert_eq!(
+        assert_matches!(
             c.keybindings
                 .get(&Mode::App)
                 .unwrap()

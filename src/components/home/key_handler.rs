@@ -49,6 +49,7 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
             Focusable::Search => {
                 return Ok(Some(Action::Search(SearchAction::Search(
                     home.input.value().to_string(),
+                    home.scope_dropdown.get_selected(),
                     home.sort_dropdown.get_selected(),
                     1,
                     None,

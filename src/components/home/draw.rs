@@ -126,7 +126,8 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
         );
 
     if let Some(results) = home.search_results.as_mut() {
-        let correction = match results.get_selected_index() {
+        let seleceted_index = results.get_selected_index();
+        let correction = match seleceted_index {
             Some(_) => 4,
             None => 2,
         };
@@ -136,17 +137,24 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
         let list_items: Vec<ListItem> = results
             .crates
             .iter()
-            .map(|i| {
-                let tag = if i.local_version.is_some() {
+            .map(|cr| {
+                let tag = if cr.project_version.is_some() {
                     "+ "
-                } else if i.installed_version.is_some() {
+                } else if cr.installed_version.is_some() {
                     "i "
                 } else {
                     "  "
                 };
 
-                let name = i.name.to_string();
-                let version = i.version.to_string();
+                let name = cr.name.to_string();
+                let mut version = cr.version.to_string();
+                if cr.is_metadata_loaded() {
+                    if let Some(project_version) = &cr.project_version {
+                        version = format!("{} ({})", version, project_version);
+                    } else if let Some(installed_version) = &cr.installed_version {
+                        version = format!("{} ({})", version, installed_version);
+                    }
+                }
 
                 let mut white_space = area.width as i32
                     - name.len() as i32
@@ -164,9 +172,9 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
                     version
                 );
 
-                let style = if i.local_version.is_some() {
+                let style = if cr.project_version.is_some() {
                     Style::default().fg(Color::LightCyan)
-                } else if i.installed_version.is_some() {
+                } else if cr.installed_version.is_some() {
                     Style::default().fg(Color::LightMagenta)
                 } else {
                     Style::default()
@@ -187,7 +195,7 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
             }
         };
 
-        let selected_item_num = match results.get_selected_index() {
+        let selected_item_num = match seleceted_index {
             None => 0,
             Some(ix) => {
                 if ix == usize::MAX {
@@ -205,6 +213,7 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
 
         let selected_item_num_in_total = items_in_prev_pages + selected_item_num;
 
+        let selected = results.get_selected();
         let list = List::new(list_items)
             .block(
                 block
@@ -222,11 +231,19 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
                         .alignment(Alignment::Right),
                     ),
             )
-            //.highlight_style(home.config.styles[&Mode::App]["accent"].bold())
-            .highlight_style(Style::default().bold())
-            .highlight_symbol(">");
+            .highlight_style(
+                if selected.is_some()
+                    && (selected.unwrap().project_version.is_some()
+                        || selected.unwrap().installed_version.is_some())
+                {
+                    Style::default().bold()
+                } else {
+                    home.config.styles[&Mode::App]["accent"].bold()
+                },
+            )
+            .highlight_symbol("▶");
 
-        frame.render_stateful_widget(list, area, results.list_state());
+        frame.render_stateful_widget(list, area, &mut results.list_state);
     } else {
         frame.render_widget(block, area);
     }
@@ -420,12 +437,12 @@ fn render_crate_details(
         ]),
     ]);
 
-    if let Some(local_version) = &krate.local_version {
+    if let Some(project_version) = &krate.project_version {
         text.lines.push(Line::from(vec![
             format!("{:<left_column_width$}", "Project Version:")
                 .light_cyan()
                 .bold(),
-            local_version.to_string().bold(),
+            project_version.to_string().bold(),
         ]));
     }
 
@@ -476,7 +493,7 @@ fn render_crate_details(
         ]),
         Line::from(vec![
             format!("{:<left_column_width$}", "Updated:").set_style(prop_style),
-            match krate.created_at.as_ref() {
+            match krate.updated_at.as_ref() {
                 None => "".into(),
                 Some(v) => {
                     let updated_relative = match krate.updated_at {
@@ -495,13 +512,12 @@ fn render_crate_details(
         ]),
     ]);
 
-    let details_paragraph_lines = text.lines.len();
     let details_paragraph = Paragraph::new(text).wrap(Wrap { trim: false });
 
     frame.render_widget(&main_block, area);
 
     let [details_area, _, buttons_row1_area, _, buttons_row2_area] = Layout::vertical([
-        Constraint::Length((details_paragraph_lines + 1) as u16),
+        Constraint::Max(15),
         Constraint::Length(1),
         Constraint::Length(1),
         Constraint::Length(1),

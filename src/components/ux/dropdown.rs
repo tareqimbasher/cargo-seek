@@ -115,7 +115,7 @@ impl<T: IntoEnumIterator + Default + Display + Clone + 'static> Component for Dr
 
         let list = List::new(T::iter().map(|x| ListItem::new(x.to_string())))
             .highlight_style(self.config.styles[&Mode::App]["accent"].bold())
-            .highlight_symbol("> ");
+            .highlight_symbol("▶ ");
 
         frame.render_stateful_widget(list, dropdown.inner(dropdown_rect), &mut self.state);
 

@@ -157,7 +157,7 @@ impl App {
 
     async fn handle_actions(&mut self, tui: &mut Tui) -> AppResult<()> {
         while let Ok(action) = self.action_rx.try_recv() {
-            if action != Action::Tick && action != Action::Render {
+            if !matches!(action, Action::Tick) && !matches!(action, Action::Render) {
                 debug!("{action:?}");
             }
 

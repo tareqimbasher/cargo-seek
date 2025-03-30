@@ -7,7 +7,7 @@ use crate::components::home::focusable::Focusable;
 use crate::components::home::Home;
 use crate::components::status_bar::{StatusDuration, StatusLevel};
 use crate::errors::AppResult;
-use crate::search::{CrateSearchManager, SearchOptions};
+use crate::search::{CrateSearchManager, SearchOptions, SearchResults};
 use crate::tui::Tui;
 
 pub async fn handle_action(
@@ -86,7 +86,7 @@ pub async fn handle_action(
         }
         Action::Search(action) => match action {
             SearchAction::Clear => home.reset()?,
-            SearchAction::Search(term, sort, page, status) => {
+            SearchAction::Search(term, scope, sort, page, status) => {
                 let tx = home.action_tx.clone();
 
                 let status = status.unwrap_or("Searching".into());
@@ -99,10 +99,10 @@ pub async fn handle_action(
                 home.crate_search_manager.search(
                     SearchOptions {
                         term: Some(term),
+                        scope,
                         sort,
                         page: Some(page),
                         per_page: Some(100),
-                        scope: home.scope.clone(),
                     },
                     Arc::clone(&home.cargo_env),
                 );
@@ -125,6 +125,7 @@ pub async fn handle_action(
                 let status = format!("Sorting by: {}", sort);
                 return Ok(Some(Action::Search(SearchAction::Search(
                     home.input.value().into(),
+                    home.scope_dropdown.get_selected(),
                     sort,
                     1,
                     Some(status),
@@ -133,17 +134,17 @@ pub async fn handle_action(
             SearchAction::Scope(scope) => {
                 home.action_tx.send(Action::Focus(Focusable::Search))?;
 
-                home.scope = scope;
-
                 if home.search_results.is_none() {
                     return Ok(None);
                 }
 
+                let status = format!("Scoped to: {}", scope);
                 return Ok(Some(Action::Search(SearchAction::Search(
                     home.input.value().into(),
+                    scope,
                     home.sort_dropdown.get_selected(),
                     1,
-                    Some(format!("Scoped to: {}", home.scope)),
+                    Some(status),
                 ))));
             }
             SearchAction::Render(mut results) => {
@@ -158,6 +159,7 @@ pub async fn handle_action(
                 } else if results_len > 0 {
                     results.select_index(Some(0));
                 }
+                check_needs_hydrate(&mut results, &mut home.crate_search_manager);
 
                 home.search_results = Some(results);
                 home.show_usage = false;
@@ -189,18 +191,23 @@ pub async fn handle_action(
                     match action {
                         SearchAction::SelectIndex(index) => {
                             results.select_index(index);
+                            check_needs_hydrate(results, &mut home.crate_search_manager);
                         }
                         SearchAction::SelectNext => {
                             results.select_next();
+                            check_needs_hydrate(results, &mut home.crate_search_manager);
                         }
                         SearchAction::SelectPrev => {
                             results.select_previous();
+                            check_needs_hydrate(results, &mut home.crate_search_manager);
                         }
                         SearchAction::SelectFirst => {
                             results.select_first();
+                            check_needs_hydrate(results, &mut home.crate_search_manager);
                         }
                         SearchAction::SelectLast => {
                             results.select_last();
+                            check_needs_hydrate(results, &mut home.crate_search_manager);
                         }
                         _ => {}
                     }
@@ -211,6 +218,16 @@ pub async fn handle_action(
             if let Some(search_results) = &mut home.search_results {
                 let cargo_env = home.cargo_env.read().await;
                 CrateSearchManager::update_results(search_results, &cargo_env);
+            }
+        }
+        Action::CrateDataLoaded(data) => {
+            if let Some(results) = home.search_results.as_mut() {
+                if let Some(index) = results.get_selected_index() {
+                    let cr = &mut results.crates[index];
+                    if cr.id == data.id {
+                        CrateSearchManager::hydrate(data, cr);
+                    }
+                }
             }
         }
         Action::OpenReadme => {
@@ -311,4 +328,12 @@ pub async fn handle_action(
         _ => {}
     }
     Ok(None)
+}
+
+fn check_needs_hydrate(results: &mut SearchResults, crate_search_manager: &mut CrateSearchManager) {
+    if let Some(cr) = results.get_selected() {
+        if !cr.is_metadata_loaded() {
+            crate_search_manager.get_crate_data(&cr.name).ok();
+        }
+    }
 }

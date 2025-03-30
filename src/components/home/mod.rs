@@ -30,19 +30,18 @@ use crate::{
 pub use focusable::Focusable;
 
 pub struct Home {
+    config: Config,
     cargo_env: Arc<RwLock<CargoEnv>>,
+    crate_search_manager: CrateSearchManager,
+    show_usage: bool,
+    focused: Focusable,
     input: Input,
     scope_dropdown: Dropdown<Scope>,
     sort_dropdown: Dropdown<Sort>,
-    show_usage: bool,
-    focused: Focusable,
-    crate_search_manager: CrateSearchManager,
     is_searching: bool,
     search_results: Option<SearchResults>,
     spinner_state: throbber_widgets_tui::ThrobberState,
     action_tx: UnboundedSender<Action>,
-    config: Config,
-    scope: Scope,
     pub vertical_usage_scroll: usize,
 }
 
@@ -81,7 +80,6 @@ impl Home {
             spinner_state: throbber_widgets_tui::ThrobberState::default(),
             action_tx,
             config: Config::default(),
-            scope: Scope::default(),
             vertical_usage_scroll: 0,
         })
     }
@@ -108,6 +106,7 @@ impl Home {
 
             self.action_tx.send(Action::Search(SearchAction::Search(
                 query,
+                self.scope_dropdown.get_selected(),
                 self.sort_dropdown.get_selected(),
                 requested_page,
                 Some(format!("Loading page {}", requested_page)),
@@ -131,6 +130,7 @@ impl Home {
 
             self.action_tx.send(Action::Search(SearchAction::Search(
                 query,
+                self.scope_dropdown.get_selected(),
                 self.sort_dropdown.get_selected(),
                 requested_page,
                 Some(format!("Loading page {}", requested_page)),
@@ -154,6 +154,7 @@ impl Home {
 
             self.action_tx.send(Action::Search(SearchAction::Search(
                 query,
+                self.scope_dropdown.get_selected(),
                 self.sort_dropdown.get_selected(),
                 requested_page,
                 Some(format!("Loading page {}", requested_page)),

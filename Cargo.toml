@@ -40,7 +40,7 @@ json5 = "0.4.1"
 lazy_static = "1.5.0"
 num-format = "0.4.4"
 open = "5.3.0"
-pretty_assertions = "1.4.1"
+pretty_assertions = { version = "1.4.1", features = ["unstable"] }
 ratatui = { version = "0.28.1", features = ["serde", "macros"] }
 reqwest = { version = "0.12.7", features = ["blocking"] }
 serde = { version = "1.0.210", features = ["derive"] }

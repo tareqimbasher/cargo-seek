@@ -21,6 +21,8 @@ pub enum AppError {
     SendAction(#[from] tokio::sync::mpsc::error::SendError<Action>),
     #[error(transparent)]
     Join(#[from] tokio::task::JoinError),
+    #[error(transparent)]
+    CratesIoApi(#[from] crates_io_api::Error),
     #[error("Error: {0}")]
     Unknown(String),
 

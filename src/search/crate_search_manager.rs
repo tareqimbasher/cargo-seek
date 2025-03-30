@@ -1,4 +1,4 @@
-﻿use crates_io_api::{AsyncClient, CratesQuery};
+use crates_io_api::{AsyncClient, CratesQuery};
 use reqwest::{header, Client};
 use std::sync::Arc;
 use std::time::Duration;
@@ -13,8 +13,9 @@ use crate::search::{Crate, Scope, SearchOptions, SearchResults, Sort};
 
 pub struct CrateSearchManager {
     crates_io_client: Arc<AsyncClient>,
-    cancel_tx: Option<oneshot::Sender<()>>,
     action_tx: UnboundedSender<Action>,
+    cancel_search_tx: Option<oneshot::Sender<()>>,
+    cancel_hydrate_tx: Option<oneshot::Sender<()>>,
 }
 
 impl CrateSearchManager {
@@ -35,8 +36,9 @@ impl CrateSearchManager {
 
         Ok(CrateSearchManager {
             crates_io_client: Arc::new(client),
-            cancel_tx: None,
             action_tx,
+            cancel_search_tx: None,
+            cancel_hydrate_tx: None,
         })
     }
 
@@ -45,18 +47,18 @@ impl CrateSearchManager {
         options: SearchOptions,
         cargo_env: Arc<RwLock<CargoEnv>>,
     ) -> JoinHandle<()> {
-        if let Some(cancel_tx) = self.cancel_tx.take() {
-            let _ = cancel_tx.send(());
+        if let Some(cancel_search_tx) = self.cancel_search_tx.take() {
+            let _ = cancel_search_tx.send(());
         }
 
-        let (cancel_tx, mut cancel_rx) = oneshot::channel();
-        self.cancel_tx = Some(cancel_tx);
+        let (cancel_search_tx, mut cancel_search_rx) = oneshot::channel();
+        self.cancel_search_tx = Some(cancel_search_tx);
         let tx = self.action_tx.clone();
 
         let crates_io_client = self.crates_io_client.clone();
 
         tokio::spawn(async move {
-            if cancel_rx.try_recv().is_ok() {
+            if cancel_search_rx.try_recv().is_ok() {
                 return;
             }
 
@@ -81,7 +83,7 @@ impl CrateSearchManager {
                 }
             }
 
-            if cancel_rx.try_recv().is_ok() {
+            if cancel_search_rx.try_recv().is_ok() {
                 return;
             }
 
@@ -97,7 +99,7 @@ impl CrateSearchManager {
                 search_results.crates.extend(results.drain(..still_needed));
             }
 
-            if cancel_rx.try_recv().is_ok() {
+            if cancel_search_rx.try_recv().is_ok() {
                 return;
             }
 
@@ -124,7 +126,7 @@ impl CrateSearchManager {
                 }
             }
 
-            if cancel_rx.try_recv().is_ok() {
+            if cancel_search_rx.try_recv().is_ok() {
                 return;
             }
 
@@ -139,7 +141,7 @@ impl CrateSearchManager {
     pub fn update_results(search_results: &mut SearchResults, cargo_env: &CargoEnv) {
         for cr in &mut search_results.crates {
             if let Some(proj) = &cargo_env.project {
-                cr.local_version = proj.get_local_version(&cr.name);
+                cr.project_version = proj.get_local_version(&cr.name);
             }
 
             cr.installed_version = cargo_env.get_installed_version(&cr.name);
@@ -167,7 +169,7 @@ impl CrateSearchManager {
                     created_at: None,
                     updated_at: None,
                     exact_match: name_lower == term,
-                    local_version: None,
+                    project_version: None,
                     installed_version: Some(package.version.clone()),
                 });
             }
@@ -199,7 +201,7 @@ impl CrateSearchManager {
                         created_at: None,
                         updated_at: None,
                         exact_match: name_lower == term,
-                        local_version: Some(dep.req.clone()),
+                        project_version: Some(dep.req.clone()),
                         installed_version: None,
                     });
                 }
@@ -234,38 +236,80 @@ impl CrateSearchManager {
                     .page(page as u64)
                     .build(),
             )
-            .await;
+            .await?;
 
-        match result {
-            Ok(sr) => {
-                let results = sr
-                    .crates
-                    .into_iter()
-                    .map(|c| Crate {
-                        id: c.id,
-                        name: c.name,
-                        description: c.description,
-                        homepage: c.homepage,
-                        documentation: c.documentation,
-                        repository: c.repository,
-                        version: c
-                            .max_stable_version
-                            .clone()
-                            .unwrap_or(c.max_version.clone()),
-                        max_version: Some(c.max_version),
-                        max_stable_version: c.max_stable_version,
-                        downloads: Some(c.downloads),
-                        recent_downloads: c.recent_downloads,
-                        created_at: Some(c.created_at),
-                        updated_at: Some(c.updated_at),
-                        exact_match: c.exact_match.unwrap_or(false),
-                        local_version: None,
-                        installed_version: None,
-                    })
-                    .collect();
-                Ok((results, sr.meta.total as usize))
-            }
-            Err(err) => Err(AppError::Unknown(format!("{:#}", err))),
+        let results = result
+            .crates
+            .into_iter()
+            .map(|c| Crate {
+                id: c.id,
+                name: c.name,
+                description: c.description,
+                homepage: c.homepage,
+                documentation: c.documentation,
+                repository: c.repository,
+                version: c
+                    .max_stable_version
+                    .clone()
+                    .unwrap_or(c.max_version.clone()),
+                max_version: Some(c.max_version),
+                max_stable_version: c.max_stable_version,
+                downloads: Some(c.downloads),
+                recent_downloads: c.recent_downloads,
+                created_at: Some(c.created_at),
+                updated_at: Some(c.updated_at),
+                exact_match: c.exact_match.unwrap_or(false),
+                project_version: None,
+                installed_version: None,
+            })
+            .collect();
+        Ok((results, result.meta.total as usize))
+    }
+
+    pub fn get_crate_data(&mut self, name: &str) -> AppResult<()> {
+        if let Some(cancel_hydrate_tx) = self.cancel_hydrate_tx.take() {
+            let _ = cancel_hydrate_tx.send(());
         }
+
+        let (cancel_hydrate_tx, mut cancel_hydrate_rx) = oneshot::channel();
+        self.cancel_hydrate_tx = Some(cancel_hydrate_tx);
+        let tx = self.action_tx.clone();
+        let crates_io_client = self.crates_io_client.clone();
+        let name = name.to_owned();
+
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(1000)).await;
+
+            if cancel_hydrate_rx.try_recv().is_ok() {
+                return Ok(());
+            }
+
+            let response = crates_io_client.get_crate(&name).await?;
+            let data = response.crate_data;
+            tx.send(Action::CrateDataLoaded(Box::new(data)))?;
+
+            Ok::<_, AppError>(())
+        });
+
+        Ok(())
+    }
+
+    pub fn hydrate(data: Box<crates_io_api::Crate>, cr: &mut Crate) {
+        cr.name = data.name;
+        cr.description = data.description;
+        cr.homepage = data.homepage;
+        cr.documentation = data.documentation;
+        cr.repository = data.repository;
+        cr.version = data
+            .max_stable_version
+            .clone()
+            .unwrap_or(data.max_version.clone());
+        cr.max_version = Some(data.max_version);
+        cr.max_stable_version = data.max_stable_version;
+        cr.downloads = Some(data.downloads);
+        cr.recent_downloads = data.recent_downloads;
+        cr.created_at = Some(data.created_at);
+        cr.updated_at = Some(data.updated_at);
+        cr.exact_match = data.exact_match.unwrap_or(false);
     }
 }

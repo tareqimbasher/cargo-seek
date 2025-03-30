@@ -11,7 +11,7 @@ pub struct SearchResults {
     current_page: usize,
     pub crates: Vec<Crate>,
     #[serde(default)]
-    state: ListState,
+    pub list_state: ListState,
 }
 
 impl SearchResults {
@@ -20,7 +20,7 @@ impl SearchResults {
             crates: Vec::default(),
             current_page: page,
             total_count: 0,
-            state: ListState::default(),
+            list_state: ListState::default(),
         }
     }
 
@@ -46,7 +46,14 @@ impl SearchResults {
     }
 
     pub fn get_selected_index(&self) -> Option<usize> {
-        self.state.selected()
+        if let Some(index) = self.list_state.selected() {
+            if index == usize::MAX {
+                // Index can be usize::MAX to denote last item
+                return Some(self.crates.len() - 1);
+            }
+            return Some(index);
+        }
+        None
     }
 
     pub fn get_selected(&self) -> Option<&Crate> {
@@ -55,36 +62,31 @@ impl SearchResults {
                 return Some(item);
             }
         }
-
         None
     }
 
     pub fn select_index(&mut self, index: Option<usize>) -> Option<&Crate> {
-        self.state.select(index);
+        self.list_state.select(index);
         self.get_selected()
     }
 
     pub fn select_next(&mut self) -> Option<&Crate> {
-        self.state.select_next();
+        self.list_state.select_next();
         self.get_selected()
     }
 
     pub fn select_previous(&mut self) -> Option<&Crate> {
-        self.state.select_previous();
+        self.list_state.select_previous();
         self.get_selected()
     }
 
     pub fn select_first(&mut self) -> Option<&Crate> {
-        self.state.select_first();
+        self.list_state.select_first();
         self.get_selected()
     }
 
     pub fn select_last(&mut self) -> Option<&Crate> {
-        self.state.select_last();
+        self.list_state.select_last();
         self.get_selected()
-    }
-
-    pub fn list_state(&mut self) -> &mut ListState {
-        &mut self.state
     }
 }
