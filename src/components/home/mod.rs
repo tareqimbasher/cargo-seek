@@ -33,6 +33,7 @@ pub struct Home {
     config: Config,
     cargo_env: Arc<RwLock<CargoEnv>>,
     crate_search_manager: CrateSearchManager,
+    left_column_width_percent: u16,
     show_usage: bool,
     focused: Focusable,
     input: Input,
@@ -55,6 +56,9 @@ impl Home {
 
         Ok(Self {
             cargo_env,
+            left_column_width_percent: 40,
+            show_usage: true,
+            focused: Focusable::default(),
             input: Input::default(),
             scope_dropdown: Dropdown::new(
                 "Search in".into(),
@@ -72,8 +76,6 @@ impl Home {
                         .unwrap();
                 }),
             ),
-            show_usage: true,
-            focused: Focusable::default(),
             search_results: None,
             crate_search_manager: CrateSearchManager::new(action_tx.clone())?,
             is_searching: false,

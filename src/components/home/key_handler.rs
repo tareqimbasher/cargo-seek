@@ -98,37 +98,51 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
             }
             _ => {}
         },
-        KeyCode::Left => match home.focused {
-            Focusable::ReadmeButton => {
-                return Ok(Some(Action::Focus(Focusable::DocsButton)));
-            }
-            Focusable::LibRsButton => {
-                return Ok(Some(Action::Focus(Focusable::CratesIoButton)));
-            }
-            Focusable::Usage => {
-                return Ok(Some(Action::Focus(Focusable::Search)));
-            }
-            _ => {}
-        },
-        KeyCode::Right => match home.focused {
-            Focusable::DocsButton => {
-                return Ok(Some(Action::Focus(Focusable::ReadmeButton)));
-            }
-            Focusable::CratesIoButton => {
-                return Ok(Some(Action::Focus(Focusable::LibRsButton)));
-            }
-            Focusable::Search => {
-                if home.show_usage {
-                    return Ok(Some(Action::Focus(Focusable::Usage)));
+        KeyCode::Left => {
+            if ctrl && home.left_column_width_percent >= 10 {
+                home.left_column_width_percent -= 10;
+                return Ok(None);
+            } else {
+                match home.focused {
+                    Focusable::ReadmeButton => {
+                        return Ok(Some(Action::Focus(Focusable::DocsButton)));
+                    }
+                    Focusable::LibRsButton => {
+                        return Ok(Some(Action::Focus(Focusable::CratesIoButton)));
+                    }
+                    Focusable::Usage => {
+                        return Ok(Some(Action::Focus(Focusable::Search)));
+                    }
+                    _ => {}
                 }
             }
-            Focusable::Results => {
-                if home.show_usage {
-                    return Ok(Some(Action::Focus(Focusable::Usage)));
+        }
+        KeyCode::Right => {
+            if ctrl && home.left_column_width_percent <= 90 {
+                home.left_column_width_percent += 10;
+                return Ok(None);
+            } else {
+                match home.focused {
+                    Focusable::DocsButton => {
+                        return Ok(Some(Action::Focus(Focusable::ReadmeButton)));
+                    }
+                    Focusable::CratesIoButton => {
+                        return Ok(Some(Action::Focus(Focusable::LibRsButton)));
+                    }
+                    Focusable::Search => {
+                        if home.show_usage {
+                            return Ok(Some(Action::Focus(Focusable::Usage)));
+                        }
+                    }
+                    Focusable::Results => {
+                        if home.show_usage {
+                            return Ok(Some(Action::Focus(Focusable::Usage)));
+                        }
+                    }
+                    _ => {}
                 }
             }
-            _ => {}
-        },
+        }
         KeyCode::Char('a') => {
             if is_results_or_details_focused(&home.focused) {
                 if let Some(search_results) = home.search_results.as_ref() {
@@ -220,17 +234,11 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
                 }
                 // Page navigation
                 KeyCode::Right if results.has_next_page() => {
-                    let pages = match ctrl {
-                        true => 10,
-                        false => 1,
-                    };
+                    let pages = 1;
                     return Ok(Some(Action::Search(SearchAction::NavPagesForward(pages))));
                 }
                 KeyCode::Left if results.has_prev_page() => {
-                    let pages = match ctrl {
-                        true => 10,
-                        false => 1,
-                    };
+                    let pages = 1;
                     return Ok(Some(Action::Search(SearchAction::NavPagesBack(pages))));
                 }
                 KeyCode::Home if ctrl => {

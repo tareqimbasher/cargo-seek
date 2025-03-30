@@ -18,8 +18,12 @@ use crate::search::Crate;
 use crate::util::Util;
 
 pub fn render(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> {
-    let [left, right] =
-        Layout::horizontal([Constraint::Percentage(40), Constraint::Percentage(60)]).areas(area);
+    let left_width = home.left_column_width_percent;
+    let [left, right] = Layout::horizontal([
+        Constraint::Percentage(left_width),
+        Constraint::Percentage(100 - left_width),
+    ])
+    .areas(area);
 
     render_left(home, frame, left)?;
     render_right(home, frame, right)?;
@@ -309,12 +313,12 @@ fn render_usage(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
             "Go back to search; again to clear results".bold(),
         ]),
         Line::from(vec![
-            format!("{:<PAD$}", "Ctrl + h:").set_style(prop_style),
-            "Toggle this usage screen".bold(),
+            format!("{:<PAD$}", "Ctrl + Left/Right:").set_style(prop_style),
+            "Change column width".bold(),
         ]),
         Line::from(vec![
-            format!("{:<PAD$}", "Ctrl + z:").set_style(prop_style),
-            "Suspend".bold(),
+            format!("{:<PAD$}", "Ctrl + h:").set_style(prop_style),
+            "Toggle this usage screen".bold(),
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "Ctrl + c:").set_style(prop_style),
@@ -322,14 +326,6 @@ fn render_usage(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
         ]),
         Line::default(),
         Line::from(vec!["RESULTS".bold()]),
-        Line::from(vec![
-            format!("{:<PAD$}", "Up, Down:").set_style(prop_style),
-            "Scroll in crate list".bold(),
-        ]),
-        Line::from(vec![
-            format!("{:<PAD$}", "Home, End:").set_style(prop_style),
-            "Go to first/last crate in list".bold(),
-        ]),
         Line::from(vec![
             format!("{:<PAD$}", "a, r:").set_style(prop_style),
             "Add/remove to current project".bold(),
@@ -343,14 +339,17 @@ fn render_usage(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
             "Open docs".bold(),
         ]),
         Line::default(),
-        Line::from(vec!["PAGING".bold()]),
+        Line::from(vec![
+            format!("{:<PAD$}", "Up, Down:").set_style(prop_style),
+            "Scroll in crate list".bold(),
+        ]),
+        Line::from(vec![
+            format!("{:<PAD$}", "Home, End:").set_style(prop_style),
+            "Go to first/last crate in list".bold(),
+        ]),
         Line::from(vec![
             format!("{:<PAD$}", "Left, Right:").set_style(prop_style),
             "Go backward/forward a page".bold(),
-        ]),
-        Line::from(vec![
-            format!("{:<PAD$}", "Ctrl + Left/Right:").set_style(prop_style),
-            "Go backward/forward 10 pages".bold(),
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "Ctrl + Home/End:").set_style(prop_style),
