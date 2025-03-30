@@ -235,17 +235,24 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
                         .alignment(Alignment::Right),
                     ),
             )
-            .highlight_style(
-                if selected.is_some()
-                    && (selected.unwrap().project_version.is_some()
-                        || selected.unwrap().installed_version.is_some())
-                {
-                    Style::default().bold()
-                } else {
-                    home.config.styles[&Mode::App]["accent"].bold()
-                },
-            )
-            .highlight_symbol("▶");
+            .highlight_style(if selected.is_some_and(|s| s.project_version.is_some()) {
+                Style::default()
+                    .bold()
+                    .bg(Color::LightCyan)
+                    .fg(Color::Black)
+            } else if selected.is_some_and(|s| s.installed_version.is_some()) {
+                Style::default()
+                    .bold()
+                    .bg(Color::LightMagenta)
+                    .fg(Color::Black)
+            } else {
+                Style::default()
+                    .bold()
+                    .bg(home.config.styles[&Mode::App]["accent"]
+                        .fg
+                        .unwrap_or(Color::Yellow))
+                    .fg(Color::Black)
+            });
 
         frame.render_stateful_widget(list, area, &mut results.list_state);
     } else {
@@ -427,7 +434,7 @@ fn render_crate_details(
 
     text.lines.extend(vec![
         Line::from(vec![
-            format!("{:<left_column_width$}", "Version:").set_style(prop_style),
+            format!("{:<left_column_width$}", "Stable Version:").set_style(prop_style),
             krate.version.to_string().into(),
         ]),
         Line::from(vec![

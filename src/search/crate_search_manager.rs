@@ -268,7 +268,7 @@ impl CrateSearchManager {
         let name = name.to_owned();
 
         tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_millis(1000)).await;
+            tokio::time::sleep(Duration::from_millis(700)).await;
 
             if cancel_hydrate_rx.try_recv().is_ok() {
                 return Ok(());
