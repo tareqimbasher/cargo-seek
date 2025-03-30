@@ -110,15 +110,17 @@ pub fn uninstall(crate_name: String, show_output: bool) -> AppResult<()> {
 }
 
 fn cargo_cmd() -> Command {
-    let mut cmd = Command::new("cargo");
-
-    #[cfg(target_os = "windows")]
+    #[cfg(windows)]
     {
+        let mut cmd = Command::new("cargo");
         const CREATE_NO_WINDOW: u32 = 0x08000000;
         cmd.creation_flags(CREATE_NO_WINDOW);
+        cmd
     }
-
-    cmd
+    #[cfg(not(windows))]
+    {
+        Command::new("cargo")
+    }
 }
 
 fn run_cargo(args: Vec<&str>) -> AppResult<()> {
