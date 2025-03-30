@@ -1,4 +1,5 @@
 use crates_io_api::{AsyncClient, CratesQuery};
+use indexmap::IndexMap;
 use reqwest::{header, Client};
 use std::sync::Arc;
 use std::time::Duration;
@@ -130,22 +131,11 @@ impl CrateSearchManager {
                 return;
             }
 
-            // Back-fill is_local and is_installed for search results that don't have it
             Self::update_results(&mut search_results, &cargo_env);
 
             tx.send(Action::Search(SearchAction::Render(search_results)))
                 .ok();
         })
-    }
-
-    pub fn update_results(search_results: &mut SearchResults, cargo_env: &CargoEnv) {
-        for cr in &mut search_results.crates {
-            if let Some(proj) = &cargo_env.project {
-                cr.project_version = proj.get_local_version(&cr.name);
-            }
-
-            cr.installed_version = cargo_env.get_installed_version(&cr.name);
-        }
     }
 
     fn search_binaries(term: &str, cargo_env: &CargoEnv) -> Vec<Crate> {
@@ -294,6 +284,32 @@ impl CrateSearchManager {
         Ok(())
     }
 
+    pub fn update_results(search_results: &mut SearchResults, cargo_env: &CargoEnv) {
+        Self::deduplicate(search_results);
+
+        // Calculate project_version and installed_version
+        for cr in &mut search_results.crates {
+            if let Some(proj) = &cargo_env.project {
+                cr.project_version = proj.get_local_version(&cr.name);
+            }
+
+            cr.installed_version = cargo_env.get_installed_version(&cr.name);
+        }
+    }
+
+    fn deduplicate(search_results: &mut SearchResults) {
+        let mut map = IndexMap::<String, Crate>::new();
+
+        for cr in search_results.crates.drain(0..) {
+            if map.get(&cr.id).is_some_and(|v| v.is_metadata_loaded()) {
+                continue;
+            }
+            map.insert(cr.id.clone(), cr);
+        }
+
+        search_results.crates = map.into_values().collect();
+    }
+
     pub fn hydrate(data: Box<crates_io_api::Crate>, cr: &mut Crate) {
         cr.name = data.name;
         cr.description = data.description;
@@ -310,6 +326,91 @@ impl CrateSearchManager {
         cr.recent_downloads = data.recent_downloads;
         cr.created_at = Some(data.created_at);
         cr.updated_at = Some(data.updated_at);
-        cr.exact_match = data.exact_match.unwrap_or(false);
+        cr.exact_match = data.exact_match.unwrap_or_default();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    struct Crate {
+        pub id: String,
+        pub is_initialized: bool,
+    }
+
+    fn deduplicate(crates: Vec<Crate>) -> Vec<Crate> {
+        let mut map = HashMap::<String, Crate>::new();
+
+        for cr in crates {
+            let existing = map.get(&cr.id);
+            if let Some(existing) = existing {
+                if existing.is_initialized {
+                    continue;
+                }
+            }
+            map.insert(cr.id.clone(), cr);
+        }
+
+        map.into_values().collect()
+    }
+
+    #[test]
+    fn test_deduplicate() {
+        let crates = vec![
+            Crate {
+                id: "1".into(),
+                is_initialized: true,
+            },
+            Crate {
+                id: "2".into(),
+                is_initialized: true,
+            },
+            Crate {
+                id: "3".into(),
+                is_initialized: false,
+            },
+            Crate {
+                id: "3".into(),
+                is_initialized: false,
+            },
+            Crate {
+                id: "2".into(),
+                is_initialized: false,
+            },
+            Crate {
+                id: "2".into(),
+                is_initialized: false,
+            },
+            Crate {
+                id: "1".into(),
+                is_initialized: false,
+            },
+            Crate {
+                id: "2".into(),
+                is_initialized: false,
+            },
+            Crate {
+                id: "4".into(),
+                is_initialized: true,
+            },
+            Crate {
+                id: "4".into(),
+                is_initialized: true,
+            },
+        ];
+
+        let mut crates = deduplicate(crates);
+        crates.sort_by(|a, b| a.id.cmp(&b.id));
+
+        assert_eq!(crates.len(), 4);
+        assert_eq!(crates[0].id, "1".to_string());
+        assert_eq!(crates[0].is_initialized, true);
+        assert_eq!(crates[1].id, "2".to_string());
+        assert_eq!(crates[1].is_initialized, true);
+        assert_eq!(crates[2].id, "3".to_string());
+        assert_eq!(crates[2].is_initialized, false);
+        assert_eq!(crates[3].id, "4".to_string());
+        assert_eq!(crates[3].is_initialized, true);
     }
 }

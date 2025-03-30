@@ -75,7 +75,7 @@ impl App {
     pub async fn run(&mut self) -> AppResult<()> {
         let mut tui = Tui::new()?
             // .mouse(true)
-            .paste(true)
+            // .paste(true)
             .tick_rate(self.tick_rate)
             .frame_rate(self.frame_rate);
         tui.enter()?;

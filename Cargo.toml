@@ -60,6 +60,7 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter", "serde"] }
 tui-input = "0.10.1"
 strum_macros = "0.26.4"
 async-trait = "0.1"
+indexmap = "2.8.0"
 
 [build-dependencies]
 anyhow = "1.0.86"
