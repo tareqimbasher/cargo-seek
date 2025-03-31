@@ -13,10 +13,9 @@ strip = true  # Automatically strip symbols from the binary.
 lto = true
 panic = "abort"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 anyhow = "1.0.86"
+async-trait = "0.1"
 better-panic = "0.3.0"
 chrono = { version = "0.4.38", features = ["serde"] }
 clap = { version = "4.5.18", features = [
@@ -28,14 +27,15 @@ clap = { version = "4.5.18", features = [
     "unstable-styles",
 ] }
 color-eyre = "0.6.3"
-config = "0.14.0"
+config = "0.15"
 crates_io_api = "0.11.0"
 crossterm = { version = "0.28.1", features = ["serde", "event-stream"] }
 derive_deref = "1.1.1"
-directories = "5.0.1"
+directories = "6.0"
 enum-iterator = "2.1.0"
 futures = "0.3.30"
 human-panic = "2.0.1"
+indexmap = "2.8.0"
 json5 = "0.4.1"
 lazy_static = "1.5.0"
 num-format = "0.4.4"
@@ -47,20 +47,18 @@ serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0.128"
 signal-hook = "0.3.17"
 strip-ansi-escapes = "0.2.0"
-strum = { version = "0.26.3", features = ["derive"] }
+strum = { version = "0.27", features = ["derive"] }
+strum_macros = "0.27"
 sys-locale = "0.3.1"
 tempfile = "3.12.0"
 thiserror = "1.0.64"
-throbber-widgets-tui = "0.7.0"
+throbber-widgets-tui = "0.7"
 tokio = { version = "1.40.0", features = ["full"] }
 tokio-util = "0.7.12"
 tracing = "0.1.40"
 tracing-error = "0.2.0"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "serde"] }
 tui-input = "0.10.1"
-strum_macros = "0.26.4"
-async-trait = "0.1"
-indexmap = "2.8.0"
 
 [build-dependencies]
 anyhow = "1.0.86"
