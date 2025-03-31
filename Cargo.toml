@@ -1,5 +1,5 @@
 [package]
-name = "crate-seek"
+name = "cargo-seek"
 version = "0.1.0"
 edition = "2021"
 description = "Search and install cargo crates"

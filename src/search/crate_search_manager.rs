@@ -24,7 +24,7 @@ impl CrateSearchManager {
         let mut headers = header::HeaderMap::new();
         headers.insert(
             header::USER_AGENT,
-            header::HeaderValue::from_str("seekr (github:tareqimbasher/seekr)")?,
+            header::HeaderValue::from_str("cargo-seek (github:tareqimbasher/seekr)")?,
         );
 
         let client = AsyncClient::with_http_client(

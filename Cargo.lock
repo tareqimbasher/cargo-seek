@@ -264,6 +264,51 @@ dependencies = [
 ]
 
 [[package]]
+name = "cargo-seek"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "better-panic",
+ "chrono",
+ "clap",
+ "color-eyre",
+ "config",
+ "crates_io_api",
+ "crossterm",
+ "derive_deref",
+ "directories",
+ "enum-iterator",
+ "futures",
+ "human-panic",
+ "indexmap",
+ "json5",
+ "lazy_static",
+ "num-format",
+ "open",
+ "pretty_assertions",
+ "ratatui",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "signal-hook",
+ "strip-ansi-escapes",
+ "strum 0.27.1",
+ "strum_macros 0.27.1",
+ "sys-locale",
+ "tempfile",
+ "thiserror 1.0.64",
+ "throbber-widgets-tui",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-error",
+ "tracing-subscriber",
+ "tui-input",
+ "vergen-gix",
+]
+
+[[package]]
 name = "cargo_metadata"
 version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -502,51 +547,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "608697df725056feaccfa42cffdaeeec3fccc4ffc38358ecd19b243e716a78e0"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "crate-seek"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "better-panic",
- "chrono",
- "clap",
- "color-eyre",
- "config",
- "crates_io_api",
- "crossterm",
- "derive_deref",
- "directories",
- "enum-iterator",
- "futures",
- "human-panic",
- "indexmap",
- "json5",
- "lazy_static",
- "num-format",
- "open",
- "pretty_assertions",
- "ratatui",
- "reqwest",
- "serde",
- "serde_json",
- "signal-hook",
- "strip-ansi-escapes",
- "strum 0.27.1",
- "strum_macros 0.27.1",
- "sys-locale",
- "tempfile",
- "thiserror 1.0.64",
- "throbber-widgets-tui",
- "tokio",
- "tokio-util",
- "tracing",
- "tracing-error",
- "tracing-subscriber",
- "tui-input",
- "vergen-gix",
 ]
 
 [[package]]

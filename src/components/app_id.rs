@@ -19,7 +19,7 @@ pub struct AppId {
 impl AppId {
     pub fn new() -> Self {
         Self {
-            id: format!(" 📦 seekr v{} ", env!("CARGO_PKG_VERSION")),
+            id: format!(" 📦 cargo-seek v{} ", env!("CARGO_PKG_VERSION")),
             config: Config::default(),
         }
     }

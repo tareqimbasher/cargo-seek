@@ -143,7 +143,7 @@ pub fn get_config_dir() -> PathBuf {
 }
 
 fn project_directory() -> Option<ProjectDirs> {
-    ProjectDirs::from("com", "crate-seek", env!("CARGO_PKG_NAME"))
+    ProjectDirs::from("com", "cargo-seek", env!("CARGO_PKG_NAME"))
 }
 
 fn parse_key_event(raw: &str) -> Result<KeyEvent, String> {
