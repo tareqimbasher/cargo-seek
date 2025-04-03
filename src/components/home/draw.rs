@@ -1,10 +1,12 @@
 use chrono::Utc;
-use ratatui::prelude::{Color, Line, Text};
-use ratatui::widgets::block::{Position, Title};
-use ratatui::widgets::{Block, Borders, List, ListItem, Padding, Paragraph, Wrap};
 use ratatui::{
     layout::{Alignment, Constraint, Flex, Layout, Rect},
-    style::{Style, Styled, Stylize},
+    style::{Color, Style, Styled, Stylize},
+    text::{Line, Text},
+    widgets::{
+        block::{Position, Title},
+        Block, Borders, List, ListItem, Padding, Paragraph, Wrap,
+    },
     Frame,
 };
 
@@ -18,24 +20,23 @@ use crate::search::Crate;
 use crate::util::Util;
 
 pub fn render(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> {
-    let left_width = home.left_column_width_percent;
-    let [left, right] = Layout::horizontal([
-        Constraint::Percentage(left_width),
-        Constraint::Percentage(100 - left_width),
+    let [left_col_area, right_col_area] = Layout::horizontal([
+        Constraint::Percentage(home.left_column_width_percent),
+        Constraint::Percentage(100 - home.left_column_width_percent),
     ])
     .areas(area);
 
-    render_left(home, frame, left)?;
-    render_right(home, frame, right)?;
+    render_left(home, frame, left_col_area)?;
+    render_right(home, frame, right_col_area)?;
     Ok(())
 }
 
 fn render_left(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> {
-    let [search, results] =
+    let [search_area, results_area] =
         Layout::vertical([Constraint::Length(3), Constraint::Min(5)]).areas(area);
 
-    render_search(home, frame, search)?;
-    render_results(home, frame, results)?;
+    render_search(home, frame, search_area)?;
+    render_results(home, frame, results_area)?;
     home.scope_dropdown.draw(&Mode::Home, frame, area)?;
     home.sort_dropdown.draw(&Mode::Home, frame, area)?;
 
@@ -43,20 +44,20 @@ fn render_left(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> 
 }
 
 fn render_search(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> {
-    let spinner_len = if home.is_searching { 3 } else { 0 };
+    let spinner_width = if home.is_searching { 3 } else { 0 };
 
-    let [search, spinner] =
-        Layout::horizontal([Constraint::Min(1), Constraint::Length(spinner_len)]).areas(area);
+    let [search_area, spinner_area] =
+        Layout::horizontal([Constraint::Min(1), Constraint::Length(spinner_width)]).areas(area);
 
     // The width of the input area, removing 2 for the width of the border on each side
-    let scroll_width = if search.width < 2 {
+    let scroll_width = if search_area.width < 2 {
         0
     } else {
-        search.width - 2
+        search_area.width - 2
     };
-    let scroll = home.input.visual_scroll(scroll_width as usize);
+    let input_scroll = home.input.visual_scroll(scroll_width as usize);
     let input = Paragraph::new(home.input.value())
-        .scroll((0, scroll as u16))
+        .scroll((0, input_scroll as u16))
         .block(
             Block::default()
                 .title(" Search ")
@@ -66,21 +67,23 @@ fn render_search(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()
                     _ => Style::default(),
                 }),
         );
-    frame.render_widget(input, search);
+    frame.render_widget(input, search_area);
 
     if home.focused == Focusable::Search {
         // Make the cursor visible and ask ratatui to put it at the specified coordinates after rendering
         frame.set_cursor_position((
             // Put cursor past the end of the input text
-            search.x + (home.input.visual_cursor().max(scroll) - scroll) as u16 + 1,
+            search_area.x
+                + (home.input.visual_cursor().max(input_scroll) - input_scroll) as u16
+                + 1,
             // Move one line down, from the border to the input line
-            search.y + 1,
+            search_area.y + 1,
         ))
     }
 
     if home.is_searching {
         let throbber_border = Block::default().padding(Padding::uniform(1));
-        frame.render_widget(&throbber_border, spinner);
+        frame.render_widget(&throbber_border, spinner_area);
 
         let throbber = throbber_widgets_tui::Throbber::default()
             .style(home.config.styles[&Mode::App]["throbber"])
@@ -89,7 +92,7 @@ fn render_search(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()
 
         frame.render_stateful_widget(
             throbber,
-            throbber_border.inner(spinner),
+            throbber_border.inner(spinner_area),
             &mut home.spinner_state,
         );
     }
@@ -130,13 +133,8 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
         );
 
     if let Some(results) = home.search_results.as_mut() {
-        let seleceted_index = results.get_selected_index();
-        let correction = match seleceted_index {
-            Some(_) => 4,
-            None => 2,
-        };
-
-        const VERSION_PADDING: usize = 15;
+        let selected_index = results.get_selected_index();
+        let correction = 2;
 
         let list_items: Vec<ListItem> = results
             .crates
@@ -163,18 +161,13 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
                 let mut white_space = area.width as i32
                     - name.len() as i32
                     - tag.len() as i32
-                    - VERSION_PADDING as i32
+                    - version.len() as i32
                     - correction;
                 if white_space < 1 {
                     white_space = 1;
                 }
 
-                let line = format!(
-                    "{}{}{:>VERSION_PADDING$}",
-                    name,
-                    " ".repeat(white_space as usize),
-                    version
-                );
+                let details = format!("{}{}{}", name, " ".repeat(white_space as usize), version);
 
                 let style = if cr.project_version.is_some() {
                     Style::default().fg(Color::LightCyan)
@@ -184,22 +177,18 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
                     Style::default()
                 };
 
-                ListItem::new(Line::from(vec![tag.bold(), line.into()]).set_style(style))
+                ListItem::new(Line::from(vec![tag.bold(), details.into()]).set_style(style))
             })
             .collect();
 
-        let items_in_prev_pages = match results.current_page() {
-            1 => 0,
-            p => {
-                if p < 1 {
-                    0
-                } else {
-                    (p - 1) * 100
-                }
-            }
+        let current_page = results.current_page();
+        let items_in_prev_pages = if current_page < 1 {
+            0
+        } else {
+            (current_page - 1) * 100
         };
 
-        let selected_item_num = match seleceted_index {
+        let selected_item_num = match selected_index {
             None => 0,
             Some(ix) => {
                 if ix == usize::MAX {
@@ -216,8 +205,8 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
         };
 
         let selected_item_num_in_total = items_in_prev_pages + selected_item_num;
-
         let selected = results.get_selected();
+
         let list = List::new(list_items)
             .block(
                 block
@@ -235,6 +224,7 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
                         .alignment(Alignment::Right),
                     ),
             )
+            // Selected row highlight style
             .highlight_style(if selected.is_some_and(|s| s.project_version.is_some()) {
                 Style::default()
                     .bold()
@@ -273,8 +263,8 @@ fn render_right(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
         search_results.get_selected()
     };
 
-    if let Some(krate) = selected_crate {
-        render_crate_details(home, krate, frame, area)?;
+    if let Some(cr) = selected_crate {
+        render_crate_details(home, cr, frame, area)?;
     } else {
         render_no_results(home, frame, area)?;
     }
@@ -283,84 +273,87 @@ fn render_right(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
 }
 
 fn render_usage(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> {
+    let header_style = Style::default().bold();
     let prop_style = home.config.styles[&Mode::App]["accent"].bold();
+    let desc_style = Style::default();
+
     const PAD: usize = 20;
 
     let text = Text::from(vec![
         Line::from(vec![
-            format!("{:<PAD$}", "SYMBOLS:").bold(),
+            format!("{:<PAD$}", "SYMBOLS:").set_style(header_style),
             "+ ".light_cyan().bold(),
-            "added".bold(),
+            "added".set_style(desc_style),
             "   ".into(),
             "i ".light_magenta().bold(),
-            "installed".bold(),
+            "installed".set_style(desc_style),
         ]),
         Line::default(),
-        Line::from(vec!["SEARCH".bold()]),
+        Line::from(vec!["SEARCH".set_style(header_style)]),
         Line::from(vec![
             format!("{:<PAD$}", "Enter:").set_style(prop_style),
-            "Search".bold(),
+            "Search".set_style(desc_style),
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "Ctrl + s:").set_style(prop_style),
-            "Sort".bold(),
+            "Sort".set_style(desc_style),
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "Ctrl + f:").set_style(prop_style),
-            "Filter".bold(),
+            "Filter".set_style(desc_style),
         ]),
         Line::default(),
-        Line::from(vec!["NAVIGATION".bold()]),
+        Line::from(vec!["NAVIGATION".set_style(header_style)]),
         Line::from(vec![
             format!("{:<PAD$}", "TAB:").set_style(prop_style),
-            "Switch between boxes".bold(),
+            "Switch between boxes".set_style(desc_style),
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "ESC:").set_style(prop_style),
-            "Go back to search; again to clear results".bold(),
+            "Go back to search; again to clear results".set_style(desc_style),
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "Ctrl + Left/Right:").set_style(prop_style),
-            "Change column width".bold(),
+            "Change column width".set_style(desc_style),
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "Ctrl + h:").set_style(prop_style),
-            "Toggle this usage screen".bold(),
+            "Toggle this usage screen".set_style(desc_style),
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "Ctrl + c:").set_style(prop_style),
-            "Quit".bold(),
+            "Quit".set_style(desc_style),
         ]),
         Line::default(),
-        Line::from(vec!["RESULTS".bold()]),
+        Line::from(vec!["RESULTS".set_style(header_style)]),
         Line::from(vec![
             format!("{:<PAD$}", "a, r:").set_style(prop_style),
-            "Add/remove to current project".bold(),
+            "Add/remove to current project".set_style(desc_style),
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "i, u:").set_style(prop_style),
-            "Install/uninstall binary".bold(),
+            "Install/uninstall binary".set_style(desc_style),
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "Ctrl + d:").set_style(prop_style),
-            "Open docs".bold(),
+            "Open docs".set_style(desc_style),
         ]),
         Line::default(),
         Line::from(vec![
             format!("{:<PAD$}", "Up, Down:").set_style(prop_style),
-            "Scroll in crate list".bold(),
+            "Scroll in crate list".set_style(desc_style),
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "Home, End:").set_style(prop_style),
-            "Go to first/last crate in list".bold(),
+            "Go to first/last crate in list".set_style(desc_style),
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "Left, Right:").set_style(prop_style),
-            "Go backward/forward a page".bold(),
+            "Go backward/forward a page".set_style(desc_style),
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "Ctrl + Home/End:").set_style(prop_style),
-            "Go to first/last page".bold(),
+            "Go to first/last page".set_style(desc_style),
         ]),
     ]);
 
@@ -540,7 +533,7 @@ fn render_crate_details(
         Constraint::Length(12),
     ]);
 
-    // Buttons row 1
+    // Button row 1
     let [_, button1_area, _, button2_area] = buttons_row_layout.areas(buttons_row1_area);
 
     let mut button_areas = vec![button1_area, button2_area];
@@ -569,7 +562,7 @@ fn render_crate_details(
         );
     }
 
-    // Buttons row 2
+    // Button row 2
     let [_, button1_area, _, button2_area] = buttons_row_layout.areas(buttons_row2_area);
 
     frame.render_widget(
