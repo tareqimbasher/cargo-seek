@@ -47,9 +47,9 @@ impl App {
         let cargo_env = Arc::new(RwLock::new(CargoEnv::new(proj_path)));
 
         let mut components: Vec<Box<dyn Component>> = vec![
-            Box::new(AppId::new()),
             Box::new(Home::new(Arc::clone(&cargo_env), action_tx.clone())?),
             Box::new(Settings::new()),
+            Box::new(AppId::new()), // Should be after other components so it gets drawn on top of them
             Box::new(StatusBar::new(action_tx.clone())),
         ];
 
@@ -186,7 +186,7 @@ impl App {
                         CargoAction::Add(crate_name, version) => {
                             self.action_tx.send(Action::UpdateStatus(
                                 StatusLevel::Info,
-                                format!("adding {} v{}", crate_name, version),
+                                format!("Adding {} v{}", crate_name, version),
                             ))?;
 
                             tui.exit()?;
@@ -195,14 +195,14 @@ impl App {
                                 if add(crate_name.clone(), Some(version.clone()), true).is_err() {
                                     tx.send(Action::UpdateStatus(
                                         StatusLevel::Error,
-                                        format!("failed to add {crate_name}"),
+                                        format!("Failed to add {crate_name}"),
                                     ))?;
                                     // TODO should user full error message (in a popup maybe)
                                     return Ok(());
                                 }
                                 tx.send(Action::UpdateStatus(
                                     StatusLevel::Info,
-                                    format!("added {crate_name} v{version}"),
+                                    format!("Added {crate_name} v{version}"),
                                 ))?;
                                 tx.send(Action::RefreshCargoEnv)?;
                                 Ok::<(), AppError>(())
@@ -216,7 +216,7 @@ impl App {
                         CargoAction::Remove(crate_name) => {
                             self.action_tx.send(Action::UpdateStatus(
                                 StatusLevel::Info,
-                                format!("removing {}", crate_name),
+                                format!("Removing {}", crate_name),
                             ))?;
 
                             let tx = self.action_tx.clone();
@@ -224,14 +224,14 @@ impl App {
                                 if remove(crate_name.clone(), false).is_err() {
                                     tx.send(Action::UpdateStatus(
                                         StatusLevel::Error,
-                                        format!("failed to remove {crate_name}"),
+                                        format!("Failed to remove {crate_name}"),
                                     ))?;
                                     // TODO should user full error message (in a popup maybe)
                                     return Ok(());
                                 }
                                 tx.send(Action::UpdateStatus(
                                     StatusLevel::Info,
-                                    format!("removed {crate_name}"),
+                                    format!("Removed {crate_name}"),
                                 ))?;
                                 tx.send(Action::RefreshCargoEnv)?;
                                 Ok::<(), AppError>(())
@@ -246,7 +246,7 @@ impl App {
                         CargoAction::Install(crate_name, version) => {
                             self.action_tx.send(Action::UpdateStatus(
                                 StatusLevel::Info,
-                                format!("installing {crate_name} v{version}"),
+                                format!("Installing {crate_name} v{version}"),
                             ))?;
 
                             tui.exit()?;
@@ -256,14 +256,14 @@ impl App {
                                 {
                                     tx.send(Action::UpdateStatus(
                                         StatusLevel::Error,
-                                        format!("failed to install {crate_name}"),
+                                        format!("Failed to install {crate_name}"),
                                     ))?;
                                     // TODO should user full error message (in a popup maybe)
                                     return Ok(());
                                 }
                                 tx.send(Action::UpdateStatus(
                                     StatusLevel::Info,
-                                    format!("installed {crate_name} v{version}"),
+                                    format!("Installed {crate_name} v{version}"),
                                 ))?;
                                 tx.send(Action::RefreshCargoEnv)?;
                                 Ok::<(), AppError>(())
@@ -277,7 +277,7 @@ impl App {
                         CargoAction::Uninstall(crate_name) => {
                             self.action_tx.send(Action::UpdateStatus(
                                 StatusLevel::Info,
-                                format!("uninstalling {crate_name}"),
+                                format!("Uninstalling {crate_name}"),
                             ))?;
 
                             let tx = self.action_tx.clone();
@@ -285,14 +285,14 @@ impl App {
                                 if uninstall(crate_name.clone(), false).is_err() {
                                     tx.send(Action::UpdateStatus(
                                         StatusLevel::Error,
-                                        format!("failed to uninstall {crate_name}"),
+                                        format!("Failed to uninstall {crate_name}"),
                                     ))?;
                                     // TODO should user full error message (in a popup maybe)
                                     return Ok(());
                                 }
                                 tx.send(Action::UpdateStatus(
                                     StatusLevel::Info,
-                                    format!("uninstalled {crate_name}"),
+                                    format!("Uninstalled {crate_name}"),
                                 ))?;
                                 tx.send(Action::RefreshCargoEnv)?;
                                 Ok::<(), AppError>(())

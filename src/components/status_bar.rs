@@ -108,7 +108,7 @@ impl StatusBar {
                     if cancel_rx.try_recv().is_ok() {
                         return;
                     }
-                    tx.send(Action::UpdateStatus(StatusLevel::Info, "ready".into()))
+                    tx.send(Action::UpdateStatus(StatusLevel::Info, "Ready".into()))
                         .unwrap();
                 });
             }
@@ -200,7 +200,7 @@ impl Component for StatusBar {
         if let Some(status) = &self.status {
             let icon = match status.level {
                 StatusLevel::Info => "ℹ️".cyan(),
-                StatusLevel::Progress => "...".yellow(),
+                StatusLevel::Progress => "⏳".yellow(),
                 StatusLevel::Success => "✅".green(),
                 StatusLevel::Error => "❌".red(),
             };

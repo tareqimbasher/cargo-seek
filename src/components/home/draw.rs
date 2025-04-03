@@ -292,15 +292,15 @@ fn render_usage(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
         Line::from(vec!["SEARCH".set_style(header_style)]),
         Line::from(vec![
             format!("{:<PAD$}", "Enter:").set_style(prop_style),
-            "Search".set_style(desc_style),
+            "Run search".set_style(desc_style),
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "Ctrl + s:").set_style(prop_style),
             "Sort".set_style(desc_style),
         ]),
         Line::from(vec![
-            format!("{:<PAD$}", "Ctrl + f:").set_style(prop_style),
-            "Filter".set_style(desc_style),
+            format!("{:<PAD$}", "Ctrl + a:").set_style(prop_style),
+            "Search scope".set_style(desc_style),
         ]),
         Line::default(),
         Line::from(vec!["NAVIGATION".set_style(header_style)]),

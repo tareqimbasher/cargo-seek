@@ -90,7 +90,7 @@ impl Home {
         self.input.reset();
         self.search_results = None;
         self.action_tx
-            .send(Action::UpdateStatus(StatusLevel::Info, "ready".into()))?;
+            .send(Action::UpdateStatus(StatusLevel::Info, "Ready".into()))?;
         Ok(())
     }
 
