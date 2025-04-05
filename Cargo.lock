@@ -283,7 +283,6 @@ dependencies = [
  "human-panic",
  "indexmap",
  "json5",
- "lazy_static",
  "num-format",
  "open",
  "pretty_assertions",

@@ -1,15 +1,10 @@
 use std::str::FromStr;
-
+use std::sync::LazyLock;
 use chrono::{DateTime, Utc};
-use lazy_static::lazy_static;
 use num_format::{Locale, ToFormattedStr, ToFormattedString};
 use sys_locale::get_locale;
 
-lazy_static! {
-    // TODO maybe remove 1 or both libs?
-    static ref LOCALE_STR: String = get_locale().unwrap_or(String::from("en-US"));
-    // static ref LOCALE: Locale = Locale::from_str(LOCALE_STR.as_str()).unwrap_or(Locale::en);
-}
+static LOCALE_STR: LazyLock<String> = LazyLock::new(|| get_locale().unwrap_or(String::from("en-US")));
 
 pub struct Util;
 

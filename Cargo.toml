@@ -2,14 +2,14 @@
 name = "cargo-seek"
 version = "0.1.0"
 edition = "2021"
-description = "Search and install cargo crates"
+description = "A terminal user interface for searching, adding and installing cargo crates"
 authors = ["Tareq Imbasher <https://github.com/tareqimbasher"]
 build = "build.rs"
 repository = "https://github.com/tareqimbasher/seekr"
 
 [profile.release]
-opt-level = "z"  # Optimize for size.
-strip = true  # Automatically strip symbols from the binary.
+opt-level = "z"
+strip = true
 lto = true
 panic = "abort"
 
@@ -37,7 +37,6 @@ futures = "0.3.30"
 human-panic = "2.0.1"
 indexmap = "2.8.0"
 json5 = "0.4.1"
-lazy_static = "1.5.0"
 num-format = "0.4.4"
 open = "5.3.0"
 pretty_assertions = { version = "1.4.1", features = ["unstable"] }
