@@ -1,8 +1,8 @@
-﻿use enum_iterator::{all, reverse_all, Sequence};
-use serde::{Deserialize, Serialize};
-use std::iter::Cycle;
+﻿use serde::{Deserialize, Serialize};
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 
-#[derive(Default, PartialEq, Clone, Debug, Eq, Sequence, Serialize, Deserialize)]
+#[derive(Default, PartialEq, Clone, Debug, Eq, EnumIter, Serialize, Deserialize)]
 pub enum Focusable {
     Usage,
     #[default]
@@ -18,15 +18,20 @@ pub enum Focusable {
 
 impl Focusable {
     pub fn next(&self) -> Focusable {
-        let mut variants: Cycle<_> = all::<Focusable>().cycle();
+        let mut variants = Focusable::iter();
         variants.find(|v| v == self);
         variants.next().unwrap()
     }
 
     pub fn prev(&self) -> Focusable {
-        let mut variants: Cycle<_> = reverse_all::<Focusable>().cycle();
-        variants.find(|v| v == self);
-        variants.next().unwrap()
+        let mut prev = None;
+        for variant in Focusable::iter() {
+            if &variant == self {
+                return prev.unwrap_or_else(|| Focusable::iter().last().unwrap());
+            }
+            prev = Some(variant);
+        }
+        unreachable!();
     }
 }
 

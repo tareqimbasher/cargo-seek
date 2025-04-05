@@ -32,7 +32,6 @@ crates_io_api = "0.11.0"
 crossterm = { version = "0.28.1", features = ["serde", "event-stream"] }
 derive_deref = "1.1.1"
 directories = "6.0"
-enum-iterator = "2.1.0"
 futures = "0.3.30"
 human-panic = "2.0.1"
 indexmap = "2.8.0"

@@ -1,9 +1,8 @@
-use enum_iterator::Sequence;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter};
 
 #[derive(
-    Debug, Default, Display, Clone, EnumIter, PartialEq, Eq, Sequence, Serialize, Deserialize,
+    Debug, Default, Display, Clone, EnumIter, PartialEq, Eq, Serialize, Deserialize,
 )]
 pub enum Scope {
     All,
@@ -13,7 +12,7 @@ pub enum Scope {
     Installed,
 }
 
-#[derive(Debug, Default, Clone, EnumIter, PartialEq, Eq, Sequence, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, EnumIter, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Sort {
     #[default]
     Relevance,
