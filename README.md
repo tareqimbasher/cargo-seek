@@ -1,6 +1,6 @@
-![seekr][logo]
+![cargo-seek][logo]
 
-[logo]: img/logo.png?raw=true "seekr"
+[logo]: img/logo.png?raw=true "cargo-seek"
 [preview]: img/preview.gif?raw=true "preview"
 
 [![CI](https://github.com/tareqimbasher/cargo-seek/actions/workflows/ci.yml/badge.svg)](https://github.com/tareqimbasher/cargo-seek/actions/workflows/ci.yml)

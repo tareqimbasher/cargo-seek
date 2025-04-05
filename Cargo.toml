@@ -5,7 +5,7 @@ edition = "2021"
 description = "A terminal user interface for searching, adding and installing cargo crates"
 authors = ["Tareq Imbasher <https://github.com/tareqimbasher"]
 build = "build.rs"
-repository = "https://github.com/tareqimbasher/seekr"
+repository = "https://github.com/tareqimbasher/cargo-seek"
 
 [profile.release]
 opt-level = "z"
