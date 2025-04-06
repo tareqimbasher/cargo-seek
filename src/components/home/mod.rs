@@ -48,18 +48,21 @@ pub struct Home {
 
 impl Home {
     pub fn new(
+        initial_search_term: Option<String>,
         cargo_env: Arc<RwLock<CargoEnv>>,
         action_tx: UnboundedSender<Action>,
     ) -> AppResult<Self> {
         let tx = action_tx.clone();
         let tx2 = action_tx.clone();
 
+        let input = Input::default().with_value(initial_search_term.unwrap_or_default());
+
         Ok(Self {
             cargo_env,
             left_column_width_percent: 40,
             show_usage: true,
             focused: Focusable::default(),
-            input: Input::default(),
+            input,
             scope_dropdown: Dropdown::new(
                 "Search in".into(),
                 1,
@@ -108,8 +111,6 @@ impl Home {
 
             self.action_tx.send(Action::Search(SearchAction::Search(
                 query,
-                self.scope_dropdown.get_selected(),
-                self.sort_dropdown.get_selected(),
                 requested_page,
                 Some(format!("Loading page {}", requested_page)),
             )))?;
@@ -132,8 +133,6 @@ impl Home {
 
             self.action_tx.send(Action::Search(SearchAction::Search(
                 query,
-                self.scope_dropdown.get_selected(),
-                self.sort_dropdown.get_selected(),
                 requested_page,
                 Some(format!("Loading page {}", requested_page)),
             )))?;
@@ -156,8 +155,6 @@ impl Home {
 
             self.action_tx.send(Action::Search(SearchAction::Search(
                 query,
-                self.scope_dropdown.get_selected(),
-                self.sort_dropdown.get_selected(),
                 requested_page,
                 Some(format!("Loading page {}", requested_page)),
             )))?;
@@ -169,6 +166,23 @@ impl Home {
 
 #[async_trait]
 impl Component for Home {
+    fn init(&mut self, tui: &mut Tui) -> AppResult<()> {
+        let _ = tui;
+
+        let initial_search_term = self.input.value();
+        if !initial_search_term.is_empty() {
+            self.action_tx
+                .send(Action::Search(SearchAction::Search(
+                    initial_search_term.to_string(),
+                    1,
+                    None,
+                )))
+                .ok();
+        }
+
+        Ok(())
+    }
+
     fn register_config_handler(&mut self, config: Config) -> AppResult<()> {
         self.sort_dropdown.register_config_handler(config.clone())?;
         self.scope_dropdown

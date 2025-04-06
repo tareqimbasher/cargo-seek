@@ -341,15 +341,15 @@ fn render_usage(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
         Line::default(),
         Line::from(vec![
             format!("{:<PAD$}", "Up, Down:").set_style(prop_style),
-            "Scroll in crate list".set_style(desc_style),
-        ]),
-        Line::from(vec![
-            format!("{:<PAD$}", "Home, End:").set_style(prop_style),
-            "Go to first/last crate in list".set_style(desc_style),
+            "Select crate in list".set_style(desc_style),
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "Left, Right:").set_style(prop_style),
-            "Go backward/forward a page".set_style(desc_style),
+            "Go previous/next page".set_style(desc_style),
+        ]),
+        Line::from(vec![
+            format!("{:<PAD$}", "Home, End:").set_style(prop_style),
+            "Go to first/last crate in page".set_style(desc_style),
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "Ctrl + Home/End:").set_style(prop_style),

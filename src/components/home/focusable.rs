@@ -24,14 +24,9 @@ impl Focusable {
     }
 
     pub fn prev(&self) -> Focusable {
-        let mut prev = None;
-        for variant in Focusable::iter() {
-            if &variant == self {
-                return prev.unwrap_or_else(|| Focusable::iter().last().unwrap());
-            }
-            prev = Some(variant);
-        }
-        unreachable!();
+        let mut variants = Focusable::iter();
+        variants.find(|v| v == self);
+        variants.next_back().unwrap()
     }
 }
 

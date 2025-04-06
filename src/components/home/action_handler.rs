@@ -1,4 +1,4 @@
-﻿use reqwest::Url;
+use reqwest::Url;
 use std::sync::Arc;
 use std::{fs, io::Write, process::Command};
 
@@ -86,8 +86,11 @@ pub async fn handle_action(
         }
         Action::Search(action) => match action {
             SearchAction::Clear => home.reset()?,
-            SearchAction::Search(term, scope, sort, page, status) => {
+            SearchAction::Search(term, page, status) => {
                 let tx = home.action_tx.clone();
+
+                let scope = home.scope_dropdown.get_selected();
+                let sort = home.sort_dropdown.get_selected();
 
                 let status = status.unwrap_or("Searching".into());
                 tx.send(Action::UpdateStatus(
@@ -125,8 +128,6 @@ pub async fn handle_action(
                 let status = format!("Sorting by: {}", sort);
                 return Ok(Some(Action::Search(SearchAction::Search(
                     home.input.value().into(),
-                    home.scope_dropdown.get_selected(),
-                    sort,
                     1,
                     Some(status),
                 ))));
@@ -141,8 +142,6 @@ pub async fn handle_action(
                 let status = format!("Scoped to: {}", scope);
                 return Ok(Some(Action::Search(SearchAction::Search(
                     home.input.value().into(),
-                    scope,
-                    home.sort_dropdown.get_selected(),
                     1,
                     Some(status),
                 ))));

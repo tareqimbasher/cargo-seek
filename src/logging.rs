@@ -4,8 +4,7 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 use crate::config;
 
-static LOG_ENV: LazyLock<String> =
-    LazyLock::new(|| format!("{}_LOGLEVEL", &*config::PROJECT_NAME));
+static LOG_ENV: LazyLock<String> = LazyLock::new(|| format!("{}_LOGLEVEL", &*config::PROJECT_NAME));
 static LOG_FILE: LazyLock<String> = LazyLock::new(|| format!("{}.log", env!("CARGO_PKG_NAME")));
 
 pub fn init() -> color_eyre::Result<()> {

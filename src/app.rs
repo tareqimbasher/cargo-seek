@@ -41,13 +41,18 @@ impl App {
         frame_rate: f64,
         show_counter: bool,
         proj_path: Option<PathBuf>,
+        initial_search_term: Option<String>,
     ) -> AppResult<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
 
         let cargo_env = Arc::new(RwLock::new(CargoEnv::new(proj_path)));
 
         let mut components: Vec<Box<dyn Component>> = vec![
-            Box::new(Home::new(Arc::clone(&cargo_env), action_tx.clone())?),
+            Box::new(Home::new(
+                initial_search_term,
+                Arc::clone(&cargo_env),
+                action_tx.clone(),
+            )?),
             Box::new(Settings::new()),
             Box::new(AppId::new()), // Should be after other components so it gets drawn on top of them
             Box::new(StatusBar::new(action_tx.clone())),

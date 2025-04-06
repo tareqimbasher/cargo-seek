@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 
-use std::{collections::HashMap, env, path::PathBuf};
-use std::sync::LazyLock;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use derive_deref::{Deref, DerefMut};
 use directories::ProjectDirs;
 use ratatui::style::{Color, Modifier, Style};
 use serde::{de::Deserializer, Deserialize};
+use std::sync::LazyLock;
+use std::{collections::HashMap, env, path::PathBuf};
 use tracing::error;
 
 use crate::{action::Action, app::Mode};
@@ -56,14 +56,18 @@ pub struct Config {
     pub styles: Styles,
 }
 
-pub static PROJECT_NAME: LazyLock<String> = LazyLock::new(|| env!("CARGO_CRATE_NAME").to_uppercase().to_string());
-static DATA_FOLDER: LazyLock<Option<PathBuf>> = LazyLock::new(|| env::var(format!("{}_DATA", PROJECT_NAME.clone()))
-    .ok()
-    .map(PathBuf::from));
-static CONFIG_FOLDER: LazyLock<Option<PathBuf>> = LazyLock::new(|| env::var(format!("{}_CONFIG", PROJECT_NAME.clone()))
-    .ok()
-    .map(PathBuf::from));
-
+pub static PROJECT_NAME: LazyLock<String> =
+    LazyLock::new(|| env!("CARGO_CRATE_NAME").to_uppercase().to_string());
+static DATA_FOLDER: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
+    env::var(format!("{}_DATA", PROJECT_NAME.clone()))
+        .ok()
+        .map(PathBuf::from)
+});
+static CONFIG_FOLDER: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
+    env::var(format!("{}_CONFIG", PROJECT_NAME.clone()))
+        .ok()
+        .map(PathBuf::from)
+});
 
 impl Config {
     pub fn new() -> Result<Self, config::ConfigError> {

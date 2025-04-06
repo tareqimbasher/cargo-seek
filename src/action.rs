@@ -43,7 +43,7 @@ pub enum Action {
 #[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
 pub enum SearchAction {
     Clear,
-    Search(String, Scope, Sort, usize, Option<String>),
+    Search(String, usize, Option<String>),
     Error(String),
     SortBy(Sort),
     Scope(Scope),

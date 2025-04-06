@@ -21,7 +21,13 @@ async fn main() -> color_eyre::Result<()> {
     logging::init()?;
 
     let args = Cli::parse();
-    let mut app = App::new(args.tick_rate, args.frame_rate, args.counter, args.proj_dir)?;
+    let mut app = App::new(
+        args.tick_rate,
+        args.frame_rate,
+        args.counter,
+        args.proj_dir,
+        args.search_term,
+    )?;
     app.run().await?;
     Ok(())
 }
