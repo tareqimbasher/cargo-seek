@@ -1,25 +1,22 @@
 use ratatui::widgets::ListState;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::search::Crate;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct SearchResults {
-    #[serde(default)]
-    pub total_count: usize,
-    #[serde(default)]
-    current_page: usize,
     pub crates: Vec<Crate>,
-    #[serde(default)]
+    pub total_count: usize,
     pub list_state: ListState,
+    current_page: usize,
 }
 
 impl SearchResults {
     pub fn new(page: usize) -> Self {
         SearchResults {
             crates: Vec::default(),
-            current_page: page,
             total_count: 0,
+            current_page: page,
             list_state: ListState::default(),
         }
     }
@@ -45,7 +42,7 @@ impl SearchResults {
         self.current_page > 1
     }
 
-    pub fn get_selected_index(&self) -> Option<usize> {
+    pub fn selected_index(&self) -> Option<usize> {
         if let Some(index) = self.list_state.selected() {
             if index == usize::MAX {
                 // Index can be usize::MAX to denote last item
@@ -56,8 +53,8 @@ impl SearchResults {
         None
     }
 
-    pub fn get_selected(&self) -> Option<&Crate> {
-        if let Some(ix) = self.get_selected_index() {
+    pub fn selected(&self) -> Option<&Crate> {
+        if let Some(ix) = self.selected_index() {
             if let Some(item) = self.crates.get(ix) {
                 return Some(item);
             }
@@ -67,26 +64,26 @@ impl SearchResults {
 
     pub fn select_index(&mut self, index: Option<usize>) -> Option<&Crate> {
         self.list_state.select(index);
-        self.get_selected()
+        self.selected()
     }
 
     pub fn select_next(&mut self) -> Option<&Crate> {
         self.list_state.select_next();
-        self.get_selected()
+        self.selected()
     }
 
     pub fn select_previous(&mut self) -> Option<&Crate> {
         self.list_state.select_previous();
-        self.get_selected()
+        self.selected()
     }
 
     pub fn select_first(&mut self) -> Option<&Crate> {
         self.list_state.select_first();
-        self.get_selected()
+        self.selected()
     }
 
     pub fn select_last(&mut self) -> Option<&Crate> {
         self.list_state.select_last();
-        self.get_selected()
+        self.selected()
     }
 }

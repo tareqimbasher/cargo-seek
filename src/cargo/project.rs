@@ -14,11 +14,12 @@ struct DependencyInfo {
     version: String,
 }
 
+/// A local cargo project.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Project {
     pub manifest_file_path: PathBuf,
     pub packages: Vec<Package>,
-    dependencies: HashMap<String, DependencyInfo>,
+    dependency_versions: HashMap<String, DependencyInfo>,
 }
 
 impl Project {
@@ -31,7 +32,7 @@ impl Project {
             Some(Project {
                 manifest_file_path,
                 packages: Vec::new(),
-                dependencies: HashMap::new(),
+                dependency_versions: HashMap::new(),
             })
         } else {
             None
@@ -67,14 +68,14 @@ impl Project {
         }
 
         self.packages = packages;
-        self.dependencies = dependencies;
+        self.dependency_versions = dependencies;
 
         Ok(())
     }
 
-    /// Gets the local project version of the given crate name, if any.
+    /// Gets the version of the given crate name if it is added to the project, None otherwise.
     pub fn get_local_version(&self, package_name: &str) -> Option<String> {
-        self.dependencies
+        self.dependency_versions
             .get(package_name)
             .map(|dep| dep.version.clone())
     }
@@ -89,8 +90,11 @@ fn find_project_manifest(starting_dir_path: &Path) -> AppResult<Option<PathBuf>>
 
         let found = fs::read_dir(path)?.find(|f| {
             if let Ok(file) = f {
-                let file_name = file.file_name().to_string_lossy().to_lowercase();
-                if file_name == "cargo.toml" {
+                if file
+                    .file_name()
+                    .to_string_lossy()
+                    .eq_ignore_ascii_case("Cargo.toml")
+                {
                     return true;
                 }
             }

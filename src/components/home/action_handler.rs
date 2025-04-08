@@ -219,9 +219,9 @@ pub async fn handle_action(
                 CrateSearchManager::update_results(search_results, &cargo_env);
             }
         }
-        Action::CrateDataLoaded(data) => {
+        Action::CrateMetadataLoaded(data) => {
             if let Some(results) = home.search_results.as_mut() {
-                if let Some(index) = results.get_selected_index() {
+                if let Some(index) = results.selected_index() {
                     let cr = &mut results.crates[index];
                     if cr.id == data.id {
                         CrateSearchManager::hydrate(data, cr);
@@ -234,7 +234,7 @@ pub async fn handle_action(
             if let Some(url) = home
                 .search_results
                 .as_ref()
-                .and_then(|results| results.get_selected())
+                .and_then(|results| results.selected())
                 .and_then(|krate| krate.repository.as_ref())
                 .and_then(|docs| Url::parse(docs).ok())
             {
@@ -293,7 +293,7 @@ pub async fn handle_action(
             if let Some(url) = home
                 .search_results
                 .as_ref()
-                .and_then(|results| results.get_selected())
+                .and_then(|results| results.selected())
                 .and_then(|krate| krate.documentation.as_ref())
                 .and_then(|docs| Url::parse(docs).ok())
             {
@@ -304,7 +304,7 @@ pub async fn handle_action(
             if let Some(url) = home
                 .search_results
                 .as_ref()
-                .and_then(|results| results.get_selected())
+                .and_then(|results| results.selected())
                 .and_then(|krate| {
                     Url::parse(format!("https://crates.io/crates/{}", krate.id).as_str()).ok()
                 })
@@ -316,7 +316,7 @@ pub async fn handle_action(
             if let Some(url) = home
                 .search_results
                 .as_ref()
-                .and_then(|results| results.get_selected())
+                .and_then(|results| results.selected())
                 .and_then(|krate| {
                     Url::parse(format!("https://lib.rs/crates/{}", krate.id).as_str()).ok()
                 })
@@ -330,7 +330,7 @@ pub async fn handle_action(
 }
 
 fn check_needs_hydrate(results: &mut SearchResults, crate_search_manager: &mut CrateSearchManager) {
-    if let Some(cr) = results.get_selected() {
+    if let Some(cr) = results.selected() {
         if !cr.is_metadata_loaded() {
             crate_search_manager.get_crate_data(&cr.name).ok();
         }

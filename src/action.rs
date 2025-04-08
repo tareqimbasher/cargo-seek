@@ -1,9 +1,9 @@
 use crate::components::{Focusable, StatusDuration, StatusLevel};
 use crate::search::{Scope, SearchResults, Sort};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use strum::Display;
 
-#[derive(Debug, Clone, Display, Serialize, Deserialize)]
+#[derive(Debug, Clone, Display, Deserialize)]
 pub enum Action {
     Tick,
     Render,
@@ -28,7 +28,7 @@ pub enum Action {
 
     RefreshCargoEnv,
     CargoEnvRefreshed,
-    CrateDataLoaded(Box<crates_io_api::Crate>),
+    CrateMetadataLoaded(Box<crates_io_api::Crate>),
 
     OpenDocs,
     OpenReadme,
@@ -40,7 +40,7 @@ pub enum Action {
     Settings(SettingsAction),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Display, Deserialize)]
 pub enum SearchAction {
     Clear,
     Search(String, usize, Option<String>),
@@ -60,7 +60,7 @@ pub enum SearchAction {
     SelectLast,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Display, Deserialize)]
 pub enum CargoAction {
     Add(String, String),
     Remove(String),
@@ -70,7 +70,7 @@ pub enum CargoAction {
     Uninstall(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Display, Deserialize)]
 pub enum SettingsAction {
     Save,
 }

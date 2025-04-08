@@ -1,4 +1,4 @@
-﻿use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
@@ -12,11 +12,23 @@ mod manifest_metadata;
 pub use installed_binary::*;
 pub use manifest_metadata::*;
 
-pub fn get_installed_binaries() -> AppResult<Vec<InstalledBinary>> {
-    let output = Command::new("cargo")
-        .arg("install")
-        .arg("--list")
+pub fn get_metadata(manifest_path: &PathBuf) -> AppResult<ManifestMetadata> {
+    let output = cargo_cmd()
+        .arg("metadata")
+        .arg("--no-deps")
+        .arg("--format-version")
+        .arg("1")
+        .arg("--manifest-path")
+        .arg(manifest_path)
         .output()?;
+
+    let stdout = String::from_utf8(output.stdout)?;
+    let metadata: ManifestMetadata = serde_json::from_str(&stdout)?;
+    Ok(metadata)
+}
+
+pub fn get_installed_binaries() -> AppResult<Vec<InstalledBinary>> {
+    let output = cargo_cmd().arg("install").arg("--list").output()?;
 
     let stdout = String::from_utf8(output.stdout)?;
     let stdout = stdout
@@ -44,40 +56,25 @@ pub fn get_installed_binaries() -> AppResult<Vec<InstalledBinary>> {
     Ok(packages)
 }
 
-pub fn get_metadata(manifest_path: &PathBuf) -> AppResult<ManifestMetadata> {
-    let output = cargo_cmd()
-        .arg("metadata")
-        .arg("--no-deps")
-        .arg("--format-version")
-        .arg("1")
-        .arg("--manifest-path")
-        .arg(manifest_path)
-        .output()?;
-
-    let stdout = String::from_utf8(output.stdout)?;
-    let metadata: ManifestMetadata = serde_json::from_str(&stdout)?;
-    Ok(metadata)
-}
-
-pub fn add(mut crate_name: String, version: Option<String>, show_output: bool) -> AppResult<()> {
+pub fn add(mut crate_name: String, version: Option<String>, print_output: bool) -> AppResult<()> {
     if let Some(version) = version {
         crate_name = format!("{crate_name}@{version}");
     }
 
-    if show_output {
+    if print_output {
         run_cargo(vec!["add", crate_name.as_str()])?;
     } else {
-        run_cargo_with_output(vec!["add", crate_name.as_str()])?;
+        run_cargo_suppress_output(vec!["add", crate_name.as_str()])?;
     }
 
     Ok(())
 }
 
-pub fn remove(crate_name: String, show_output: bool) -> AppResult<()> {
-    if show_output {
+pub fn remove(crate_name: String, print_output: bool) -> AppResult<()> {
+    if print_output {
         run_cargo(vec!["remove", crate_name.as_str()])?;
     } else {
-        run_cargo_with_output(vec!["remove", crate_name.as_str()])?;
+        run_cargo_suppress_output(vec!["remove", crate_name.as_str()])?;
     }
     Ok(())
 }
@@ -85,42 +82,28 @@ pub fn remove(crate_name: String, show_output: bool) -> AppResult<()> {
 pub fn install(
     mut crate_name: String,
     version: Option<String>,
-    show_output: bool,
+    print_output: bool,
 ) -> AppResult<()> {
     if let Some(version) = version {
         crate_name = format!("{crate_name}@{version}");
     }
 
-    if show_output {
+    if print_output {
         run_cargo(vec!["install", crate_name.as_str()])?;
     } else {
-        run_cargo_with_output(vec!["install", crate_name.as_str()])?;
+        run_cargo_suppress_output(vec!["install", crate_name.as_str()])?;
     }
 
     Ok(())
 }
 
-pub fn uninstall(crate_name: String, show_output: bool) -> AppResult<()> {
-    if show_output {
+pub fn uninstall(crate_name: String, print_output: bool) -> AppResult<()> {
+    if print_output {
         run_cargo(vec!["uninstall", crate_name.as_str()])?;
     } else {
-        run_cargo_with_output(vec!["uninstall", crate_name.as_str()])?;
+        run_cargo_suppress_output(vec!["uninstall", crate_name.as_str()])?;
     }
     Ok(())
-}
-
-fn cargo_cmd() -> Command {
-    #[cfg(windows)]
-    {
-        let mut cmd = Command::new("cargo");
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-        cmd
-    }
-    #[cfg(not(windows))]
-    {
-        Command::new("cargo")
-    }
 }
 
 fn run_cargo(args: Vec<&str>) -> AppResult<()> {
@@ -144,7 +127,7 @@ fn run_cargo(args: Vec<&str>) -> AppResult<()> {
     Ok(())
 }
 
-fn run_cargo_with_output(args: Vec<&str>) -> AppResult<String> {
+fn run_cargo_suppress_output(args: Vec<&str>) -> AppResult<String> {
     let output = cargo_cmd().args(args).output()?;
     if !output.status.success() {
         return Err(AppError::Cargo(String::from_utf8(output.stderr)?));
@@ -152,15 +135,16 @@ fn run_cargo_with_output(args: Vec<&str>) -> AppResult<String> {
     Ok(String::from_utf8(output.stderr)?)
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//
-//     #[test]
-//     fn test_globally_installed() {
-//         let packages = CargoManager::get_installed_binaries().unwrap();
-//         for p in packages {
-//             println!("{} v{}", p.name, p.version);
-//         }
-//     }
-// }
+fn cargo_cmd() -> Command {
+    #[cfg(windows)]
+    {
+        let mut cmd = Command::new("cargo");
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        cmd
+    }
+    #[cfg(not(windows))]
+    {
+        Command::new("cargo")
+    }
+}

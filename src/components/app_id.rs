@@ -11,6 +11,7 @@ use crate::app::Mode;
 use crate::config::Config;
 use crate::errors::AppResult;
 
+/// A component that renders the name and version of the app.
 pub struct AppId {
     id: String,
     config: Config,

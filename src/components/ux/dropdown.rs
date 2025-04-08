@@ -14,6 +14,7 @@ use crate::components::Component;
 use crate::config::Config;
 use crate::errors::AppResult;
 
+/// A custom widget that renders a dropdown.
 pub struct Dropdown<T> {
     header: String,
     config: Config,

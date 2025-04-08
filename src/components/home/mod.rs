@@ -29,6 +29,7 @@ use crate::{
 };
 pub use focusable::Focusable;
 
+/// The home (main) component.
 pub struct Home {
     config: Config,
     cargo_env: Arc<RwLock<CargoEnv>>,
@@ -105,15 +106,13 @@ impl Home {
                 page
             };
 
-            if requested_page == results.current_page() {
-                return Ok(());
+            if requested_page != results.current_page() {
+                self.action_tx.send(Action::Search(SearchAction::Search(
+                    query,
+                    requested_page,
+                    Some(format!("Loading page {}", requested_page)),
+                )))?;
             }
-
-            self.action_tx.send(Action::Search(SearchAction::Search(
-                query,
-                requested_page,
-                Some(format!("Loading page {}", requested_page)),
-            )))?;
         }
 
         Ok(())
@@ -127,15 +126,13 @@ impl Home {
                 results.current_page() - pages
             };
 
-            if requested_page == results.current_page() {
-                return Ok(());
+            if requested_page != results.current_page() {
+                self.action_tx.send(Action::Search(SearchAction::Search(
+                    query,
+                    requested_page,
+                    Some(format!("Loading page {}", requested_page)),
+                )))?;
             }
-
-            self.action_tx.send(Action::Search(SearchAction::Search(
-                query,
-                requested_page,
-                Some(format!("Loading page {}", requested_page)),
-            )))?;
         }
 
         Ok(())
@@ -149,15 +146,13 @@ impl Home {
                 requested_page = results.page_count();
             }
 
-            if requested_page == results.current_page() {
-                return Ok(());
+            if requested_page != results.current_page() {
+                self.action_tx.send(Action::Search(SearchAction::Search(
+                    query,
+                    requested_page,
+                    Some(format!("Loading page {}", requested_page)),
+                )))?;
             }
-
-            self.action_tx.send(Action::Search(SearchAction::Search(
-                query,
-                requested_page,
-                Some(format!("Loading page {}", requested_page)),
-            )))?;
         }
 
         Ok(())
@@ -166,6 +161,14 @@ impl Home {
 
 #[async_trait]
 impl Component for Home {
+    fn register_config_handler(&mut self, config: Config) -> AppResult<()> {
+        self.sort_dropdown.register_config_handler(config.clone())?;
+        self.scope_dropdown
+            .register_config_handler(config.clone())?;
+        self.config = config;
+        Ok(())
+    }
+
     fn init(&mut self, tui: &mut Tui) -> AppResult<()> {
         let _ = tui;
 
@@ -180,14 +183,6 @@ impl Component for Home {
                 .ok();
         }
 
-        Ok(())
-    }
-
-    fn register_config_handler(&mut self, config: Config) -> AppResult<()> {
-        self.sort_dropdown.register_config_handler(config.clone())?;
-        self.scope_dropdown
-            .register_config_handler(config.clone())?;
-        self.config = config;
         Ok(())
     }
 

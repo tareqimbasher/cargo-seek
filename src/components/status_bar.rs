@@ -4,7 +4,7 @@ use ratatui::style::{Styled, Stylize};
 use ratatui::text::{Line, Text};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::cmp::PartialEq;
 use strum::Display;
 use tokio::sync::mpsc::UnboundedSender;
@@ -17,7 +17,7 @@ use crate::config::Config;
 use crate::errors::AppResult;
 use crate::tui::Tui;
 
-#[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Display, Deserialize)]
 pub enum StatusLevel {
     Info,
     Progress,
@@ -26,7 +26,7 @@ pub enum StatusLevel {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Display, Deserialize)]
 pub enum StatusDuration {
     /// Is not rendered to screen (ex: when clearing status)
     None,
@@ -46,6 +46,7 @@ struct StatusMessage {
     message: String,
 }
 
+/// The statusbar component.
 pub struct StatusBar {
     status: Option<StatusMessage>,
     last_annoying: Option<StatusMessage>,

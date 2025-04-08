@@ -25,7 +25,7 @@ async fn main() -> color_eyre::Result<()> {
         args.tick_rate,
         args.frame_rate,
         args.counter,
-        args.proj_dir,
+        args.project_dir,
         args.search_term,
     )?;
     app.run().await?;

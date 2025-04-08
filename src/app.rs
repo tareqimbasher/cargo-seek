@@ -7,7 +7,8 @@ use tokio::sync::{mpsc, RwLock};
 use tracing::{debug, info};
 
 use crate::action::{Action, CargoAction};
-use crate::cargo::{add, install, remove, uninstall, CargoEnv};
+use crate::cargo;
+use crate::cargo::CargoEnv;
 use crate::components::{AppId, Component, FpsCounter, Home, Settings, StatusBar, StatusLevel};
 use crate::config::Config;
 use crate::errors::{AppError, AppResult};
@@ -15,11 +16,11 @@ use crate::tui::{Event, Tui};
 
 pub struct App {
     cargo_env: Arc<RwLock<CargoEnv>>,
+    mode: Mode,
     config: Config,
+    components: Vec<Box<dyn Component>>,
     tick_rate: f64,
     frame_rate: f64,
-    mode: Mode,
-    components: Vec<Box<dyn Component>>,
     should_quit: bool,
     should_suspend: bool,
     last_tick_key_events: Vec<KeyEvent>,
@@ -40,12 +41,12 @@ impl App {
         tick_rate: f64,
         frame_rate: f64,
         show_counter: bool,
-        proj_path: Option<PathBuf>,
+        project_dir: Option<PathBuf>,
         initial_search_term: Option<String>,
     ) -> AppResult<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
 
-        let cargo_env = Arc::new(RwLock::new(CargoEnv::new(proj_path)));
+        let cargo_env = Arc::new(RwLock::new(CargoEnv::new(project_dir)));
 
         let mut components: Vec<Box<dyn Component>> = vec![
             Box::new(Home::new(
@@ -54,8 +55,8 @@ impl App {
                 action_tx.clone(),
             )?),
             Box::new(Settings::new()),
-            Box::new(AppId::new()), // Should be after other components so it gets drawn on top of them
             Box::new(StatusBar::new(action_tx.clone())),
+            Box::new(AppId::new()), // Should be after other components so it gets drawn on top of them
         ];
 
         if show_counter {
@@ -64,13 +65,13 @@ impl App {
 
         Ok(Self {
             cargo_env,
+            mode: Mode::Home,
+            config: Config::new()?,
+            components,
             tick_rate,
             frame_rate,
-            components,
             should_quit: false,
             should_suspend: false,
-            config: Config::new()?,
-            mode: Mode::Home,
             last_tick_key_events: Vec::new(),
             action_tx,
             action_rx,
@@ -85,6 +86,7 @@ impl App {
             .frame_rate(self.frame_rate);
         tui.enter()?;
 
+        // Start by reading the current cargo environment
         self.cargo_env.write().await.read().ok();
 
         for component in self.components.iter_mut() {
@@ -197,7 +199,9 @@ impl App {
                             tui.exit()?;
                             let tx = self.action_tx.clone();
                             tokio::spawn(async move {
-                                if add(crate_name.clone(), Some(version.clone()), true).is_err() {
+                                if cargo::add(crate_name.clone(), Some(version.clone()), true)
+                                    .is_err()
+                                {
                                     tx.send(Action::UpdateStatus(
                                         StatusLevel::Error,
                                         format!("Failed to add {crate_name}"),
@@ -226,7 +230,7 @@ impl App {
 
                             let tx = self.action_tx.clone();
                             tokio::spawn(async move {
-                                if remove(crate_name.clone(), false).is_err() {
+                                if cargo::remove(crate_name.clone(), false).is_err() {
                                     tx.send(Action::UpdateStatus(
                                         StatusLevel::Error,
                                         format!("Failed to remove {crate_name}"),
@@ -243,11 +247,6 @@ impl App {
                             });
                             Ok(())
                         }
-                        // CargoAction::Update(crate_name) => {
-                        //     let _ = crate_name;
-                        //     Ok(Some(Action::RefreshCargoEnv))
-                        // }
-                        // CargoAction::UpdateAll => Ok(Some(Action::RefreshCargoEnv)),
                         CargoAction::Install(crate_name, version) => {
                             self.action_tx.send(Action::UpdateStatus(
                                 StatusLevel::Info,
@@ -257,7 +256,8 @@ impl App {
                             tui.exit()?;
                             let tx = self.action_tx.clone();
                             tokio::spawn(async move {
-                                if install(crate_name.clone(), Some(version.clone()), true).is_err()
+                                if cargo::install(crate_name.clone(), Some(version.clone()), true)
+                                    .is_err()
                                 {
                                     tx.send(Action::UpdateStatus(
                                         StatusLevel::Error,
@@ -287,7 +287,7 @@ impl App {
 
                             let tx = self.action_tx.clone();
                             tokio::spawn(async move {
-                                if uninstall(crate_name.clone(), false).is_err() {
+                                if cargo::uninstall(crate_name.clone(), false).is_err() {
                                     tx.send(Action::UpdateStatus(
                                         StatusLevel::Error,
                                         format!("Failed to uninstall {crate_name}"),

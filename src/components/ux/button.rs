@@ -7,7 +7,7 @@ use ratatui::style::{Color, Style};
 use ratatui::text::Line;
 use ratatui::widgets::Widget;
 
-/// A custom widget that renders a button with a label, theme and state.
+/// A custom widget that renders a button.
 #[derive(Debug, Clone)]
 pub struct Button<'a> {
     label: Line<'a>,
@@ -100,7 +100,6 @@ pub const PURPLE: Theme = Theme {
     shadow: Color::Rgb(64, 32, 96),
 };
 
-/// A button with a label that can be themed.
 impl<'a> Button<'a> {
     pub fn new<T: Into<Line<'a>>>(label: T) -> Self {
         Button {

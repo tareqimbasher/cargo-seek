@@ -15,6 +15,7 @@ use crate::app::Mode;
 use crate::errors::AppResult;
 use crate::tui::Tui;
 
+/// A component that renders frames/s and ticks/s.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FpsCounter {
     last_tick_update: Instant,
@@ -83,14 +84,19 @@ impl Component for FpsCounter {
     }
 
     fn draw(&mut self, _: &Mode, frame: &mut Frame, area: Rect) -> AppResult<()> {
-        let [top, _] = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(area);
+        let [_, container, _] = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Min(0),
+        ])
+        .areas(area);
         let message = format!(
-            "{:.2} ticks/sec, {:.2} FPS",
+            "{:.2} ticks/s, {:.2} FPS",
             self.ticks_per_second, self.frames_per_second
         );
         let span = Span::styled(message, Style::new().dim());
         let paragraph = Paragraph::new(span).right_aligned();
-        frame.render_widget(paragraph, top);
+        frame.render_widget(paragraph, container);
         Ok(())
     }
 

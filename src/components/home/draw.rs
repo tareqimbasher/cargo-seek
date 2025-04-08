@@ -133,7 +133,7 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
         );
 
     if let Some(results) = home.search_results.as_mut() {
-        let selected_index = results.get_selected_index();
+        let selected_index = results.selected_index();
         let correction = 2;
 
         let list_items: Vec<ListItem> = results
@@ -205,7 +205,7 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
         };
 
         let selected_item_num_in_total = items_in_prev_pages + selected_item_num;
-        let selected = results.get_selected();
+        let selected = results.selected();
 
         let list = List::new(list_items)
             .block(
@@ -260,7 +260,7 @@ fn render_right(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
 
     let selected_crate = {
         let search_results = home.search_results.as_ref().unwrap();
-        search_results.get_selected()
+        search_results.selected()
     };
 
     if let Some(cr) = selected_crate {

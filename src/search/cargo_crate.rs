@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct Crate {
     pub id: String,
     pub name: String,
@@ -17,9 +17,7 @@ pub struct Crate {
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
     pub exact_match: bool,
-    #[serde(default)]
     pub project_version: Option<String>,
-    #[serde(default)]
     pub installed_version: Option<String>,
 }
 

@@ -144,7 +144,7 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
         KeyCode::Char('a') => {
             if is_results_or_details_focused(&home.focused) {
                 if let Some(search_results) = home.search_results.as_ref() {
-                    if let Some(selected) = search_results.get_selected() {
+                    if let Some(selected) = search_results.selected() {
                         return Ok(Some(Action::Cargo(CargoAction::Add(
                             selected.name.clone(),
                             selected.version.clone(),
@@ -156,7 +156,7 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
         KeyCode::Char('r') => {
             if is_results_or_details_focused(&home.focused) {
                 if let Some(search_results) = home.search_results.as_ref() {
-                    if let Some(selected) = search_results.get_selected() {
+                    if let Some(selected) = search_results.selected() {
                         return Ok(Some(Action::Cargo(CargoAction::Remove(
                             selected.name.clone(),
                         ))));
@@ -167,7 +167,7 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
         KeyCode::Char('i') => {
             if is_results_or_details_focused(&home.focused) {
                 if let Some(search_results) = home.search_results.as_ref() {
-                    if let Some(selected) = search_results.get_selected() {
+                    if let Some(selected) = search_results.selected() {
                         return Ok(Some(Action::Cargo(CargoAction::Install(
                             selected.name.clone(),
                             selected.version.clone(),
@@ -179,7 +179,7 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
         KeyCode::Char('u') => {
             if is_results_or_details_focused(&home.focused) {
                 if let Some(search_results) = home.search_results.as_ref() {
-                    if let Some(selected) = search_results.get_selected() {
+                    if let Some(selected) = search_results.selected() {
                         return Ok(Some(Action::Cargo(CargoAction::Uninstall(
                             selected.name.clone(),
                         ))));
@@ -213,7 +213,7 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
             match key.code {
                 // List navigation
                 KeyCode::Up => {
-                    if let Some(selected_ix) = results.get_selected_index() {
+                    if let Some(selected_ix) = results.selected_index() {
                         if selected_ix == 0 {
                             return Ok(Some(Action::Focus(Focusable::Search)));
                         }

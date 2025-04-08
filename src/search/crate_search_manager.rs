@@ -32,7 +32,7 @@ impl CrateSearchManager {
                 .default_headers(headers)
                 .timeout(Duration::from_secs(10))
                 .build()?,
-            Duration::from_millis(1000),
+            Duration::from_millis(1100),
         );
 
         Ok(CrateSearchManager {
@@ -67,6 +67,7 @@ impl CrateSearchManager {
             let term = options.term.unwrap_or("".to_string()).to_lowercase();
             let page = options.page.unwrap_or(1);
             let per_page = options.per_page.unwrap_or(100);
+            let mut still_needed = per_page;
 
             let mut search_results = SearchResults::new(page);
 
@@ -75,12 +76,14 @@ impl CrateSearchManager {
                 if let Some(project) = &cargo_env.project {
                     let mut results = Self::search_project(&term, project);
                     search_results.total_count += results.len();
-
-                    let mut still_needed = per_page - search_results.crates.len();
                     if still_needed > results.len() {
-                        still_needed = results.len();
+                        search_results.crates.extend(results);
+                    } else {
+                        search_results
+                            .crates
+                            .extend(results.drain(..(still_needed - 1)));
                     }
-                    search_results.crates.extend(results.drain(..still_needed));
+                    still_needed = per_page.saturating_sub(search_results.crates.len());
                 }
             }
 
@@ -93,11 +96,13 @@ impl CrateSearchManager {
                 let mut results = Self::search_binaries(&term, &cargo_env);
                 search_results.total_count += results.len();
 
-                let mut still_needed = per_page - search_results.crates.len();
                 if still_needed > results.len() {
-                    still_needed = results.len();
+                    search_results.crates.extend(results);
+                } else if still_needed > 0 {
+                    search_results
+                        .crates
+                        .extend(results.drain(..(still_needed - 1)));
                 }
-                search_results.crates.extend(results.drain(..still_needed));
             }
 
             if cancel_search_rx.try_recv().is_ok() {
@@ -112,13 +117,16 @@ impl CrateSearchManager {
 
                 match result {
                     Ok(r) => {
-                        search_results.total_count += r.1;
                         let mut results = r.0;
-                        let mut still_needed = per_page - search_results.crates.len();
+                        search_results.total_count += r.1;
+
                         if still_needed > results.len() {
-                            still_needed = results.len();
+                            search_results.crates.extend(results);
+                        } else if still_needed > 0 {
+                            search_results
+                                .crates
+                                .extend(results.drain(..(still_needed - 1)));
                         }
-                        search_results.crates.extend(results.drain(..still_needed));
                     }
                     Err(err) => {
                         tx.send(Action::Search(SearchAction::Error(format!("{:#}", err))))
@@ -141,17 +149,17 @@ impl CrateSearchManager {
     fn search_binaries(term: &str, cargo_env: &CargoEnv) -> Vec<Crate> {
         let mut results: Vec<Crate> = Vec::new();
 
-        for package in &cargo_env.installed {
-            let name_lower = package.name.to_lowercase();
+        for bin in &cargo_env.installed_binaries {
+            let name_lower = bin.name.to_lowercase();
             if name_lower.contains(term) {
                 results.push(Crate {
-                    id: package.name.clone(),
-                    name: package.name.clone(),
+                    id: bin.name.clone(),
+                    name: bin.name.clone(),
                     description: None,
                     homepage: None,
                     documentation: None,
                     repository: None,
-                    version: package.version.clone(),
+                    version: bin.version.clone(),
                     max_version: None,
                     max_stable_version: None,
                     downloads: None,
@@ -160,13 +168,12 @@ impl CrateSearchManager {
                     updated_at: None,
                     exact_match: name_lower == term,
                     project_version: None,
-                    installed_version: Some(package.version.clone()),
+                    installed_version: Some(bin.version.clone()),
                 });
             }
         }
 
         results
-        //.sort_by(|a, b| a.id.cmp(&b.id));
     }
 
     fn search_project(term: &str, project: &Project) -> Vec<Crate> {
@@ -276,7 +283,7 @@ impl CrateSearchManager {
 
             let response = crates_io_client.get_crate(&name).await?;
             let data = response.crate_data;
-            tx.send(Action::CrateDataLoaded(Box::new(data)))?;
+            tx.send(Action::CrateMetadataLoaded(Box::new(data)))?;
 
             Ok::<_, AppError>(())
         });
