@@ -41,7 +41,7 @@ const VERSION_MESSAGE: &str = concat!(
 );
 
 pub fn version() -> String {
-    let author = clap::crate_authors!();
+    let description = clap::crate_description!();
 
     // let current_exe_path = PathBuf::from(clap::crate_name!()).display().to_string();
     let config_dir_path = get_config_dir().display().to_string();
@@ -51,9 +51,9 @@ pub fn version() -> String {
         "\
 {VERSION_MESSAGE}
 
-Authors: {author}
+{description}
 
-Config directory: {config_dir_path}
-Data directory: {data_dir_path}"
+Config dir: {config_dir_path}
+Data dir:   {data_dir_path}"
     )
 }

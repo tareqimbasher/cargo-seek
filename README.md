@@ -1,37 +1,67 @@
-![cargo-seek][logo]
+<p align="center">
+  <img src="docs/cargo-seek-128.png?raw=true">
+</p>
 
-[logo]: img/logo.png?raw=true "cargo-seek"
+<h1 align="center">cargo-seek</h1>
+<div align="center">
+ <strong>
+   A terminal user interface (TUI) for searching, adding and installing cargo crates.
+ </strong>
+</div>
 
-[preview]: img/preview.gif?raw=true "preview"
+<br />
 
-[![CI](https://github.com/tareqimbasher/cargo-seek/actions/workflows/ci.yml/badge.svg)](https://github.com/tareqimbasher/cargo-seek/actions/workflows/ci.yml)
+<div align="center">
+  <!-- Crates version -->
+  <a href="https://crates.io/crates/cargo-chef">
+    <img src="https://img.shields.io/crates/v/cargo-seek.svg?style=flat-square"
+    alt="Crates.io version" />
+  </a>
+  <!-- Downloads 
+  <!--<a href="https://crates.io/crates/cargo-chef">
+    <img src="https://img.shields.io/crates/d/cargo-chef.svg?style=flat-square"
+      alt="Download" />
+  </a>-->
+</div>
+<br/>
 
-**cargo-seek** is a terminal user interface (TUI) for searching, adding and installing cargo crates.
 
+[preview]: docs/preview.gif?raw=true "preview"
 ![preview][preview]
 
-## Features
+# Features 🚀
 
-- [x] Search
-    - [x] Sorting
-    - [x] Search in: Online, Project, Installed or All
-    - [ ] Filter By Category
-- [x] Flag added & installed crates
-- [x] Add, remove
-- [x] Install, uninstall
-- [ ] Show more details (dependencies, version history...)
-- [x] Open ReadMe
-- [x] Open Docs
-- [x] Open crates.io
-- [x] Open lib.rs
+- Search
+  - Sort by: Relevance, Name, Downloads, Recent Downloads, Recently Updated, Newly Added.
+  - Search in: Online, Project, Installed or All
+  - Visually label added & installed crates
+- Add, remove to project
+- Install, uninstall binary
+- Open docs
+- Open repository
+- Open crate on [crates.io](https://crates.io)
+- Open crate on [lib.rs](https://lib.rs)
 
-## Install
+# Roadmap 🚧
 
-    cargo install cargo-seek
+- Filter by Category
+- Show more crate details: dependencies, version history...etc
+- Settings
+- Open repository README in terminal using `glow` or `mdcat`
 
-## Usage
+# Install
+
+    cargo install --locked cargo-seek
+
+# Usage
 
     cargo-seek
+
+or as a cargo sub-command:
+
+```shell
+cargo seek
+```
 
 **Options**
 
@@ -54,35 +84,34 @@ UI Options:
 
 **Cargo Projects**
 
-If a cargo project (`cargo.toml`) is found in the current directory or one of its parents, you can use `cargo-seek` to
+If a cargo project (`Cargo.toml`) is found in the current directory or one of its parents, you can use `cargo-seek` to
 add and remove crates to your cargo project. You can also direct `crate-seek` to target a specific cargo project
 directory:
 
     # dir, or one of its parents, should contain a cargo.toml file
-    cargo-seek /path/to/dir
+    cargo seek /path/to/dir
 
+# Keyboard
 
-## Keyboard shortcuts
-
-### Search
+## Search
 
 | Key        | Action       |
 |------------|--------------|
 | `Enter`    | Run search   |
-| `Ctrl + s` | Sort         |
 | `Ctrl + a` | Search scope |
+| `Ctrl + s` | Sort         |
 
-### Navigation
+## Navigation
 
-| Key                 | Action                                    |
-|---------------------|-------------------------------------------|
-| `Tab`               | Switch between boxes in the UI            |
-| `ESC`               | Go back to search; again to clear results |
-| `Ctrl + Left/Right` | Change column width                       |
-| `Ctrl + h`          | Toggle usage/help screen                  |
-| `Ctrl + c`          | Quit                                      |
+| Key                 | Action                                                 |
+|---------------------|--------------------------------------------------------|
+| `Tab`               | Switch between boxes in the UI                         |
+| `ESC`               | Go back to search; if already there will clear results |
+| `Ctrl + Left/Right` | Change column width                                    |
+| `Ctrl + h`          | Toggle usage/help screen                               |
+| `Ctrl + c`          | Quit                                                   |
 
-### Results
+## Results
 
 | Key               | Action                            |
 |-------------------|-----------------------------------|

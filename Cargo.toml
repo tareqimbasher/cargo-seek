@@ -2,8 +2,8 @@
 name = "cargo-seek"
 version = "0.1.0"
 edition = "2021"
-description = "A terminal user interface for searching, adding and installing cargo crates"
-authors = ["Tareq Imbasher <https://github.com/tareqimbasher"]
+description = "A terminal user interface for searching, adding and installing cargo crates."
+authors = ["Tareq Imbasher <https://github.com/tareqimbasher>"]
 build = "build.rs"
 repository = "https://github.com/tareqimbasher/cargo-seek"
 

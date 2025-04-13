@@ -1,6 +1,5 @@
 use reqwest::Url;
 use std::sync::Arc;
-use std::{fs, io::Write, process::Command};
 
 use crate::action::{Action, SearchAction};
 use crate::components::home::focusable::Focusable;
@@ -15,6 +14,7 @@ pub async fn handle_action(
     action: Action,
     tui: &mut Tui,
 ) -> AppResult<Option<Action>> {
+    let _ = tui;
     match action {
         Action::Tick => {
             // add any logic here that should run on every tick
@@ -260,34 +260,32 @@ pub async fn handle_action(
             //     });
             // }
         }
-        Action::RenderReadme(markdown) => {
-            // TODO if this fails, open in browser
-
-            let mut temp_file = tempfile::NamedTempFile::new()?;
-            write!(temp_file, "{}", markdown)?;
-            let original_path = temp_file.path().to_path_buf();
-
-            if let Some(parent) = original_path.parent() {
-                let new_path = parent.join("rseek_readme_tmp.md");
-                fs::rename(&original_path, &new_path)?;
-
-                tui.exit()?;
-
-                // TODO Check if glow doesn't exist use mdcat for example. And if neither exists, open url
-                // TODO Windows: dunce
-                let mut glow = Command::new("glow").arg("-p").arg(&new_path).spawn()?;
-
-                let _ = glow.wait()?;
-
-                if new_path.exists() {
-                    fs::remove_file(new_path).ok();
-                }
-
-                tui.enter()?;
-                tui.terminal.clear()?;
-            } else {
-                fs::remove_file(original_path).ok();
-            }
+        Action::RenderReadme(_) => {
+            // TODO Check if glow doesn't exist use mdcat for example. And if neither exists, open url
+            // TODO Windows: dunce
+            // let mut temp_file = tempfile::NamedTempFile::new()?;
+            // write!(temp_file, "{}", markdown)?;
+            // let original_path = temp_file.path().to_path_buf();
+            //
+            // if let Some(parent) = original_path.parent() {
+            //     let new_path = parent.join("cargo_seek_readme_tmp.md");
+            //     fs::rename(&original_path, &new_path)?;
+            //
+            //     tui.exit()?;
+            //
+            //     let mut glow = Command::new("glow").arg("-p").arg(&new_path).spawn()?;
+            //
+            //     let _ = glow.wait()?;
+            //
+            //     if new_path.exists() {
+            //         fs::remove_file(new_path).ok();
+            //     }
+            //
+            //     tui.enter()?;
+            //     tui.terminal.clear()?;
+            // } else {
+            //     fs::remove_file(original_path).ok();
+            // }
         }
         Action::OpenDocs => {
             if let Some(url) = home
