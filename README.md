@@ -26,7 +26,7 @@
 <br/>
 
 
-[preview]: docs/preview.gif?raw=true "preview"
+[preview]: docs/preview.webp?raw=true "preview"
 ![preview][preview]
 
 # Features 🚀
