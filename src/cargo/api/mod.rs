@@ -89,9 +89,9 @@ pub fn install(
     }
 
     if print_output {
-        run_cargo(vec!["install", crate_name.as_str()])?;
+        run_cargo(vec!["install", "--locked", crate_name.as_str()])?;
     } else {
-        run_cargo_suppress_output(vec!["install", crate_name.as_str()])?;
+        run_cargo_suppress_output(vec!["install", "--locked", crate_name.as_str()])?;
     }
 
     Ok(())
