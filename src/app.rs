@@ -9,7 +9,7 @@ use tracing::{debug, info};
 use crate::action::{Action, CargoAction};
 use crate::cargo;
 use crate::cargo::CargoEnv;
-use crate::components::{AppId, Component, FpsCounter, Home, Settings, StatusBar, StatusLevel};
+use crate::components::{AppId, Component, FpsCounter, Home, StatusBar, StatusLevel};
 use crate::config::Config;
 use crate::errors::{AppError, AppResult};
 use crate::tui::{Event, Tui};
@@ -33,7 +33,6 @@ pub enum Mode {
     App,
     #[default]
     Home,
-    Settings,
 }
 
 impl App {
@@ -54,7 +53,6 @@ impl App {
                 Arc::clone(&cargo_env),
                 action_tx.clone(),
             )?),
-            Box::new(Settings::new()),
             Box::new(StatusBar::new(action_tx.clone())),
             Box::new(AppId::new()), // Should be after other components so it gets drawn on top of them
         ];
@@ -181,13 +179,6 @@ impl App {
                 Action::ClearScreen => tui.terminal.clear()?,
                 Action::Resize(w, h) => self.handle_resize(tui, w, h)?,
                 Action::Render => self.render(tui)?,
-                Action::ToggleSettings => {
-                    self.mode = if self.mode == Mode::Settings {
-                        Mode::Home
-                    } else {
-                        Mode::Settings
-                    };
-                }
                 Action::Cargo(action) => {
                     return match action {
                         CargoAction::Add(crate_name, version) => {

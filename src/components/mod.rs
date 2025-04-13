@@ -1,7 +1,6 @@
 mod app_id;
 mod fps;
 mod home;
-mod settings;
 mod status_bar;
 mod ux;
 
@@ -13,7 +12,6 @@ use std::any::Any;
 pub use app_id::*;
 pub use fps::FpsCounter;
 pub use home::*;
-pub use settings::Settings;
 pub use status_bar::{StatusBar, StatusDuration, StatusLevel};
 
 use crate::app::Mode;

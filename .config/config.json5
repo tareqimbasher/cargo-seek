@@ -6,11 +6,6 @@
       "<Alt-s>": "ToggleSettings",
     },
     "Home": {
-    },
-    "Settings": {
-      "<Ctrl-s>": {
-        "Settings": "Save"
-      },
     }
   },
   "styles": {
