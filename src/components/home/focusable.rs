@@ -20,13 +20,20 @@ impl Focusable {
     pub fn next(&self) -> Focusable {
         let mut variants = Focusable::iter();
         variants.find(|v| v == self);
-        variants.next().unwrap()
+        if let Some(next) = variants.next() {
+            next
+        } else {
+            variants.get(0).unwrap()
+        }
     }
 
     pub fn prev(&self) -> Focusable {
-        let mut variants = Focusable::iter();
-        variants.find(|v| v == self);
-        variants.next_back().unwrap()
+        let variants: Vec<_> = Focusable::iter().collect();
+        let pos = variants
+            .iter()
+            .position(|v| *v == *self)
+            .expect("self should be in the list of variants");
+        variants[(pos + variants.len() - 1) % variants.len()].clone()
     }
 }
 
