@@ -48,6 +48,7 @@ impl CrateSearchManager {
         options: SearchOptions,
         cargo_env: Arc<RwLock<CargoEnv>>,
     ) -> JoinHandle<()> {
+        // Cancel previous search
         if let Some(cancel_search_tx) = self.cancel_search_tx.take() {
             let _ = cancel_search_tx.send(());
         }
@@ -55,87 +56,88 @@ impl CrateSearchManager {
         let (cancel_search_tx, mut cancel_search_rx) = oneshot::channel();
         self.cancel_search_tx = Some(cancel_search_tx);
         let tx = self.action_tx.clone();
-
         let crates_io_client = self.crates_io_client.clone();
 
         tokio::spawn(async move {
-            if cancel_search_rx.try_recv().is_ok() {
+            let mut cancelled = || cancel_search_rx.try_recv().is_ok();
+
+            if cancelled() {
                 return;
             }
 
             let cargo_env = cargo_env.read().await;
-            let term = options.term.unwrap_or("".to_string()).to_lowercase();
+
+            let term = options.term.unwrap_or_default().to_lowercase();
+            let search_all = options.scope == Scope::All;
             let page = options.page.unwrap_or(1);
             let per_page = options.per_page.unwrap_or(100);
             let mut still_needed = per_page;
-
             let mut search_results = SearchResults::new(page);
 
-            // Crates added to the current project
-            if options.scope == Scope::All || options.scope == Scope::Project {
+            // Search crates added to the current project
+            if search_all || options.scope == Scope::Project {
                 if let Some(project) = &cargo_env.project {
                     let mut results = Self::search_project(&term, project);
                     search_results.total_count += results.len();
-                    if still_needed > results.len() {
-                        search_results.crates.extend(results);
-                    } else {
-                        search_results
-                            .crates
-                            .extend(results.drain(..(still_needed - 1)));
-                    }
-                    still_needed = per_page.saturating_sub(search_results.crates.len());
+                    results = results.into_iter().skip((page - 1) * per_page).take(still_needed).collect();
+                    Self::extend_results(
+                        &mut search_results,
+                        &mut results,
+                        per_page,
+                        &mut still_needed,
+                    );
                 }
             }
 
-            if cancel_search_rx.try_recv().is_ok() {
+            if cancelled() {
                 return;
             }
 
-            // Globally installed cargo binaries
-            if options.scope == Scope::All || options.scope == Scope::Installed {
+            // Search globally installed binaries
+            if search_all || options.scope == Scope::Installed {
                 let mut results = Self::search_binaries(&term, &cargo_env);
                 search_results.total_count += results.len();
-
-                if still_needed > results.len() {
-                    search_results.crates.extend(results);
-                } else if still_needed > 0 {
-                    search_results
-                        .crates
-                        .extend(results.drain(..(still_needed - 1)));
-                }
+                results = results.into_iter().skip((page - 1) * per_page).take(still_needed).collect();
+                Self::extend_results(
+                    &mut search_results,
+                    &mut results,
+                    per_page,
+                    &mut still_needed,
+                );
             }
 
-            if cancel_search_rx.try_recv().is_ok() {
+            if cancelled() {
                 return;
             }
 
-            // Crates in registry
-            if options.scope == Scope::All || options.scope == Scope::Online {
-                let result =
-                    Self::search_registry(crates_io_client, &term, per_page, page, options.sort)
-                        .await;
-
-                match result {
-                    Ok(r) => {
-                        let mut results = r.0;
-                        search_results.total_count += r.1;
-
-                        if still_needed > results.len() {
-                            search_results.crates.extend(results);
-                        } else if still_needed > 0 {
-                            search_results
-                                .crates
-                                .extend(results.drain(..(still_needed - 1)));
-                        }
+            // Search the online registry
+            if search_all || options.scope == Scope::Online {
+                match Self::search_registry(
+                    crates_io_client,
+                    &term,
+                    still_needed,
+                    page,
+                    options.sort,
+                )
+                .await
+                {
+                    Ok((mut results, count)) => {
+                        Self::extend_results(
+                            &mut search_results,
+                            &mut results,
+                            per_page,
+                            &mut still_needed,
+                        );
+                        search_results.total_count += count;
                     }
                     Err(err) => {
-                        tx.send(Action::Search(SearchAction::Error(format!("{:#}", err))))
-                            .ok();
+                        let _ = tx.send(Action::Search(SearchAction::Error(format!("{:#}", err))));
+                        return;
                     }
                 }
             }
 
-            if cancel_search_rx.try_recv().is_ok() {
+            if cancelled() {
                 return;
             }
 
@@ -261,6 +263,22 @@ impl CrateSearchManager {
             })
             .collect();
         Ok((results, result.meta.total as usize))
+    }
+
+    fn extend_results(
+        search_results: &mut SearchResults,
+        new_results: &mut Vec<Crate>,
+        per_page: usize,
+        still_needed: &mut usize,
+    ) {
+        if *still_needed >= new_results.len() {
+            search_results.crates.append(new_results);
+        } else if *still_needed > 0 {
+            search_results
+                .crates
+                .extend(new_results.drain(..*still_needed));
+        }
+        *still_needed = per_page.saturating_sub(search_results.crates.len());
     }
 
     pub fn get_crate_data(&mut self, name: &str) -> AppResult<()> {
