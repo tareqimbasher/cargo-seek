@@ -11,19 +11,17 @@
 
 <br />
 
-<div align="center">
-  <!-- Crates version -->
+<!--<div align="center">
   <a href="https://crates.io/crates/cargo-seek">
     <img src="https://img.shields.io/crates/v/cargo-seek.svg?style=flat-square"
     alt="Crates.io version" />
   </a>
-  <!-- Downloads -->
   <a href="https://crates.io/crates/cargo-seek">
     <img src="https://img.shields.io/crates/d/cargo-seek.svg?style=flat-square"
       alt="Download" />
   </a>
 </div>
-<br/>
+<br/>-->
 
 
 [preview]: docs/preview.gif?raw=true "preview"
@@ -64,9 +62,8 @@
 
 or as a cargo sub-command:
 
-```shell
-cargo seek
-```
+    cargo seek
+
 
 **Options**
 
@@ -128,3 +125,9 @@ directory:
 | `Left, Right`     | Go previous/next page             |
 | `Home, End`       | Go to first/last crate in page    |
 | `Ctrl + Home/End` | Go to first/last page             |
+
+# Credits
+
+- The UX was inspired by [`pacseek`](https://github.com/moson-mo/pacseek)
+- [ratatui](https://ratatui.rs/)
+- [crates-io-api](https://crates.io/crates/crates_io_api)
