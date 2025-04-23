@@ -13,30 +13,31 @@
 
 <div align="center">
   <!-- Crates version -->
-  <a href="https://crates.io/crates/cargo-chef">
+  <a href="https://crates.io/crates/cargo-seek">
     <img src="https://img.shields.io/crates/v/cargo-seek.svg?style=flat-square"
     alt="Crates.io version" />
   </a>
-  <!-- Downloads 
-  <!--<a href="https://crates.io/crates/cargo-chef">
-    <img src="https://img.shields.io/crates/d/cargo-chef.svg?style=flat-square"
+  <!-- Downloads -->
+  <a href="https://crates.io/crates/cargo-seek">
+    <img src="https://img.shields.io/crates/d/cargo-seek.svg?style=flat-square"
       alt="Download" />
-  </a>-->
+  </a>
 </div>
 <br/>
 
 
-[preview]: docs/preview.webp?raw=true "preview"
+[preview]: docs/preview.gif?raw=true "preview"
 ![preview][preview]
 
 # Features 🚀
 
 - Search
-  - Sort by: Relevance, Name, Downloads, Recent Downloads, Recently Updated, Newly Added.
-  - Search in: Online, Project, Installed or All
-  - Visually label added & installed crates
-- Add, remove to project
-- Install, uninstall binary
+    - Sort by: Relevance, Name, Downloads, Recent Downloads, Recently Updated, Newly Added.
+    - Search in: Online, Project, Installed or All
+    - Visually label project dependencies & installed binaries
+    - Paging
+- Add, remove crates to projects
+- Install, uninstall a cargo binary
 - Open docs
 - Open repository
 - Open crate on [crates.io](https://crates.io)
@@ -44,12 +45,16 @@
 
 # Roadmap 🚧
 
-- Filter by Category
+- Flag outdated with ability to update
+- Settings to configure behavior and appearance
 - Show more crate details: dependencies, version history...etc
-- Settings
 - Open repository README in terminal using `glow` or `mdcat`
 
 # Install
+
+> [!IMPORTANT]  
+> This crate is not published to crates.io yet. Until then, download the binary
+> from the [releases](https://github.com/tareqimbasher/cargo-seek/releases) page.
 
     cargo install --locked cargo-seek
 
@@ -66,11 +71,11 @@ cargo seek
 **Options**
 
 ```
-cargo-seek.exe [OPTIONS] [PROJ_DIR]
+cargo-seek.exe [OPTIONS] [PROJECT_DIR]
 
 Arguments:
-  [PROJ_DIR]  Path to a directory containing (or one of its parents) a cargo.toml file
-
+  [PROJECT_DIR]  Path to a directory containing (or one of its parents) a Cargo.toml file
+                 Default: <current directory>
 Options:
   -s, --search <TERM>  Start a search on start
   -h, --help           Print help
@@ -91,7 +96,7 @@ directory:
     # dir, or one of its parents, should contain a cargo.toml file
     cargo seek /path/to/dir
 
-# Keyboard
+# Key Bindings
 
 ## Search
 

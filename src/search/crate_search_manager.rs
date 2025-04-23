@@ -79,7 +79,11 @@ impl CrateSearchManager {
                 if let Some(project) = &cargo_env.project {
                     let mut results = Self::search_project(&term, project);
                     search_results.total_count += results.len();
-                    results = results.into_iter().skip((page - 1) * per_page).take(still_needed).collect();
+                    results = results
+                        .into_iter()
+                        .skip((page - 1) * per_page)
+                        .take(still_needed)
+                        .collect();
                     Self::extend_results(
                         &mut search_results,
                         &mut results,
@@ -97,7 +101,11 @@ impl CrateSearchManager {
             if search_all || options.scope == Scope::Installed {
                 let mut results = Self::search_binaries(&term, &cargo_env);
                 search_results.total_count += results.len();
-                results = results.into_iter().skip((page - 1) * per_page).take(still_needed).collect();
+                results = results
+                    .into_iter()
+                    .skip((page - 1) * per_page)
+                    .take(still_needed)
+                    .collect();
                 Self::extend_results(
                     &mut search_results,
                     &mut results,

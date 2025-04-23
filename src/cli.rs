@@ -10,7 +10,7 @@ fn get_current_dir() -> Option<PathBuf> {
 #[derive(Parser, Debug)]
 #[command(bin_name = "crate-seek", author, version = version(), about)]
 pub struct Cli {
-    /// Specifies the root or subdirectory of a Cargo project
+    /// Path to a directory containing (or one of its parents) a Cargo.toml file
     #[arg(default_value=get_current_dir().unwrap_or_default().into_os_string())]
     pub project_dir: Option<PathBuf>,
 

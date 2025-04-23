@@ -294,7 +294,6 @@ dependencies = [
  "strum 0.27.1",
  "strum_macros 0.27.1",
  "sys-locale",
- "tempfile",
  "thiserror 1.0.64",
  "throbber-widgets-tui",
  "tokio",

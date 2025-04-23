@@ -2,10 +2,15 @@
 name = "cargo-seek"
 version = "0.1.0"
 edition = "2021"
-description = "A terminal user interface for searching, adding and installing cargo crates."
-authors = ["Tareq Imbasher <https://github.com/tareqimbasher>"]
-build = "build.rs"
+description = "A terminal user interface for searching, adding and installing cargo crates"
 repository = "https://github.com/tareqimbasher/cargo-seek"
+homepage = "https://github.com/tareqimbasher/cargo-seek"
+readme = "README.md"
+license = "MIT"
+authors = ["Tareq Imbasher <https://github.com/tareqimbasher>"]
+keywords = ["cargo", "crates", "search", "project", "installed"]
+categories = ["command-line-utilities", "development-tools::cargo-plugins"]
+build = "build.rs"
 
 [profile.release]
 opt-level = "z"
@@ -48,7 +53,6 @@ strip-ansi-escapes = "0.2.0"
 strum = { version = "0.27", features = ["derive"] }
 strum_macros = "0.27"
 sys-locale = "0.3.1"
-tempfile = "3.12.0"
 thiserror = "1.0.64"
 throbber-widgets-tui = "0.7"
 tokio = { version = "1.40.0", features = ["full"] }
