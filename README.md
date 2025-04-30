@@ -50,10 +50,6 @@
 
 # Install
 
-> [!IMPORTANT]  
-> This crate is not published to crates.io yet. Until then, download the binary
-> from the [releases](https://github.com/tareqimbasher/cargo-seek/releases) page.
-
     cargo install --locked cargo-seek
 
 # Usage
