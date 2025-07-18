@@ -399,7 +399,7 @@ fn render_crate_details(
     area: Rect,
 ) -> AppResult<()> {
     let details_focused = home.focused == Focusable::DocsButton
-        || home.focused == Focusable::ReadmeButton
+        || home.focused == Focusable::RepositoryButton
         || home.focused == Focusable::CratesIoButton
         || home.focused == Focusable::LibRsButton;
 
@@ -553,7 +553,7 @@ fn render_crate_details(
     if krate.repository.is_some() {
         frame.render_widget(
             Button::new("Repository").theme(GRAY).state(
-                match home.focused == Focusable::ReadmeButton {
+                match home.focused == Focusable::RepositoryButton {
                     true => State::Selected,
                     _ => State::Normal,
                 },

@@ -14,9 +14,9 @@ use tokio::sync::RwLock;
 use tui_input::Input;
 
 use crate::cargo::CargoEnv;
-use crate::components::home::action_handler::handle_action;
-use crate::components::home::draw::render;
-use crate::components::home::key_handler::handle_key;
+use crate::components::home::{
+    action_handler::handle_action, draw::render, key_handler::handle_key,
+};
 use crate::components::status_bar::StatusLevel;
 use crate::components::ux::Dropdown;
 use crate::errors::AppResult;

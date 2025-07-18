@@ -57,7 +57,7 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
             Focusable::DocsButton => {
                 return Ok(Some(Action::OpenDocs));
             }
-            Focusable::ReadmeButton => {
+            Focusable::RepositoryButton => {
                 return Ok(Some(Action::OpenReadme));
             }
             Focusable::CratesIoButton => {
@@ -73,7 +73,7 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
                 return Ok(Some(Action::Focus(Focusable::DocsButton)));
             }
             Focusable::LibRsButton => {
-                return Ok(Some(Action::Focus(Focusable::ReadmeButton)));
+                return Ok(Some(Action::Focus(Focusable::RepositoryButton)));
             }
             Focusable::Usage => {
                 if home.vertical_usage_scroll > 0 {
@@ -86,7 +86,7 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
             Focusable::DocsButton => {
                 return Ok(Some(Action::Focus(Focusable::CratesIoButton)));
             }
-            Focusable::ReadmeButton => {
+            Focusable::RepositoryButton => {
                 return Ok(Some(Action::Focus(Focusable::LibRsButton)));
             }
             Focusable::Usage => {
@@ -102,7 +102,7 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
                 return Ok(None);
             } else {
                 match home.focused {
-                    Focusable::ReadmeButton => {
+                    Focusable::RepositoryButton => {
                         return Ok(Some(Action::Focus(Focusable::DocsButton)));
                     }
                     Focusable::LibRsButton => {
@@ -122,7 +122,7 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
             } else {
                 match home.focused {
                     Focusable::DocsButton => {
-                        return Ok(Some(Action::Focus(Focusable::ReadmeButton)));
+                        return Ok(Some(Action::Focus(Focusable::RepositoryButton)));
                     }
                     Focusable::CratesIoButton => {
                         return Ok(Some(Action::Focus(Focusable::LibRsButton)));

@@ -11,7 +11,7 @@ pub enum Focusable {
     Scope,
     Results,
     DocsButton,
-    ReadmeButton,
+    RepositoryButton,
     CratesIoButton,
     LibRsButton,
 }
@@ -40,7 +40,7 @@ impl Focusable {
 pub fn is_results_or_details_focused(focused: &Focusable) -> bool {
     *focused == Focusable::Results
         || *focused == Focusable::DocsButton
-        || *focused == Focusable::ReadmeButton
+        || *focused == Focusable::RepositoryButton
         || *focused == Focusable::CratesIoButton
         || *focused == Focusable::LibRsButton
 }
