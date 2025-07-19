@@ -36,43 +36,52 @@ pub async fn handle_action(
             let has_search_results = home.search_results.is_some();
             let show_usage = home.show_usage;
 
-            if !has_search_results || show_usage {
-                return if home.focused == Focusable::Usage {
-                    Ok(Some(Action::Focus(Focusable::Search)))
-                } else {
-                    Ok(Some(Action::Focus(Focusable::Usage)))
+            if show_usage {
+                let next = match home.focused {
+                    Focusable::Usage => Focusable::Search,
+                    Focusable::Search if has_search_results => Focusable::Results,
+                    Focusable::Results => Focusable::Usage,
+                    _ => Focusable::Usage,
                 };
+                return Ok(Some(Action::Focus(next)));
+            } else {
+                let mut next = home.focused.next();
+                while next == Focusable::Usage
+                    || next == Focusable::Sort
+                    || next == Focusable::Scope
+                {
+                    next = next.next();
+                }
+                return Ok(Some(Action::Focus(next)));
             }
-
-            let mut next = home.focused.next();
-            while next == Focusable::Usage || next == Focusable::Sort || next == Focusable::Scope {
-                next = next.next();
-            }
-
-            return Ok(Some(Action::Focus(next)));
         }
         Action::FocusPrevious => {
             let has_search_results = home.search_results.is_some();
             let show_usage = home.show_usage;
 
-            if !has_search_results || show_usage {
-                return if home.focused == Focusable::Usage {
-                    Ok(Some(Action::Focus(Focusable::Search)))
-                } else {
-                    Ok(Some(Action::Focus(Focusable::Usage)))
+            if show_usage {
+                let prev = match home.focused {
+                    Focusable::Usage if has_search_results => Focusable::Results,
+                    Focusable::Search => Focusable::Usage,
+                    Focusable::Results => Focusable::Search,
+                    _ => Focusable::Search,
                 };
-            }
+                return Ok(Some(Action::Focus(prev)));
+            } else {
+                let mut prev = home.focused.prev();
+                while prev == Focusable::Usage
+                    || prev == Focusable::Sort
+                    || prev == Focusable::Scope
+                {
+                    prev = prev.prev();
+                }
 
-            let mut prev = home.focused.prev();
-            while prev == Focusable::Usage || prev == Focusable::Sort || prev == Focusable::Scope {
-                prev = prev.prev();
-            }
+                if !home.show_usage && prev == Focusable::Usage {
+                    prev = prev.prev();
+                }
 
-            if !home.show_usage && prev == Focusable::Usage {
-                prev = prev.prev();
+                return Ok(Some(Action::Focus(prev)));
             }
-
-            return Ok(Some(Action::Focus(prev)));
         }
         Action::ToggleUsage => {
             let was_showing = home.show_usage;
@@ -86,7 +95,7 @@ pub async fn handle_action(
         }
         Action::Search(action) => match action {
             SearchAction::Clear => home.reset()?,
-            SearchAction::Search(term, page, status) => {
+            SearchAction::Search(term, page, hide_usage, status) => {
                 let tx = home.action_tx.clone();
 
                 let scope = home.scope_dropdown.get_selected();
@@ -99,6 +108,10 @@ pub async fn handle_action(
                 ))?;
 
                 home.is_searching = true;
+                if hide_usage {
+                    home.show_usage = false;
+                }
+
                 home.crate_search_manager.search(
                     SearchOptions {
                         term: Some(term),
@@ -129,6 +142,7 @@ pub async fn handle_action(
                 return Ok(Some(Action::Search(SearchAction::Search(
                     home.input.value().into(),
                     1,
+                    false,
                     Some(status),
                 ))));
             }
@@ -143,6 +157,7 @@ pub async fn handle_action(
                 return Ok(Some(Action::Search(SearchAction::Search(
                     home.input.value().into(),
                     1,
+                    false,
                     Some(status),
                 ))));
             }
@@ -161,7 +176,6 @@ pub async fn handle_action(
                 check_needs_hydrate(&mut results, &mut home.crate_search_manager);
 
                 home.search_results = Some(results);
-                home.show_usage = false;
 
                 home.action_tx.send(Action::UpdateStatusWithDuration(
                     StatusLevel::Success,

@@ -110,6 +110,7 @@ impl Home {
                 self.action_tx.send(Action::Search(SearchAction::Search(
                     query,
                     requested_page,
+                    false,
                     Some(format!("Loading page {}", requested_page)),
                 )))?;
             }
@@ -130,6 +131,7 @@ impl Home {
                 self.action_tx.send(Action::Search(SearchAction::Search(
                     query,
                     requested_page,
+                    false,
                     Some(format!("Loading page {}", requested_page)),
                 )))?;
             }
@@ -150,6 +152,7 @@ impl Home {
                 self.action_tx.send(Action::Search(SearchAction::Search(
                     query,
                     requested_page,
+                    false,
                     Some(format!("Loading page {}", requested_page)),
                 )))?;
             }
@@ -178,6 +181,7 @@ impl Component for Home {
                 .send(Action::Search(SearchAction::Search(
                     initial_search_term.to_string(),
                     1,
+                    true,
                     None,
                 )))
                 .ok();
