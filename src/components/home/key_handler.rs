@@ -12,7 +12,7 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
 
     // Try match key combos that should be handled regardless what is focused
     match key.code {
-        KeyCode::Char('h') if ctrl => {
+        KeyCode::Char('h') if ctrl && home.search_results.is_some() => {
             return Ok(Some(Action::ToggleUsage));
         }
         KeyCode::Esc => {
@@ -50,6 +50,7 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
                 return Ok(Some(Action::Search(SearchAction::Search(
                     home.input.value().to_string(),
                     1,
+                    true,
                     None,
                 ))));
             }
@@ -108,9 +109,6 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
                     Focusable::LibRsButton => {
                         return Ok(Some(Action::Focus(Focusable::CratesIoButton)));
                     }
-                    Focusable::Usage => {
-                        return Ok(Some(Action::Focus(Focusable::Search)));
-                    }
                     _ => {}
                 }
             }
@@ -126,16 +124,6 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
                     }
                     Focusable::CratesIoButton => {
                         return Ok(Some(Action::Focus(Focusable::LibRsButton)));
-                    }
-                    Focusable::Search => {
-                        if home.show_usage {
-                            return Ok(Some(Action::Focus(Focusable::Usage)));
-                        }
-                    }
-                    Focusable::Results => {
-                        if home.show_usage {
-                            return Ok(Some(Action::Focus(Focusable::Usage)));
-                        }
                     }
                     _ => {}
                 }
