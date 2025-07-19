@@ -46,6 +46,7 @@ pub async fn handle_action(
                 return Ok(Some(Action::Focus(next)));
             } else {
                 let mut next = home.focused.next();
+                // Tab focus cycle should skip these elements
                 while next == Focusable::Usage
                     || next == Focusable::Sort
                     || next == Focusable::Scope
@@ -69,6 +70,7 @@ pub async fn handle_action(
                 return Ok(Some(Action::Focus(prev)));
             } else {
                 let mut prev = home.focused.prev();
+                // Tab focus cycle should skip these elements
                 while prev == Focusable::Usage
                     || prev == Focusable::Sort
                     || prev == Focusable::Scope
@@ -93,141 +95,9 @@ pub async fn handle_action(
                 Ok(Some(Action::Focus(Focusable::Usage)))
             };
         }
-        Action::Search(action) => match action {
-            SearchAction::Clear => home.reset()?,
-            SearchAction::Search(term, page, hide_usage, status) => {
-                let tx = home.action_tx.clone();
-
-                let scope = home.scope_dropdown.get_selected();
-                let sort = home.sort_dropdown.get_selected();
-
-                let status = status.unwrap_or("Searching".into());
-                tx.send(Action::UpdateStatus(
-                    StatusLevel::Progress,
-                    status.to_string(),
-                ))?;
-
-                home.is_searching = true;
-                if hide_usage {
-                    home.show_usage = false;
-                }
-
-                home.crate_search_manager.search(
-                    SearchOptions {
-                        term: Some(term),
-                        scope,
-                        sort,
-                        page: Some(page),
-                        per_page: Some(100),
-                    },
-                    Arc::clone(&home.cargo_env),
-                );
-
-                return Ok(None);
-            }
-            SearchAction::Error(err) => {
-                home.is_searching = false;
-                home.action_tx
-                    .send(Action::UpdateStatus(StatusLevel::Error, err))
-                    .ok();
-            }
-            SearchAction::SortBy(sort) => {
-                home.action_tx.send(Action::Focus(Focusable::Search))?;
-
-                if home.search_results.is_none() {
-                    return Ok(None);
-                }
-
-                let status = format!("Sorting by: {sort}");
-                return Ok(Some(Action::Search(SearchAction::Search(
-                    home.input.value().into(),
-                    1,
-                    false,
-                    Some(status),
-                ))));
-            }
-            SearchAction::Scope(scope) => {
-                home.action_tx.send(Action::Focus(Focusable::Search))?;
-
-                if home.search_results.is_none() {
-                    return Ok(None);
-                }
-
-                let status = format!("Scoped to: {scope}");
-                return Ok(Some(Action::Search(SearchAction::Search(
-                    home.input.value().into(),
-                    1,
-                    false,
-                    Some(status),
-                ))));
-            }
-            SearchAction::Render(mut results) => {
-                home.is_searching = false;
-
-                let results_len = results.current_page_count();
-
-                let exact_match_ix = results.crates.iter().position(|c| c.exact_match);
-                if exact_match_ix.is_some() {
-                    results.select_index(exact_match_ix);
-                    home.action_tx.send(Action::Focus(Focusable::Results))?;
-                } else if results_len > 0 {
-                    results.select_index(Some(0));
-                }
-                check_needs_hydrate(&mut results, &mut home.crate_search_manager);
-
-                home.search_results = Some(results);
-
-                home.action_tx.send(Action::UpdateStatusWithDuration(
-                    StatusLevel::Success,
-                    StatusDuration::Short,
-                    if results_len > 0 {
-                        format!("Loaded {results_len} results")
-                    } else {
-                        "No results".to_string()
-                    },
-                ))?;
-            }
-            SearchAction::NavPagesForward(pages) => {
-                home.go_pages_forward(pages, home.input.value().to_string())?;
-            }
-            SearchAction::NavPagesBack(pages) => {
-                home.go_pages_back(pages, home.input.value().to_string())?;
-            }
-            SearchAction::NavFirstPage => {
-                home.go_to_page(1, home.input.value().to_string())?;
-            }
-            SearchAction::NavLastPage => {
-                home.go_to_page(usize::MAX, home.input.value().to_string())?;
-            }
-            _ => {
-                if let Some(results) = home.search_results.as_mut() {
-                    match action {
-                        SearchAction::SelectIndex(index) => {
-                            results.select_index(index);
-                            check_needs_hydrate(results, &mut home.crate_search_manager);
-                        }
-                        SearchAction::SelectNext => {
-                            results.select_next();
-                            check_needs_hydrate(results, &mut home.crate_search_manager);
-                        }
-                        SearchAction::SelectPrev => {
-                            results.select_previous();
-                            check_needs_hydrate(results, &mut home.crate_search_manager);
-                        }
-                        SearchAction::SelectFirst => {
-                            results.select_first();
-                            check_needs_hydrate(results, &mut home.crate_search_manager);
-                        }
-                        SearchAction::SelectLast => {
-                            results.select_last();
-                            check_needs_hydrate(results, &mut home.crate_search_manager);
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        },
+        Action::Search(action) => return handle_search_action(home, action),
         Action::CargoEnvRefreshed => {
+            // Update search results when cargo environment is refreshed
             if let Some(search_results) = &mut home.search_results {
                 let cargo_env = home.cargo_env.read().await;
                 CrateSearchManager::update_results(search_results, &cargo_env);
@@ -249,7 +119,7 @@ pub async fn handle_action(
                 .search_results
                 .as_ref()
                 .and_then(|results| results.selected())
-                .and_then(|krate| krate.repository.as_ref())
+                .and_then(|cr| cr.repository.as_ref())
                 .and_then(|docs| Url::parse(docs).ok())
             {
                 open::that(url.to_string())?;
@@ -259,7 +129,7 @@ pub async fn handle_action(
             //     .search_results
             //     .as_ref()
             //     .and_then(|results| results.get_selected())
-            //     .and_then(|krate| krate.repository.as_ref())
+            //     .and_then(|cr| cr.repository.as_ref())
             //     .and_then(|docs| Url::parse(docs).ok())
             // {
             //     let tx = home.action_tx.clone();
@@ -306,7 +176,7 @@ pub async fn handle_action(
                 .search_results
                 .as_ref()
                 .and_then(|results| results.selected())
-                .and_then(|krate| krate.documentation.as_ref())
+                .and_then(|cr| cr.documentation.as_ref())
                 .and_then(|docs| Url::parse(docs).ok())
             {
                 open::that(url.to_string())?;
@@ -317,8 +187,8 @@ pub async fn handle_action(
                 .search_results
                 .as_ref()
                 .and_then(|results| results.selected())
-                .and_then(|krate| {
-                    Url::parse(format!("https://crates.io/crates/{}", krate.id).as_str()).ok()
+                .and_then(|cr| {
+                    Url::parse(format!("https://crates.io/crates/{}", cr.id).as_str()).ok()
                 })
             {
                 open::that(url.to_string())?;
@@ -329,14 +199,152 @@ pub async fn handle_action(
                 .search_results
                 .as_ref()
                 .and_then(|results| results.selected())
-                .and_then(|krate| {
-                    Url::parse(format!("https://lib.rs/crates/{}", krate.id).as_str()).ok()
+                .and_then(|cr| {
+                    Url::parse(format!("https://lib.rs/crates/{}", cr.id).as_str()).ok()
                 })
             {
                 open::that(url.to_string())?;
             }
         }
         _ => {}
+    }
+    Ok(None)
+}
+
+fn handle_search_action(home: &mut Home, action: SearchAction) -> AppResult<Option<Action>> {
+    match action {
+        SearchAction::Clear => home.reset()?,
+        SearchAction::Search(term, page, hide_usage, status) => {
+            let tx = home.action_tx.clone();
+
+            let scope = home.scope_dropdown.get_selected();
+            let sort = home.sort_dropdown.get_selected();
+
+            let status = status.unwrap_or("Searching".into());
+            tx.send(Action::UpdateStatus(
+                StatusLevel::Progress,
+                status.to_string(),
+            ))?;
+
+            home.is_searching = true;
+            if hide_usage {
+                home.show_usage = false;
+            }
+
+            home.crate_search_manager.search(
+                SearchOptions {
+                    term: Some(term),
+                    scope,
+                    sort,
+                    page: Some(page),
+                    per_page: Some(100),
+                },
+                Arc::clone(&home.cargo_env),
+            );
+
+            return Ok(None);
+        }
+        SearchAction::Error(err) => {
+            home.is_searching = false;
+            home.action_tx
+                .send(Action::UpdateStatus(StatusLevel::Error, err))
+                .ok();
+        }
+        SearchAction::SortBy(sort) => {
+            home.action_tx.send(Action::Focus(Focusable::Search))?;
+
+            if home.search_results.is_none() {
+                return Ok(None);
+            }
+
+            let status = format!("Sorting by: {sort}");
+            return Ok(Some(Action::Search(SearchAction::Search(
+                home.input.value().into(),
+                1,
+                false,
+                Some(status),
+            ))));
+        }
+        SearchAction::Scope(scope) => {
+            home.action_tx.send(Action::Focus(Focusable::Search))?;
+
+            if home.search_results.is_none() {
+                return Ok(None);
+            }
+
+            let status = format!("Scoped to: {scope}");
+            return Ok(Some(Action::Search(SearchAction::Search(
+                home.input.value().into(),
+                1,
+                false,
+                Some(status),
+            ))));
+        }
+        SearchAction::Render(mut results) => {
+            home.is_searching = false;
+
+            let results_len = results.current_page_count();
+
+            let exact_match_ix = results.crates.iter().position(|c| c.exact_match);
+            if exact_match_ix.is_some() {
+                results.select_index(exact_match_ix);
+                home.action_tx.send(Action::Focus(Focusable::Results))?;
+            } else if results_len > 0 {
+                results.select_index(Some(0));
+            }
+            check_needs_hydrate(&mut results, &mut home.crate_search_manager);
+
+            home.search_results = Some(results);
+
+            home.action_tx.send(Action::UpdateStatusWithDuration(
+                StatusLevel::Success,
+                StatusDuration::Short,
+                if results_len > 0 {
+                    format!("Loaded {results_len} results")
+                } else {
+                    "No results".to_string()
+                },
+            ))?;
+        }
+        SearchAction::NavPagesForward(pages) => {
+            home.go_pages_forward(pages, home.input.value().to_string())?;
+        }
+        SearchAction::NavPagesBack(pages) => {
+            home.go_pages_back(pages, home.input.value().to_string())?;
+        }
+        SearchAction::NavFirstPage => {
+            home.go_to_page(1, home.input.value().to_string())?;
+        }
+        SearchAction::NavLastPage => {
+            home.go_to_page(usize::MAX, home.input.value().to_string())?;
+        }
+        _ => {
+            if let Some(results) = home.search_results.as_mut() {
+                match action {
+                    SearchAction::SelectIndex(index) => {
+                        results.select_index(index);
+                        check_needs_hydrate(results, &mut home.crate_search_manager);
+                    }
+                    SearchAction::SelectNext => {
+                        results.select_next();
+                        check_needs_hydrate(results, &mut home.crate_search_manager);
+                    }
+                    SearchAction::SelectPrev => {
+                        results.select_previous();
+                        check_needs_hydrate(results, &mut home.crate_search_manager);
+                    }
+                    SearchAction::SelectFirst => {
+                        results.select_first();
+                        check_needs_hydrate(results, &mut home.crate_search_manager);
+                    }
+                    SearchAction::SelectLast => {
+                        results.select_last();
+                        check_needs_hydrate(results, &mut home.crate_search_manager);
+                    }
+                    _ => {}
+                }
+            }
+        }
     }
     Ok(None)
 }

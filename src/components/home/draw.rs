@@ -390,7 +390,7 @@ fn render_usage(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
 
 fn render_crate_details(
     home: &Home,
-    krate: &Crate,
+    cr: &Crate,
     frame: &mut Frame,
     area: Rect,
 ) -> AppResult<()> {
@@ -400,7 +400,7 @@ fn render_crate_details(
         || home.focused == Focusable::LibRsButton;
 
     let main_block = Block::default()
-        .title(format!(" 🧐 {} ", krate.name))
+        .title(format!(" 🧐 {} ", cr.name))
         .title_style(home.config.styles[&Mode::App]["title"])
         .padding(Padding::horizontal(1))
         .borders(Borders::ALL)
@@ -424,15 +424,15 @@ fn render_crate_details(
     text.lines.extend(vec![
         Line::from(vec![
             format!("{:<left_column_width$}", "Stable Version:").set_style(prop_style),
-            krate.version.to_string().into(),
+            cr.version.to_string().into(),
         ]),
         Line::from(vec![
             format!("{:<left_column_width$}", "Latest Version:").set_style(prop_style),
-            krate.max_version.clone().unwrap_or_default().into(),
+            cr.max_version.clone().unwrap_or_default().into(),
         ]),
     ]);
 
-    if let Some(project_version) = &krate.project_version {
+    if let Some(project_version) = &cr.project_version {
         text.lines.push(Line::from(vec![
             format!("{:<left_column_width$}", "Project Version:")
                 .light_cyan()
@@ -441,7 +441,7 @@ fn render_crate_details(
         ]));
     }
 
-    if let Some(installed_version) = &krate.installed_version {
+    if let Some(installed_version) = &cr.installed_version {
         text.lines.push(Line::from(vec![
             format!("{:<left_column_width$}", "Installed Version:")
                 .light_magenta()
@@ -453,45 +453,45 @@ fn render_crate_details(
     text.lines.extend(vec![
         Line::from(vec![
             format!("{:<left_column_width$}", "Description:").set_style(prop_style),
-            krate.description.clone().unwrap_or_default().bold(),
+            cr.description.clone().unwrap_or_default().bold(),
         ]),
         Line::from(vec![
             format!("{:<left_column_width$}", "Home Page:").set_style(prop_style),
-            krate.homepage.clone().unwrap_or_default().into(),
+            cr.homepage.clone().unwrap_or_default().into(),
         ]),
         Line::from(vec![
             format!("{:<left_column_width$}", "Documentation:").set_style(prop_style),
-            krate.documentation.clone().unwrap_or_default().into(),
+            cr.documentation.clone().unwrap_or_default().into(),
         ]),
         Line::from(vec![
             format!("{:<left_column_width$}", "Repository:").set_style(prop_style),
-            krate.repository.clone().unwrap_or_default().into(),
+            cr.repository.clone().unwrap_or_default().into(),
         ]),
         Line::from(vec![
             format!("{:<left_column_width$}", "crates.io:").set_style(prop_style),
-            format!("https://crates.io/crates/{}", krate.id).into(),
+            format!("https://crates.io/crates/{}", cr.id).into(),
         ]),
         Line::from(vec![
             format!("{:<left_column_width$}", "Downloads:").set_style(prop_style),
-            Util::format_number(krate.downloads).into(),
+            Util::format_number(cr.downloads).into(),
         ]),
         Line::from(vec![
             format!("{:<left_column_width$}", "Recent Downloads:").set_style(prop_style),
-            Util::format_number(krate.recent_downloads).into(),
+            Util::format_number(cr.recent_downloads).into(),
         ]),
         Line::from(vec![
             format!("{:<left_column_width$}", "Created:").set_style(prop_style),
-            match krate.created_at.as_ref() {
+            match cr.created_at.as_ref() {
                 None => "".into(),
                 Some(v) => v.format("%d/%m/%Y %H:%M:%S (UTC)").to_string().into(),
             },
         ]),
         Line::from(vec![
             format!("{:<left_column_width$}", "Updated:").set_style(prop_style),
-            match krate.updated_at.as_ref() {
+            match cr.updated_at.as_ref() {
                 None => "".into(),
                 Some(v) => {
-                    let updated_relative = match krate.updated_at {
+                    let updated_relative = match cr.updated_at {
                         None => "".into(),
                         Some(v) => Util::get_relative_time(v, Utc::now()),
                     };
@@ -534,7 +534,7 @@ fn render_crate_details(
 
     let mut button_areas = vec![button1_area, button2_area];
 
-    if krate.documentation.is_some() {
+    if cr.documentation.is_some() {
         frame.render_widget(
             Button::new("Docs")
                 .theme(ORANGE)
@@ -546,7 +546,7 @@ fn render_crate_details(
         );
     }
 
-    if krate.repository.is_some() {
+    if cr.repository.is_some() {
         frame.render_widget(
             Button::new("Repository").theme(GRAY).state(
                 match home.focused == Focusable::RepositoryButton {
