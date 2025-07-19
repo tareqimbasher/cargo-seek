@@ -292,7 +292,7 @@ fn key_event_to_string(key_event: &KeyEvent) -> String {
 
 fn parse_key_sequence(raw: &str) -> Result<Vec<KeyEvent>, String> {
     if raw.chars().filter(|c| *c == '>').count() != raw.chars().filter(|c| *c == '<').count() {
-        return Err(format!("Unable to parse `{}`", raw));
+        return Err(format!("Unable to parse `{raw}`"));
     }
     let raw = if !raw.contains("><") {
         let raw = raw.strip_prefix('<').unwrap_or(raw);

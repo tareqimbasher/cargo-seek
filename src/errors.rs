@@ -36,7 +36,7 @@ pub enum AppError {
 /// to be mapped to Unknown
 impl From<Box<dyn std::error::Error>> for AppError {
     fn from(error: Box<dyn std::error::Error>) -> Self {
-        AppError::Unknown(format!("{:?}", error))
+        AppError::Unknown(format!("{error:?}"))
     }
 }
 

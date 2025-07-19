@@ -111,7 +111,7 @@ impl Home {
                     query,
                     requested_page,
                     false,
-                    Some(format!("Loading page {}", requested_page)),
+                    Some(format!("Loading page {requested_page}")),
                 )))?;
             }
         }
@@ -132,7 +132,7 @@ impl Home {
                     query,
                     requested_page,
                     false,
-                    Some(format!("Loading page {}", requested_page)),
+                    Some(format!("Loading page {requested_page}")),
                 )))?;
             }
         }
@@ -153,7 +153,7 @@ impl Home {
                     query,
                     requested_page,
                     false,
-                    Some(format!("Loading page {}", requested_page)),
+                    Some(format!("Loading page {requested_page}")),
                 )))?;
             }
         }

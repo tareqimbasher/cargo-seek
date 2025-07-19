@@ -139,7 +139,7 @@ impl CrateSearchManager {
                         search_results.total_count += count;
                     }
                     Err(err) => {
-                        let _ = tx.send(Action::Search(SearchAction::Error(format!("{:#}", err))));
+                        let _ = tx.send(Action::Search(SearchAction::Error(format!("{err:#}"))));
                         return;
                     }
                 }

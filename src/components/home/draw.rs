@@ -50,11 +50,7 @@ fn render_search(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()
         Layout::horizontal([Constraint::Min(1), Constraint::Length(spinner_width)]).areas(area);
 
     // The width of the input area, removing 2 for the width of the border on each side
-    let scroll_width = if search_area.width < 2 {
-        0
-    } else {
-        search_area.width - 2
-    };
+    let scroll_width = search_area.width.saturating_sub(2);
     let input_scroll = home.input.visual_scroll(scroll_width as usize);
     let input = Paragraph::new(home.input.value())
         .scroll((0, input_scroll as u16))
@@ -152,9 +148,9 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
                 let mut version = cr.version.to_string();
                 if cr.is_metadata_loaded() {
                     if let Some(project_version) = &cr.project_version {
-                        version = format!("{} ({})", version, project_version);
+                        version = format!("{version} ({project_version})");
                     } else if let Some(installed_version) = &cr.installed_version {
-                        version = format!("{} ({})", version, installed_version);
+                        version = format!("{version} ({installed_version})");
                     }
                 }
 

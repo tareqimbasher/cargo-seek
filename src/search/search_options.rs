@@ -31,7 +31,7 @@ impl std::fmt::Display for Sort {
             Sort::RecentlyUpdated => "Recently Updated",
             Sort::NewlyAdded => "Newly Added",
         };
-        write!(f, "{}", output)
+        write!(f, "{output}")
     }
 }
 

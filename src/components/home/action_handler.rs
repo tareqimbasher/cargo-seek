@@ -138,7 +138,7 @@ pub async fn handle_action(
                     return Ok(None);
                 }
 
-                let status = format!("Sorting by: {}", sort);
+                let status = format!("Sorting by: {sort}");
                 return Ok(Some(Action::Search(SearchAction::Search(
                     home.input.value().into(),
                     1,
@@ -153,7 +153,7 @@ pub async fn handle_action(
                     return Ok(None);
                 }
 
-                let status = format!("Scoped to: {}", scope);
+                let status = format!("Scoped to: {scope}");
                 return Ok(Some(Action::Search(SearchAction::Search(
                     home.input.value().into(),
                     1,

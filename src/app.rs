@@ -184,7 +184,7 @@ impl App {
                         CargoAction::Add(crate_name, version) => {
                             self.action_tx.send(Action::UpdateStatus(
                                 StatusLevel::Info,
-                                format!("Adding {} v{}", crate_name, version),
+                                format!("Adding {crate_name} v{version}"),
                             ))?;
 
                             tui.exit()?;
@@ -216,7 +216,7 @@ impl App {
                         CargoAction::Remove(crate_name) => {
                             self.action_tx.send(Action::UpdateStatus(
                                 StatusLevel::Info,
-                                format!("Removing {}", crate_name),
+                                format!("Removing {crate_name}"),
                             ))?;
 
                             let tx = self.action_tx.clone();
@@ -334,7 +334,7 @@ impl App {
                 if let Err(err) = component.draw(&self.mode, frame, area) {
                     let _ = self
                         .action_tx
-                        .send(Action::Error(format!("Failed to draw: {:?}", err)));
+                        .send(Action::Error(format!("Failed to draw: {err:?}")));
                 }
             }
         })?;
