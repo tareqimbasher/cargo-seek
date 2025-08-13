@@ -29,7 +29,7 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
                 Focusable::Sort
             })));
         }
-        KeyCode::Char('a') if ctrl => {
+        KeyCode::Char('q') if ctrl => {
             return Ok(Some(Action::Focus(if home.focused == Focusable::Scope {
                 Focusable::Search
             } else {
