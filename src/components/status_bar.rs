@@ -1,9 +1,9 @@
 use async_trait::async_trait;
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Styled, Stylize};
 use ratatui::text::{Line, Text};
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 use serde::Deserialize;
 use std::cmp::PartialEq;
 use strum::Display;
@@ -16,6 +16,12 @@ use crate::components::Component;
 use crate::config::Config;
 use crate::errors::AppResult;
 use crate::tui::Tui;
+
+#[derive(Debug, Clone, Display, Deserialize)]
+pub enum StatusAction {
+    UpdateStatus(StatusLevel, String),
+    UpdateStatusWithDuration(StatusLevel, StatusDuration, String),
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Display, Deserialize)]
 pub enum StatusLevel {
@@ -109,8 +115,11 @@ impl StatusBar {
                     if cancel_rx.try_recv().is_ok() {
                         return;
                     }
-                    tx.send(Action::UpdateStatus(StatusLevel::Info, "Ready".into()))
-                        .unwrap();
+                    tx.send(Action::Status(StatusAction::UpdateStatus(
+                        StatusLevel::Info,
+                        "Ready".into(),
+                    )))
+                    .unwrap();
                 });
             }
         }
@@ -165,18 +174,20 @@ impl Component for StatusBar {
     async fn update(&mut self, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
         let _ = tui;
         match action {
-            Action::UpdateStatus(level, message) => match level {
+            Action::Status(StatusAction::UpdateStatus(level, message)) => match level {
                 StatusLevel::Info => self.info(message),
                 StatusLevel::Progress => self.progress(message),
                 StatusLevel::Success => self.success(message),
                 StatusLevel::Error => self.error(message),
             },
-            Action::UpdateStatusWithDuration(level, duration, message) => match level {
-                StatusLevel::Info => self.info_with_duration(duration, message),
-                StatusLevel::Progress => self.progress_with_duration(duration, message),
-                StatusLevel::Success => self.success_with_duration(duration, message),
-                StatusLevel::Error => self.error_with_duration(duration, message),
-            },
+            Action::Status(StatusAction::UpdateStatusWithDuration(level, duration, message)) => {
+                match level {
+                    StatusLevel::Info => self.info_with_duration(duration, message),
+                    StatusLevel::Progress => self.progress_with_duration(duration, message),
+                    StatusLevel::Success => self.success_with_duration(duration, message),
+                    StatusLevel::Error => self.error_with_duration(duration, message),
+                }
+            }
             _ => {}
         };
 

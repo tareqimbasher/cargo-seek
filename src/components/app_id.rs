@@ -1,8 +1,8 @@
 use ratatui::{
+    Frame,
     layout::{Constraint, Layout, Rect},
     text::Span,
     widgets::Paragraph,
-    Frame,
 };
 
 use super::Component;

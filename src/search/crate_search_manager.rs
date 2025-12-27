@@ -1,14 +1,15 @@
 use crates_io_api::{AsyncClient, CratesQuery};
 use indexmap::IndexMap;
-use reqwest::{header, Client};
+use reqwest::{Client, header};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::{oneshot, RwLock};
+use tokio::sync::{RwLock, oneshot};
 use tokio::task::JoinHandle;
 
-use crate::action::{Action, SearchAction};
-use crate::cargo::{CargoEnv, Project};
+use crate::action::Action;
+use crate::cargo::{CargoAction, CargoEnv, Project};
+use crate::components::home::{HomeAction, SearchAction};
 use crate::errors::{AppError, AppResult};
 use crate::search::{Crate, Scope, SearchOptions, SearchResults, Sort};
 
@@ -75,22 +76,22 @@ impl CrateSearchManager {
             let mut search_results = SearchResults::new(page);
 
             // Search crates added to the current project
-            if search_all || options.scope == Scope::Project {
-                if let Some(project) = &cargo_env.project {
-                    let mut results = Self::search_project(&term, project);
-                    search_results.total_count += results.len();
-                    results = results
-                        .into_iter()
-                        .skip((page - 1) * per_page)
-                        .take(still_needed)
-                        .collect();
-                    Self::extend_results(
-                        &mut search_results,
-                        &mut results,
-                        per_page,
-                        &mut still_needed,
-                    );
-                }
+            if (search_all || options.scope == Scope::Project)
+                && let Some(project) = &cargo_env.project
+            {
+                let mut results = Self::search_project(&term, project);
+                search_results.total_count += results.len();
+                results = results
+                    .into_iter()
+                    .skip((page - 1) * per_page)
+                    .take(still_needed)
+                    .collect();
+                Self::extend_results(
+                    &mut search_results,
+                    &mut results,
+                    per_page,
+                    &mut still_needed,
+                );
             }
 
             if cancelled() {
@@ -139,7 +140,9 @@ impl CrateSearchManager {
                         search_results.total_count += count;
                     }
                     Err(err) => {
-                        let _ = tx.send(Action::Search(SearchAction::Error(format!("{err:#}"))));
+                        let _ = tx.send(Action::Home(HomeAction::Search(SearchAction::Error(
+                            format!("{err:#}"),
+                        ))));
                         return;
                     }
                 }
@@ -151,8 +154,10 @@ impl CrateSearchManager {
 
             Self::update_results(&mut search_results, &cargo_env);
 
-            tx.send(Action::Search(SearchAction::Render(search_results)))
-                .ok();
+            tx.send(Action::Home(HomeAction::Search(SearchAction::Render(
+                search_results,
+            ))))
+            .ok();
         })
     }
 
@@ -309,7 +314,9 @@ impl CrateSearchManager {
 
             let response = crates_io_client.get_crate(&name).await?;
             let data = response.crate_data;
-            tx.send(Action::CrateMetadataLoaded(Box::new(data)))?;
+            tx.send(Action::Cargo(CargoAction::CrateMetadataLoaded(Box::new(
+                data,
+            ))))?;
 
             Ok::<_, AppError>(())
         });

@@ -56,18 +56,19 @@ pub fn get_installed_binaries() -> AppResult<Vec<InstalledBinary>> {
     Ok(packages)
 }
 
-pub fn add(mut crate_name: String, version: Option<String>, print_output: bool) -> AppResult<()> {
-    if let Some(version) = version {
-        crate_name = format!("{crate_name}@{version}");
-    }
+pub fn add(crate_name: &str, version: Option<String>, print_output: bool) -> AppResult<()> {
+    let crate_name = match version {
+        Some(v) => format!("{crate_name}@{v}"),
+        None => crate_name.to_string(),
+    };
+
+    let args = vec!["add", &crate_name];
 
     if print_output {
-        run_cargo(vec!["add", crate_name.as_str()])?;
+        run_cargo(args)
     } else {
-        run_cargo_suppress_output(vec!["add", crate_name.as_str()])?;
+        run_cargo_suppress_output(args).map(|_| ())
     }
-
-    Ok(())
 }
 
 pub fn remove(crate_name: String, print_output: bool) -> AppResult<()> {

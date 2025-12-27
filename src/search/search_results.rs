@@ -54,10 +54,10 @@ impl SearchResults {
     }
 
     pub fn selected(&self) -> Option<&Crate> {
-        if let Some(ix) = self.selected_index() {
-            if let Some(item) = self.crates.get(ix) {
-                return Some(item);
-            }
+        if let Some(ix) = self.selected_index()
+            && let Some(item) = self.crates.get(ix)
+        {
+            return Some(item);
         }
         None
     }

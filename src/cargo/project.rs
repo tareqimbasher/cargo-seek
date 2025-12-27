@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::cargo::{get_metadata, Package};
+use crate::cargo::{Package, get_metadata};
 use crate::errors::{AppError, AppResult};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -89,14 +89,13 @@ fn find_project_manifest(starting_dir_path: &Path) -> AppResult<Option<PathBuf>>
         let path = search_path.unwrap();
 
         let found = fs::read_dir(path)?.find(|f| {
-            if let Ok(file) = f {
-                if file
+            if let Ok(file) = f
+                && file
                     .file_name()
                     .to_string_lossy()
                     .eq_ignore_ascii_case("Cargo.toml")
-                {
-                    return true;
-                }
+            {
+                return true;
             }
             false
         });

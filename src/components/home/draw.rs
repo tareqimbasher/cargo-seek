@@ -1,23 +1,23 @@
 use chrono::Utc;
 use ratatui::{
+    Frame,
     layout::{Alignment, Constraint, Flex, Layout, Rect},
     style::{Color, Style, Styled, Stylize},
     text::{Line, Text},
     widgets::{
-        block::{Position, Title},
         Block, Borders, List, ListItem, Padding, Paragraph, Wrap,
+        block::{Position, Title},
     },
-    Frame,
 };
 
 use crate::app::Mode;
-use crate::components::home::focusable::Focusable;
-use crate::components::home::Home;
-use crate::components::ux::{Button, State, GRAY, ORANGE, PURPLE, YELLOW};
 use crate::components::Component;
+use crate::components::home::Home;
+use crate::components::home::focusable::Focusable;
+use crate::components::ux::{Button, GRAY, ORANGE, PURPLE, State, YELLOW};
 use crate::errors::AppResult;
 use crate::search::Crate;
-use crate::util::Util;
+use crate::util::{format_number, get_relative_time};
 
 pub fn render(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> {
     let [left_col_area, right_col_area] = Layout::horizontal([
@@ -388,12 +388,7 @@ fn render_usage(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
     Ok(())
 }
 
-fn render_crate_details(
-    home: &Home,
-    cr: &Crate,
-    frame: &mut Frame,
-    area: Rect,
-) -> AppResult<()> {
+fn render_crate_details(home: &Home, cr: &Crate, frame: &mut Frame, area: Rect) -> AppResult<()> {
     let details_focused = home.focused == Focusable::DocsButton
         || home.focused == Focusable::RepositoryButton
         || home.focused == Focusable::CratesIoButton
@@ -473,11 +468,11 @@ fn render_crate_details(
         ]),
         Line::from(vec![
             format!("{:<left_column_width$}", "Downloads:").set_style(prop_style),
-            Util::format_number(cr.downloads).into(),
+            format_number(cr.downloads).into(),
         ]),
         Line::from(vec![
             format!("{:<left_column_width$}", "Recent Downloads:").set_style(prop_style),
-            Util::format_number(cr.recent_downloads).into(),
+            format_number(cr.recent_downloads).into(),
         ]),
         Line::from(vec![
             format!("{:<left_column_width$}", "Created:").set_style(prop_style),
@@ -493,7 +488,7 @@ fn render_crate_details(
                 Some(v) => {
                     let updated_relative = match cr.updated_at {
                         None => "".into(),
-                        Some(v) => Util::get_relative_time(v, Utc::now()),
+                        Some(v) => get_relative_time(v, Utc::now()),
                     };
 
                     format!(

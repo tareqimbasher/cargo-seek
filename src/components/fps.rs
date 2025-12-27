@@ -1,10 +1,10 @@
 use async_trait::async_trait;
 use ratatui::{
+    Frame,
     layout::{Constraint, Layout, Rect},
     style::{Style, Stylize},
     text::Span,
     widgets::Paragraph,
-    Frame,
 };
 use std::time::Instant;
 

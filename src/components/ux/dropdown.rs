@@ -1,10 +1,10 @@
 use async_trait::async_trait;
 use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::prelude::Stylize;
 use ratatui::widgets::block::Title;
 use ratatui::widgets::{Block, Clear, List, ListItem, ListState};
-use ratatui::Frame;
 use std::fmt::Display;
 use strum::IntoEnumIterator;
 
@@ -43,10 +43,10 @@ impl<T: IntoEnumIterator + Default + Clone> Dropdown<T> {
     }
 
     pub fn get_selected(&self) -> T {
-        if let Some(ix) = self.state.selected() {
-            if let Some(value) = T::iter().nth(ix) {
-                return value.clone();
-            }
+        if let Some(ix) = self.state.selected()
+            && let Some(value) = T::iter().nth(ix)
+        {
+            return value.clone();
         }
         T::default()
     }

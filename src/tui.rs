@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use std::{
-    io::{stdout, Stdout},
+    io::{Stdout, stdout},
     ops::{Deref, DerefMut},
     time::Duration,
 };

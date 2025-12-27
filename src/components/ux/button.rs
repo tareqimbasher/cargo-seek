@@ -144,6 +144,7 @@ impl Widget for Button<'_> {
                 Style::new().fg(highlight).bg(background),
             );
         }
+
         // render bottom line if there's enough space
         if area.height > 1 {
             buf.set_string(
@@ -153,6 +154,7 @@ impl Widget for Button<'_> {
                 Style::new().fg(shadow).bg(background),
             );
         }
+
         // render label centered
         buf.set_line(
             area.x + (area.width.saturating_sub(self.label.width() as u16)) / 2,

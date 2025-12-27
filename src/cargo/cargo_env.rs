@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::cargo::{get_installed_binaries, InstalledBinary, Project};
+use crate::cargo::{InstalledBinary, Project, get_installed_binaries};
 use crate::errors::AppResult;
 
 /// The current cargo environment (installed binaries and current project, if any)
@@ -32,10 +32,10 @@ impl CargoEnv {
             .map(|bin| (bin.name.clone(), bin.version.clone()))
             .collect();
 
-        if self.project.is_none() {
-            if let Some(project_dir) = &self.project_dir {
-                self.project = Project::from(project_dir);
-            }
+        if self.project.is_none()
+            && let Some(project_dir) = &self.project_dir
+        {
+            self.project = Project::from(project_dir);
         }
 
         if let Some(project) = self.project.as_mut() {

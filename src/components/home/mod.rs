@@ -1,19 +1,22 @@
-mod action_handler;
-mod draw;
-mod focusable;
-mod key_handler;
+pub mod action_handler;
+pub mod draw;
+pub mod focusable;
+pub mod key_handler;
 
-use super::Component;
+use super::{Component, StatusAction};
 
 use async_trait::async_trait;
 use crossterm::event::KeyEvent;
-use ratatui::{layout::Rect, Frame};
+use ratatui::{Frame, layout::Rect};
+use serde::Deserialize;
 use std::sync::Arc;
-use tokio::sync::mpsc::UnboundedSender;
+use strum_macros::Display;
 use tokio::sync::RwLock;
+use tokio::sync::mpsc::UnboundedSender;
 use tui_input::Input;
 
 use crate::cargo::CargoEnv;
+use crate::components::home::focusable::Focusable;
 use crate::components::home::{
     action_handler::handle_action, draw::render, key_handler::handle_key,
 };
@@ -22,12 +25,48 @@ use crate::components::ux::Dropdown;
 use crate::errors::AppResult;
 use crate::search::{CrateSearchManager, Scope, SearchResults, Sort};
 use crate::tui::Tui;
-use crate::{
-    action::{Action, SearchAction},
-    app::Mode,
-    config::Config,
-};
-pub use focusable::Focusable;
+use crate::{action::Action, app::Mode, config::Config};
+
+#[derive(Debug, Clone, PartialEq, Eq, Display, Deserialize)]
+pub enum HomeAction {
+    Focus(Focusable),
+    FocusNext,
+    FocusPrevious,
+    ToggleUsage,
+
+    Search(SearchAction),
+
+    OpenDocs,
+    OpenReadme,
+    RenderReadme(String),
+    OpenCratesIo,
+    OpenLibRs,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Display, Deserialize)]
+pub enum SearchAction {
+    Clear,
+    Search {
+        term: String,
+        page: usize,
+        hide_usage: bool,
+        status: Option<String>,
+    },
+    Error(String),
+    SortBy(Sort),
+    Scope(Scope),
+    Render(SearchResults),
+
+    NavPagesForward(usize),
+    NavPagesBack(usize),
+    NavFirstPage,
+    NavLastPage,
+    SelectIndex(Option<usize>),
+    SelectNext,
+    SelectPrev,
+    SelectFirst,
+    SelectLast,
+}
 
 /// The home (main) component.
 pub struct Home {
@@ -44,7 +83,7 @@ pub struct Home {
     search_results: Option<SearchResults>,
     spinner_state: throbber_widgets_tui::ThrobberState,
     action_tx: UnboundedSender<Action>,
-    pub vertical_usage_scroll: usize,
+    vertical_usage_scroll: usize,
 }
 
 impl Home {
@@ -68,16 +107,20 @@ impl Home {
                 "Search in".into(),
                 Scope::default() as usize,
                 Box::new(move |selected: &Scope| {
-                    tx.send(Action::Search(SearchAction::Scope(selected.clone())))
-                        .unwrap();
+                    tx.send(Action::Home(HomeAction::Search(SearchAction::Scope(
+                        selected.clone(),
+                    ))))
+                    .unwrap();
                 }),
             ),
             sort_dropdown: Dropdown::new(
                 "Sort by".into(),
                 Sort::default() as usize,
                 Box::new(move |selected: &Sort| {
-                    tx2.send(Action::Search(SearchAction::SortBy(selected.clone())))
-                        .unwrap();
+                    tx2.send(Action::Home(HomeAction::Search(SearchAction::SortBy(
+                        selected.clone(),
+                    ))))
+                    .unwrap();
                 }),
             ),
             search_results: None,
@@ -94,7 +137,10 @@ impl Home {
         self.input.reset();
         self.search_results = None;
         self.action_tx
-            .send(Action::UpdateStatus(StatusLevel::Info, "Ready".into()))?;
+            .send(Action::Status(StatusAction::UpdateStatus(
+                StatusLevel::Info,
+                "Ready".into(),
+            )))?;
         Ok(())
     }
 
@@ -107,12 +153,13 @@ impl Home {
             };
 
             if requested_page != results.current_page() {
-                self.action_tx.send(Action::Search(SearchAction::Search(
-                    query,
-                    requested_page,
-                    false,
-                    Some(format!("Loading page {requested_page}")),
-                )))?;
+                self.action_tx
+                    .send(Action::Home(HomeAction::Search(SearchAction::Search {
+                        term: query,
+                        page: requested_page,
+                        hide_usage: false,
+                        status: Some(format!("Loading page {requested_page}")),
+                    })))?;
             }
         }
 
@@ -127,14 +174,7 @@ impl Home {
                 results.current_page() - pages
             };
 
-            if requested_page != results.current_page() {
-                self.action_tx.send(Action::Search(SearchAction::Search(
-                    query,
-                    requested_page,
-                    false,
-                    Some(format!("Loading page {requested_page}")),
-                )))?;
-            }
+            self.go_to_page(requested_page, query)?
         }
 
         Ok(())
@@ -148,14 +188,7 @@ impl Home {
                 requested_page = results.page_count();
             }
 
-            if requested_page != results.current_page() {
-                self.action_tx.send(Action::Search(SearchAction::Search(
-                    query,
-                    requested_page,
-                    false,
-                    Some(format!("Loading page {requested_page}")),
-                )))?;
-            }
+            self.go_to_page(requested_page, query)?
         }
 
         Ok(())
@@ -178,12 +211,12 @@ impl Component for Home {
         let initial_search_term = self.input.value();
         if !initial_search_term.is_empty() {
             self.action_tx
-                .send(Action::Search(SearchAction::Search(
-                    initial_search_term.to_string(),
-                    1,
-                    true,
-                    None,
-                )))
+                .send(Action::Home(HomeAction::Search(SearchAction::Search {
+                    term: initial_search_term.to_string(),
+                    page: 1,
+                    hide_usage: true,
+                    status: None,
+                })))
                 .ok();
         }
 
