@@ -18,6 +18,10 @@ strip = true
 lto = true
 panic = "abort"
 
+[build-dependencies]
+anyhow = "1.0.86"
+vergen-gix = { version = "1.0.2", features = ["build", "cargo"] }
+
 [dependencies]
 anyhow = "1.0.86"
 async-trait = "0.1"
@@ -61,7 +65,3 @@ tracing = "0.1.40"
 tracing-error = "0.2.0"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "serde"] }
 tui-input = "0.10.1"
-
-[build-dependencies]
-anyhow = "1.0.86"
-vergen-gix = { version = "1.0.2", features = ["build", "cargo"] }

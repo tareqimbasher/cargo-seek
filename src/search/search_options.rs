@@ -3,8 +3,8 @@ use strum_macros::{Display, EnumIter};
 
 #[derive(Debug, Default, Display, Clone, EnumIter, PartialEq, Eq, Deserialize)]
 pub enum Scope {
-    All,
     #[default]
+    All,
     Online,
     Project,
     Installed,

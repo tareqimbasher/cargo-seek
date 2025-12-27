@@ -66,7 +66,7 @@ impl Home {
             input,
             scope_dropdown: Dropdown::new(
                 "Search in".into(),
-                1,
+                Scope::default() as usize,
                 Box::new(move |selected: &Scope| {
                     tx.send(Action::Search(SearchAction::Scope(selected.clone())))
                         .unwrap();
@@ -74,7 +74,7 @@ impl Home {
             ),
             sort_dropdown: Dropdown::new(
                 "Sort by".into(),
-                0,
+                Sort::default() as usize,
                 Box::new(move |selected: &Sort| {
                     tx2.send(Action::Search(SearchAction::SortBy(selected.clone())))
                         .unwrap();
