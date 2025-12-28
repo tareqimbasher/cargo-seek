@@ -20,5 +20,5 @@ pub enum CargoAction {
 
     RefreshCargoEnv,
     CargoEnvRefreshed,
-    CrateMetadataLoaded(Box<crates_io_api::Crate>),
+    CrateMetadataLoaded(Box<crates_io_api::CrateResponse>),
 }

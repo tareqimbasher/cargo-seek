@@ -203,7 +203,7 @@ pub async fn handle_action(
                     && let Some(index) = results.selected_index()
                 {
                     let cr = &mut results.crates[index];
-                    if cr.id == data.id {
+                    if cr.id == data.crate_data.id {
                         CrateSearchManager::hydrate(data, cr);
                     }
                 }
@@ -311,7 +311,7 @@ fn handle_search_action(home: &mut Home, action: SearchAction) -> AppResult<Opti
             } else if results_len > 0 {
                 results.select_index(Some(0));
             }
-            check_needs_hydrate(&mut results, &mut home.crate_search_manager);
+            load_metadata_if_needed(&mut results, &mut home.crate_search_manager);
 
             home.search_results = Some(results);
 
@@ -343,23 +343,23 @@ fn handle_search_action(home: &mut Home, action: SearchAction) -> AppResult<Opti
                 match action {
                     SearchAction::SelectIndex(index) => {
                         results.select_index(index);
-                        check_needs_hydrate(results, &mut home.crate_search_manager);
+                        load_metadata_if_needed(results, &mut home.crate_search_manager);
                     }
                     SearchAction::SelectNext => {
                         results.select_next();
-                        check_needs_hydrate(results, &mut home.crate_search_manager);
+                        load_metadata_if_needed(results, &mut home.crate_search_manager);
                     }
                     SearchAction::SelectPrev => {
                         results.select_previous();
-                        check_needs_hydrate(results, &mut home.crate_search_manager);
+                        load_metadata_if_needed(results, &mut home.crate_search_manager);
                     }
                     SearchAction::SelectFirst => {
                         results.select_first();
-                        check_needs_hydrate(results, &mut home.crate_search_manager);
+                        load_metadata_if_needed(results, &mut home.crate_search_manager);
                     }
                     SearchAction::SelectLast => {
                         results.select_last();
-                        check_needs_hydrate(results, &mut home.crate_search_manager);
+                        load_metadata_if_needed(results, &mut home.crate_search_manager);
                     }
                     _ => {}
                 }
@@ -369,10 +369,10 @@ fn handle_search_action(home: &mut Home, action: SearchAction) -> AppResult<Opti
     Ok(None)
 }
 
-fn check_needs_hydrate(results: &mut SearchResults, crate_search_manager: &mut CrateSearchManager) {
+fn load_metadata_if_needed(results: &mut SearchResults, crate_search_manager: &mut CrateSearchManager) {
     if let Some(cr) = results.selected()
         && !cr.is_metadata_loaded()
     {
-        crate_search_manager.get_crate_data(&cr.name).ok();
+        crate_search_manager.load_crate_metadata(&cr.name).ok();
     }
 }

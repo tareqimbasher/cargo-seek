@@ -37,7 +37,7 @@ clap = { version = "4.5.18", features = [
 ] }
 color-eyre = "0.6.3"
 config = "0.15"
-crates_io_api = "0.11.0"
+crates_io_api = "0.12.0"
 crossterm = { version = "0.28.1", features = ["serde", "event-stream"] }
 derive_deref = "1.1.1"
 directories = "6.0"

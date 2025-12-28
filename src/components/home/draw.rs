@@ -146,6 +146,10 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
 
                 let name = cr.name.to_string();
                 let mut version = cr.version.to_string();
+
+                // If metadata is not loaded, version might be the project or installed version
+                // and not the latest version. In that case, we don't want to manipulate the
+                // displayed version string
                 if cr.is_metadata_loaded() {
                     if let Some(project_version) = &cr.project_version {
                         version = format!("{version} ({project_version})");
@@ -475,6 +479,14 @@ fn render_crate_details(home: &Home, cr: &Crate, frame: &mut Frame, area: Rect) 
             format_number(cr.recent_downloads).into(),
         ]),
         Line::from(vec![
+            format!("{:<left_column_width$}", "Features:").set_style(prop_style),
+            cr.features
+                .as_ref()
+                .map(|v| v.join(", "))
+                .unwrap_or("Loading...".into())
+                .into(),
+        ]),
+        Line::from(vec![
             format!("{:<left_column_width$}", "Created:").set_style(prop_style),
             match cr.created_at.as_ref() {
                 None => "".into(),
@@ -507,7 +519,7 @@ fn render_crate_details(home: &Home, cr: &Crate, frame: &mut Frame, area: Rect) 
     frame.render_widget(&main_block, area);
 
     let [details_area, _, buttons_row1_area, _, buttons_row2_area] = Layout::vertical([
-        Constraint::Max(15),
+        Constraint::Max(25),
         Constraint::Length(1),
         Constraint::Length(1),
         Constraint::Length(1),

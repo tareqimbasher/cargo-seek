@@ -181,6 +181,7 @@ impl CrateSearchManager {
                     recent_downloads: None,
                     created_at: None,
                     updated_at: None,
+                    features: None,
                     exact_match: name_lower == term,
                     project_version: None,
                     installed_version: Some(bin.version.clone()),
@@ -212,6 +213,7 @@ impl CrateSearchManager {
                         recent_downloads: None,
                         created_at: None,
                         updated_at: None,
+                        features: None,
                         exact_match: name_lower == term,
                         project_version: Some(dep.req.clone()),
                         installed_version: None,
@@ -270,6 +272,7 @@ impl CrateSearchManager {
                 recent_downloads: c.recent_downloads,
                 created_at: Some(c.created_at),
                 updated_at: Some(c.updated_at),
+                features: None,
                 exact_match: c.exact_match.unwrap_or(false),
                 project_version: None,
                 installed_version: None,
@@ -294,7 +297,7 @@ impl CrateSearchManager {
         *still_needed = per_page.saturating_sub(search_results.crates.len());
     }
 
-    pub fn get_crate_data(&mut self, name: &str) -> AppResult<()> {
+    pub fn load_crate_metadata(&mut self, name: &str) -> AppResult<()> {
         if let Some(cancel_hydrate_tx) = self.cancel_hydrate_tx.take() {
             let _ = cancel_hydrate_tx.send(());
         }
@@ -313,9 +316,8 @@ impl CrateSearchManager {
             }
 
             let response = crates_io_client.get_crate(&name).await?;
-            let data = response.crate_data;
             tx.send(Action::Cargo(CargoAction::CrateMetadataLoaded(Box::new(
-                data,
+                response,
             ))))?;
 
             Ok::<_, AppError>(())
@@ -350,7 +352,8 @@ impl CrateSearchManager {
         search_results.crates = map.into_values().collect();
     }
 
-    pub fn hydrate(data: Box<crates_io_api::Crate>, cr: &mut Crate) {
+    pub fn hydrate(crate_response: Box<crates_io_api::CrateResponse>, cr: &mut Crate) {
+        let data = crate_response.crate_data;
         cr.name = data.name;
         cr.description = data.description;
         cr.homepage = data.homepage;
@@ -364,6 +367,12 @@ impl CrateSearchManager {
         cr.max_stable_version = data.max_stable_version;
         cr.downloads = Some(data.downloads);
         cr.recent_downloads = data.recent_downloads;
+        if crate_response.versions.is_empty() {
+            cr.features = Some(Vec::new());
+        } else {
+            let latest = &crate_response.versions[0];
+            cr.features = Some(latest.features.iter().map(|x| x.0.clone()).collect())
+        }
         cr.created_at = Some(data.created_at);
         cr.updated_at = Some(data.updated_at);
         cr.exact_match = data.exact_match.unwrap_or_default();
