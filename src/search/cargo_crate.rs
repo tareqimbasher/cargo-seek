@@ -15,6 +15,7 @@ pub struct Crate {
     pub downloads: Option<u64>,
     pub recent_downloads: Option<u64>,
     pub features: Option<Vec<String>>,
+    pub categories: Option<Vec<String>>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
 

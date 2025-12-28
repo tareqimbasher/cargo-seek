@@ -182,6 +182,7 @@ impl CrateSearchManager {
                     created_at: None,
                     updated_at: None,
                     features: None,
+                    categories: None,
                     exact_match: name_lower == term,
                     project_version: None,
                     installed_version: Some(bin.version.clone()),
@@ -214,6 +215,7 @@ impl CrateSearchManager {
                         created_at: None,
                         updated_at: None,
                         features: None,
+                        categories: None,
                         exact_match: name_lower == term,
                         project_version: Some(dep.req.clone()),
                         installed_version: None,
@@ -273,6 +275,7 @@ impl CrateSearchManager {
                 created_at: Some(c.created_at),
                 updated_at: Some(c.updated_at),
                 features: None,
+                categories: c.categories,
                 exact_match: c.exact_match.unwrap_or(false),
                 project_version: None,
                 installed_version: None,
@@ -372,6 +375,15 @@ impl CrateSearchManager {
         } else {
             let latest = &crate_response.versions[0];
             cr.features = Some(latest.features.iter().map(|x| x.0.clone()).collect())
+        }
+        if cr.categories.is_none() {
+            cr.categories = Some(
+                crate_response
+                    .categories
+                    .iter()
+                    .map(|c| c.category.clone())
+                    .collect(),
+            )
         }
         cr.created_at = Some(data.created_at);
         cr.updated_at = Some(data.updated_at);

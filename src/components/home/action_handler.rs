@@ -369,7 +369,10 @@ fn handle_search_action(home: &mut Home, action: SearchAction) -> AppResult<Opti
     Ok(None)
 }
 
-fn load_metadata_if_needed(results: &mut SearchResults, crate_search_manager: &mut CrateSearchManager) {
+fn load_metadata_if_needed(
+    results: &mut SearchResults,
+    crate_search_manager: &mut CrateSearchManager,
+) {
     if let Some(cr) = results.selected()
         && !cr.is_metadata_loaded()
     {

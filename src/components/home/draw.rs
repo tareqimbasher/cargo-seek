@@ -487,6 +487,14 @@ fn render_crate_details(home: &Home, cr: &Crate, frame: &mut Frame, area: Rect) 
                 .into(),
         ]),
         Line::from(vec![
+            format!("{:<left_column_width$}", "Categories:").set_style(prop_style),
+            cr.categories
+                .as_ref()
+                .map(|v| v.join(", "))
+                .unwrap_or("Loading...".into())
+                .into(),
+        ]),
+        Line::from(vec![
             format!("{:<left_column_width$}", "Created:").set_style(prop_style),
             match cr.created_at.as_ref() {
                 None => "".into(),
@@ -519,11 +527,11 @@ fn render_crate_details(home: &Home, cr: &Crate, frame: &mut Frame, area: Rect) 
     frame.render_widget(&main_block, area);
 
     let [details_area, _, buttons_row1_area, _, buttons_row2_area] = Layout::vertical([
-        Constraint::Max(25),
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Length(1),
+        Constraint::Max(20),   // details
+        Constraint::Length(1), // empty line
+        Constraint::Length(1), // buttons row 1
+        Constraint::Length(1), // empty line
+        Constraint::Length(1), // buttons row 2
     ])
     .areas(main_block.inner(area));
 
