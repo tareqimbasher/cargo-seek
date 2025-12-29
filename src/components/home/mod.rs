@@ -23,7 +23,7 @@ use crate::components::home::{
 use crate::components::status_bar::StatusLevel;
 use crate::components::ux::Dropdown;
 use crate::errors::AppResult;
-use crate::search::{CrateSearchManager, Scope, SearchResults, Sort};
+use crate::search::{Crate, CrateSearchManager, Scope, SearchResults, Sort};
 use crate::tui::Tui;
 use crate::{action::Action, app::Mode, config::Config};
 
@@ -192,6 +192,77 @@ impl Home {
         }
 
         Ok(())
+    }
+
+    pub fn is_details_focused(&self) -> bool {
+        self.focused == Focusable::DocsButton
+            || self.focused == Focusable::RepositoryButton
+            || self.focused == Focusable::CratesIoButton
+            || self.focused == Focusable::LibRsButton
+    }
+
+    pub fn is_results_or_details_focused(&self) -> bool {
+        self.focused == Focusable::Results || self.is_details_focused()
+    }
+
+    fn get_focused_crate(&self) -> Option<&Crate> {
+        if self.is_results_or_details_focused()
+            && let Some(search_results) = self.search_results.as_ref()
+            && let Some(selected) = search_results.selected()
+        {
+            Some(selected)
+        } else {
+            None
+        }
+    }
+
+    fn should_show_docs_button(&self) -> bool {
+        if let Some(search_results) = self.search_results.as_ref()
+            && let Some(selected) = search_results.selected()
+            && selected.documentation.is_some()
+        {
+            return true;
+        }
+        false
+    }
+
+    fn should_show_repo_button(&self) -> bool {
+        if let Some(search_results) = self.search_results.as_ref()
+            && let Some(selected) = search_results.selected()
+            && selected.repository.is_some()
+        {
+            return true;
+        }
+        false
+    }
+
+    fn should_show_cratesio_button(&self) -> bool {
+        if let Some(search_results) = self.search_results.as_ref()
+            && search_results.selected().is_some()
+        {
+            return true;
+        }
+        false
+    }
+
+    fn should_show_librs_button(&self) -> bool {
+        if let Some(search_results) = self.search_results.as_ref()
+            && search_results.selected().is_some()
+        {
+            return true;
+        }
+
+        false
+    }
+
+    fn should_show_button(&self, f: &Focusable) -> bool {
+        match f {
+            Focusable::DocsButton => self.should_show_docs_button(),
+            Focusable::RepositoryButton => self.should_show_repo_button(),
+            Focusable::CratesIoButton => self.should_show_cratesio_button(),
+            Focusable::LibRsButton => self.should_show_librs_button(),
+            _ => false,
+        }
     }
 }
 

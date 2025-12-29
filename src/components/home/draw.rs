@@ -393,10 +393,7 @@ fn render_usage(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
 }
 
 fn render_crate_details(home: &Home, cr: &Crate, frame: &mut Frame, area: Rect) -> AppResult<()> {
-    let details_focused = home.focused == Focusable::DocsButton
-        || home.focused == Focusable::RepositoryButton
-        || home.focused == Focusable::CratesIoButton
-        || home.focused == Focusable::LibRsButton;
+    let details_focused = home.is_details_focused();
 
     let main_block = Block::default()
         .title(format!(" 🧐 {} ", cr.name))
@@ -549,7 +546,7 @@ fn render_crate_details(home: &Home, cr: &Crate, frame: &mut Frame, area: Rect) 
 
     let mut button_areas = vec![button1_area, button2_area];
 
-    if cr.documentation.is_some() {
+    if home.should_show_docs_button() {
         frame.render_widget(
             Button::new("Docs")
                 .theme(ORANGE)
@@ -561,7 +558,7 @@ fn render_crate_details(home: &Home, cr: &Crate, frame: &mut Frame, area: Rect) 
         );
     }
 
-    if cr.repository.is_some() {
+    if home.should_show_repo_button() {
         frame.render_widget(
             Button::new("Repository").theme(GRAY).state(
                 match home.focused == Focusable::RepositoryButton {
@@ -576,24 +573,29 @@ fn render_crate_details(home: &Home, cr: &Crate, frame: &mut Frame, area: Rect) 
     // Button row 2
     let [_, button1_area, _, button2_area] = buttons_row_layout.areas(buttons_row2_area);
 
-    frame.render_widget(
-        Button::new("crates.io").theme(YELLOW).state(
-            match home.focused == Focusable::CratesIoButton {
-                true => State::Selected,
-                _ => State::Normal,
-            },
-        ),
-        button1_area,
-    );
-    frame.render_widget(
-        Button::new("lib.rs")
-            .theme(PURPLE)
-            .state(match home.focused == Focusable::LibRsButton {
-                true => State::Selected,
-                _ => State::Normal,
-            }),
-        button2_area,
-    );
+    if home.should_show_cratesio_button() {
+        frame.render_widget(
+            Button::new("crates.io").theme(YELLOW).state(
+                match home.focused == Focusable::CratesIoButton {
+                    true => State::Selected,
+                    _ => State::Normal,
+                },
+            ),
+            button1_area,
+        );
+    }
+
+    if home.should_show_librs_button() {
+        frame.render_widget(
+            Button::new("lib.rs").theme(PURPLE).state(
+                match home.focused == Focusable::LibRsButton {
+                    true => State::Selected,
+                    _ => State::Normal,
+                },
+            ),
+            button2_area,
+        );
+    }
 
     Ok(())
 }

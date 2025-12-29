@@ -1,4 +1,4 @@
-﻿use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
@@ -35,12 +35,4 @@ impl Focusable {
             .expect("self should be in the list of variants");
         variants[(pos + variants.len() - 1) % variants.len()].clone()
     }
-}
-
-pub fn is_results_or_details_focused(focused: &Focusable) -> bool {
-    *focused == Focusable::Results
-        || *focused == Focusable::DocsButton
-        || *focused == Focusable::RepositoryButton
-        || *focused == Focusable::CratesIoButton
-        || *focused == Focusable::LibRsButton
 }
