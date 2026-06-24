@@ -4,7 +4,7 @@ use strum_macros::EnumIter;
 
 #[derive(Default, PartialEq, Clone, Debug, Eq, EnumIter, Serialize, Deserialize)]
 pub enum Focusable {
-    Usage,
+    Help,
     #[default]
     Search,
     Sort,

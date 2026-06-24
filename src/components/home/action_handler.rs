@@ -33,20 +33,20 @@ pub async fn handle_action(
             }
             HomeAction::FocusNext => {
                 let has_search_results = home.search_results.is_some();
-                let show_usage = home.show_usage;
+                let show_help = home.show_help;
 
-                if show_usage {
+                if show_help {
                     let next = match home.focused {
-                        Focusable::Usage => Focusable::Search,
+                        Focusable::Help => Focusable::Search,
                         Focusable::Search if has_search_results => Focusable::Results,
-                        Focusable::Results => Focusable::Usage,
-                        _ => Focusable::Usage,
+                        Focusable::Results => Focusable::Help,
+                        _ => Focusable::Help,
                     };
                     return Ok(Some(Action::Home(HomeAction::Focus(next))));
                 } else {
                     let mut next = home.focused.next();
                     // Tab focus cycle should skip these elements
-                    while next == Focusable::Usage
+                    while next == Focusable::Help
                         || next == Focusable::Sort
                         || next == Focusable::Scope
                     {
@@ -57,12 +57,12 @@ pub async fn handle_action(
             }
             HomeAction::FocusPrevious => {
                 let has_search_results = home.search_results.is_some();
-                let show_usage = home.show_usage;
+                let show_help = home.show_help;
 
-                if show_usage {
+                if show_help {
                     let prev = match home.focused {
-                        Focusable::Usage if has_search_results => Focusable::Results,
-                        Focusable::Search => Focusable::Usage,
+                        Focusable::Help if has_search_results => Focusable::Results,
+                        Focusable::Search => Focusable::Help,
                         Focusable::Results => Focusable::Search,
                         _ => Focusable::Search,
                     };
@@ -70,28 +70,28 @@ pub async fn handle_action(
                 } else {
                     let mut prev = home.focused.prev();
                     // Tab focus cycle should skip these elements
-                    while prev == Focusable::Usage
+                    while prev == Focusable::Help
                         || prev == Focusable::Sort
                         || prev == Focusable::Scope
                     {
                         prev = prev.prev();
                     }
 
-                    if !home.show_usage && prev == Focusable::Usage {
+                    if !home.show_help && prev == Focusable::Help {
                         prev = prev.prev();
                     }
 
                     return Ok(Some(Action::Home(HomeAction::Focus(prev))));
                 }
             }
-            HomeAction::ToggleUsage => {
-                let was_showing = home.show_usage;
-                home.show_usage = !home.show_usage;
-                home.vertical_usage_scroll = 0;
+            HomeAction::ToggleHelp => {
+                let was_showing = home.show_help;
+                home.show_help = !home.show_help;
+                home.vertical_help_scroll = 0;
                 return if was_showing {
                     Ok(Some(Action::Home(HomeAction::Focus(Focusable::Search))))
                 } else {
-                    Ok(Some(Action::Home(HomeAction::Focus(Focusable::Usage))))
+                    Ok(Some(Action::Home(HomeAction::Focus(Focusable::Help))))
                 };
             }
             HomeAction::Search(action) => return handle_search_action(home, action),
@@ -106,52 +106,10 @@ pub async fn handle_action(
                 {
                     open::that(url.to_string())?;
                 }
-
-                // if let Some(url) = self
-                //     .search_results
-                //     .as_ref()
-                //     .and_then(|results| results.get_selected())
-                //     .and_then(|cr| cr.repository.as_ref())
-                //     .and_then(|docs| Url::parse(docs).ok())
-                // {
-                //     let tx = home.action_tx.clone();
-                //     tokio::spawn(async move {
-                //         if let Some(markdown) = http_client::INSTANCE
-                //             .get_repo_readme(url.to_string())
-                //             .await
-                //             .unwrap()
-                //         {
-                //             tx.send(Action::RenderReadme(markdown)).unwrap();
-                //         }
-                //     });
-                // }
             }
             HomeAction::RenderReadme(_) => {
-                // TODO Check if glow doesn't exist use mdcat for example. And if neither exists, open url
-                // TODO Windows: dunce
-                // let mut temp_file = tempfile::NamedTempFile::new()?;
-                // write!(temp_file, "{}", markdown)?;
-                // let original_path = temp_file.path().to_path_buf();
-                //
-                // if let Some(parent) = original_path.parent() {
-                //     let new_path = parent.join("cargo_seek_readme_tmp.md");
-                //     fs::rename(&original_path, &new_path)?;
-                //
-                //     tui.exit()?;
-                //
-                //     let mut glow = Command::new("glow").arg("-p").arg(&new_path).spawn()?;
-                //
-                //     let _ = glow.wait()?;
-                //
-                //     if new_path.exists() {
-                //         fs::remove_file(new_path).ok();
-                //     }
-                //
-                //     tui.enter()?;
-                //     tui.terminal.clear()?;
-                // } else {
-                //     fs::remove_file(original_path).ok();
-                // }
+                // TODO: optionally render the README in-terminal (glow/mdcat) instead of
+                // opening it in the browser; fall back to the browser if neither exists.
             }
             HomeAction::OpenDocs => {
                 if let Some(url) = home
@@ -221,7 +179,7 @@ fn handle_search_action(home: &mut Home, action: SearchAction) -> AppResult<Opti
         SearchAction::Search {
             term,
             page,
-            hide_usage,
+            hide_help,
             status,
         } => {
             let tx = home.action_tx.clone();
@@ -236,8 +194,8 @@ fn handle_search_action(home: &mut Home, action: SearchAction) -> AppResult<Opti
             )))?;
 
             home.is_searching = true;
-            if hide_usage {
-                home.show_usage = false;
+            if hide_help {
+                home.show_help = false;
             }
 
             home.crate_search_manager.search(
@@ -275,7 +233,7 @@ fn handle_search_action(home: &mut Home, action: SearchAction) -> AppResult<Opti
                 SearchAction::Search {
                     term: home.input.value().into(),
                     page: 1,
-                    hide_usage: false,
+                    hide_help: false,
                     status: Some(status),
                 },
             ))));
@@ -293,7 +251,7 @@ fn handle_search_action(home: &mut Home, action: SearchAction) -> AppResult<Opti
                 SearchAction::Search {
                     term: home.input.value().into(),
                     page: 1,
-                    hide_usage: false,
+                    hide_help: false,
                     status: Some(status),
                 },
             ))));

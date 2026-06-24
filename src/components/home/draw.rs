@@ -253,8 +253,8 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
 }
 
 fn render_right(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> {
-    if home.show_usage || home.search_results.is_none() {
-        render_usage(home, frame, area)?;
+    if home.show_help || home.search_results.is_none() {
+        render_help(home, frame, area)?;
         return Ok(());
     }
 
@@ -272,7 +272,7 @@ fn render_right(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
     Ok(())
 }
 
-fn render_usage(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> {
+fn render_help(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> {
     let header_style = Style::default().bold();
     let prop_style = home.config.styles[&Mode::App]["accent"].bold();
     let desc_style = Style::default();
@@ -318,7 +318,7 @@ fn render_usage(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "Ctrl + h:").set_style(prop_style),
-            "Toggle this usage screen".set_style(desc_style),
+            "Toggle this help screen".set_style(desc_style),
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "Ctrl + c:").set_style(prop_style),
@@ -358,12 +358,12 @@ fn render_usage(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
     ]);
 
     let block = Block::default()
-        .title(" 📖 Usage ")
+        .title(" 📖 Help ")
         .title_style(home.config.styles[&Mode::App]["title"])
         .padding(Padding::uniform(1))
         .borders(Borders::ALL)
         .border_style(match home.focused {
-            Focusable::Usage => home.config.styles[&Mode::App]["accent_active"],
+            Focusable::Help => home.config.styles[&Mode::App]["accent_active"],
             _ => Style::default(),
         });
 
@@ -372,21 +372,21 @@ fn render_usage(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
     frame.render_widget(
         Paragraph::new(text)
             .wrap(Wrap { trim: false })
-            .scroll((home.vertical_usage_scroll as u16, 0)),
+            .scroll((home.vertical_help_scroll as u16, 0)),
         block.inner(area),
     );
 
     // let paragraph = Paragraph::new(text.clone())
     //     .gray()
     //     .block(block)
-    //     .scroll((home.vertical_usage_scroll as u16, 0));
+    //     .scroll((home.vertical_help_scroll as u16, 0));
     // frame.render_widget(paragraph, area);
     // frame.render_stateful_widget(
     //     Scrollbar::new(ScrollbarOrientation::VerticalRight)
     //         .begin_symbol(Some("↑"))
     //         .end_symbol(Some("↓")),
     //     area,
-    //     &mut home.vertical_usage_scroll_state,
+    //     &mut home.vertical_help_scroll_state,
     // );
 
     Ok(())

@@ -32,7 +32,7 @@ pub enum HomeAction {
     Focus(Focusable),
     FocusNext,
     FocusPrevious,
-    ToggleUsage,
+    ToggleHelp,
 
     Search(SearchAction),
 
@@ -49,7 +49,7 @@ pub enum SearchAction {
     Search {
         term: String,
         page: usize,
-        hide_usage: bool,
+        hide_help: bool,
         status: Option<String>,
     },
     Error(String),
@@ -74,7 +74,7 @@ pub struct Home {
     cargo_env: Arc<RwLock<CargoEnv>>,
     crate_search_manager: CrateSearchManager,
     left_column_width_percent: u16,
-    show_usage: bool,
+    show_help: bool,
     focused: Focusable,
     input: Input,
     scope_dropdown: Dropdown<Scope>,
@@ -83,7 +83,7 @@ pub struct Home {
     search_results: Option<SearchResults>,
     spinner_state: throbber_widgets_tui::ThrobberState,
     action_tx: UnboundedSender<Action>,
-    vertical_usage_scroll: usize,
+    vertical_help_scroll: usize,
 }
 
 impl Home {
@@ -100,7 +100,7 @@ impl Home {
         Ok(Self {
             cargo_env,
             left_column_width_percent: 40,
-            show_usage: true,
+            show_help: true,
             focused: Focusable::default(),
             input,
             scope_dropdown: Dropdown::new(
@@ -129,7 +129,7 @@ impl Home {
             spinner_state: throbber_widgets_tui::ThrobberState::default(),
             action_tx,
             config: Config::default(),
-            vertical_usage_scroll: 0,
+            vertical_help_scroll: 0,
         })
     }
 
@@ -157,7 +157,7 @@ impl Home {
                     .send(Action::Home(HomeAction::Search(SearchAction::Search {
                         term: query,
                         page: requested_page,
-                        hide_usage: false,
+                        hide_help: false,
                         status: Some(format!("Loading page {requested_page}")),
                     })))?;
             }
@@ -285,7 +285,7 @@ impl Component for Home {
                 .send(Action::Home(HomeAction::Search(SearchAction::Search {
                     term: initial_search_term.to_string(),
                     page: 1,
-                    hide_usage: true,
+                    hide_help: true,
                     status: None,
                 })))
                 .ok();

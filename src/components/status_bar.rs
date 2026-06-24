@@ -31,7 +31,6 @@ pub enum StatusLevel {
     Error,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq, Display, Deserialize)]
 pub enum StatusDuration {
     /// Is not rendered to screen (ex: when clearing status)

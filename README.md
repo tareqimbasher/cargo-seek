@@ -83,7 +83,7 @@ UI Options:
 **Cargo Projects**
 
 If a cargo project (`Cargo.toml`) is found in the current directory or one of its parents, you can use `cargo-seek` to
-add and remove crates to your cargo project. You can also direct `crate-seek` to target a specific cargo project
+add and remove crates to your cargo project. You can also direct `cargo-seek` to target a specific cargo project
 directory:
 
     # dir, or one of its parents, should contain a cargo.toml file

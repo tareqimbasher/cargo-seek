@@ -40,7 +40,7 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
 
     match key.code {
         KeyCode::Char('h') if ctrl && home.search_results.is_some() => {
-            return Ok(Some(Action::Home(HomeAction::ToggleUsage)));
+            return Ok(Some(Action::Home(HomeAction::ToggleHelp)));
         }
         KeyCode::Esc => {
             return if home.focused == Focusable::Search {
@@ -82,7 +82,7 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
                     SearchAction::Search {
                         term: home.input.value().to_string(),
                         page: 1,
-                        hide_usage: true,
+                        hide_help: true,
                         status: None,
                     },
                 ))));
@@ -102,14 +102,14 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
             }
             _ => {}
         },
-        KeyCode::Up if home.focused == Focusable::Usage => {
-            if home.vertical_usage_scroll > 0 {
-                home.vertical_usage_scroll -= 1;
+        KeyCode::Up if home.focused == Focusable::Help => {
+            if home.vertical_help_scroll > 0 {
+                home.vertical_help_scroll -= 1;
             }
         }
-        KeyCode::Down if home.focused == Focusable::Usage => {
-            if home.vertical_usage_scroll < 21 {
-                home.vertical_usage_scroll += 1;
+        KeyCode::Down if home.focused == Focusable::Help => {
+            if home.vertical_help_scroll < 21 {
+                home.vertical_help_scroll += 1;
             }
         }
         KeyCode::Left if ctrl && home.left_column_width_percent >= 10 => {

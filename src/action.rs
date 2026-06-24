@@ -15,7 +15,6 @@ pub enum Action {
     Quit,
     ClearScreen,
     Error(String),
-    Help,
 
     Home(HomeAction),
     Status(StatusAction),
