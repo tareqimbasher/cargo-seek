@@ -29,31 +29,48 @@ pub fn get_metadata(manifest_path: &PathBuf) -> AppResult<ManifestMetadata> {
 
 pub fn get_installed_binaries() -> AppResult<Vec<InstalledBinary>> {
     let output = cargo_cmd().arg("install").arg("--list").output()?;
-
     let stdout = String::from_utf8(output.stdout)?;
-    let stdout = stdout
-        .split('\n')
-        .filter(|l| !l.is_empty() && !l.starts_with(' ') && l.contains(" v"))
-        .collect::<Vec<_>>();
+    Ok(parse_installed_binaries(&stdout))
+}
 
-    let mut packages: Vec<InstalledBinary> = Vec::new();
+/// Parses the output of `cargo install --list`.
+///
+/// Each installed package is a non-indented header line of the form
+/// `"<name> v<version>[ (<source>)]:"`, followed by indented lines listing the binaries it
+/// provides (which we ignore here).
+fn parse_installed_binaries(stdout: &str) -> Vec<InstalledBinary> {
+    let mut packages = Vec::new();
 
-    for line in stdout.iter() {
-        let parts = line.split(' ').collect::<Vec<_>>();
-        if parts.len() != 2 {
+    for line in stdout.lines() {
+        // Skip blank lines and the indented binary names listed under each package.
+        if line.is_empty() || line.starts_with([' ', '\t']) {
             continue;
         }
 
-        let name = parts[0].to_string();
-        let version = parts[1].to_string();
+        // Header format: "<name> v<version>[ (<source>)]:". Take the name and version
+        // tokens and ignore any trailing source suffix.
+        let mut parts = line.split_whitespace();
+        let (Some(name), Some(version)) = (parts.next(), parts.next()) else {
+            continue;
+        };
+
+        // The version token is like "v1.2.3", with a trailing ":" when the package has no
+        // source suffix. Require the leading "v", then drop a trailing ":".
+        let Some(version) = version.strip_prefix('v') else {
+            continue;
+        };
+        let version = version.trim_end_matches(':');
+        if version.is_empty() {
+            continue;
+        }
 
         packages.push(InstalledBinary {
-            name,
-            version: version[1..(version.len() - 1)].to_string(),
-        })
+            name: name.to_string(),
+            version: version.to_string(),
+        });
     }
 
-    Ok(packages)
+    packages
 }
 
 pub fn add(crate_name: &str, version: Option<String>, print_output: bool) -> AppResult<()> {
@@ -147,5 +164,51 @@ fn cargo_cmd() -> Command {
     #[cfg(not(windows))]
     {
         Command::new("cargo")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    fn bin(name: &str, version: &str) -> InstalledBinary {
+        InstalledBinary {
+            name: name.to_string(),
+            version: version.to_string(),
+        }
+    }
+
+    #[test]
+    fn parses_standard_output() {
+        let stdout = "cargo-seek v0.1.0:\n    cargo-seek\nripgrep v14.1.0:\n    rg\n";
+        assert_eq!(
+            parse_installed_binaries(stdout),
+            vec![bin("cargo-seek", "0.1.0"), bin("ripgrep", "14.1.0")]
+        );
+    }
+
+    #[test]
+    fn parses_packages_with_a_source_suffix() {
+        // Git/path installs carry a parenthesised source before the trailing colon, so the
+        // version token no longer has the ":" attached. This form must still parse.
+        let stdout = "foo v0.2.0 (https://github.com/x/y#abc123):\n    foo\n";
+        assert_eq!(parse_installed_binaries(stdout), vec![bin("foo", "0.2.0")]);
+    }
+
+    #[test]
+    fn ignores_blank_and_indented_lines() {
+        assert!(parse_installed_binaries("").is_empty());
+        assert!(parse_installed_binaries("\n\n    rg\n    other\n").is_empty());
+    }
+
+    #[test]
+    fn skips_malformed_header_lines() {
+        // A line without a "v"-prefixed version token is skipped, not panicked on.
+        let stdout = "weird-line-without-version\nripgrep v14.1.0:\n";
+        assert_eq!(
+            parse_installed_binaries(stdout),
+            vec![bin("ripgrep", "14.1.0")]
+        );
     }
 }

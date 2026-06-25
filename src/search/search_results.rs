@@ -87,3 +87,61 @@ impl SearchResults {
         self.selected()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::search::Crate;
+    use pretty_assertions::assert_eq;
+
+    fn results_with(total_count: usize, current_page: usize, crates: usize) -> SearchResults {
+        let mut r = SearchResults::new(current_page);
+        r.total_count = total_count;
+        r.crates = (0..crates)
+            .map(|i| Crate {
+                id: i.to_string(),
+                ..Default::default()
+            })
+            .collect();
+        r
+    }
+
+    #[test]
+    fn page_count_rounds_up() {
+        assert_eq!(SearchResults::new(1).page_count(), 0);
+        assert_eq!(results_with(1, 1, 0).page_count(), 1);
+        assert_eq!(results_with(100, 1, 0).page_count(), 1);
+        assert_eq!(results_with(101, 1, 0).page_count(), 2);
+        assert_eq!(results_with(250, 1, 0).page_count(), 3);
+    }
+
+    #[test]
+    fn has_next_page_until_total_is_consumed() {
+        // 250 results at 100/page: pages 1 and 2 have a next page, page 3 does not.
+        assert!(results_with(250, 1, 0).has_next_page());
+        assert!(results_with(250, 2, 0).has_next_page());
+        assert!(!results_with(250, 3, 0).has_next_page());
+    }
+
+    #[test]
+    fn has_prev_page_after_the_first() {
+        assert!(!results_with(250, 1, 0).has_prev_page());
+        assert!(results_with(250, 2, 0).has_prev_page());
+    }
+
+    #[test]
+    fn selected_index_resolves_usize_max_to_the_last_item() {
+        let mut r = results_with(3, 1, 3);
+        r.list_state.select(Some(usize::MAX));
+        assert_eq!(r.selected_index(), Some(2));
+    }
+
+    #[test]
+    fn selected_index_passes_through_normal_values() {
+        let mut r = results_with(3, 1, 3);
+        r.list_state.select(Some(1));
+        assert_eq!(r.selected_index(), Some(1));
+        r.list_state.select(None);
+        assert_eq!(r.selected_index(), None);
+    }
+}

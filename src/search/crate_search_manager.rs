@@ -390,3 +390,75 @@ impl CrateSearchManager {
         cr.exact_match = data.exact_match.unwrap_or_default();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cr(id: &str, metadata_loaded: bool) -> Crate {
+        let mut c = Crate {
+            id: id.to_string(),
+            name: id.to_string(),
+            ..Default::default()
+        };
+        if metadata_loaded {
+            // `is_metadata_loaded()` keys off `features.is_some()`.
+            c.features = Some(Vec::new());
+        }
+        c
+    }
+
+    #[test]
+    fn extend_appends_all_when_there_is_room() {
+        let mut results = SearchResults::new(1);
+        let mut new = vec![cr("a", false), cr("b", false)];
+        let mut still_needed = 5;
+        CrateSearchManager::extend_results(&mut results, &mut new, 5, &mut still_needed);
+        assert_eq!(results.crates.len(), 2);
+        assert_eq!(still_needed, 3);
+        assert!(new.is_empty());
+    }
+
+    #[test]
+    fn extend_takes_only_whats_still_needed() {
+        let mut results = SearchResults::new(1);
+        let mut new = vec![cr("a", false), cr("b", false), cr("c", false)];
+        let mut still_needed = 2;
+        CrateSearchManager::extend_results(&mut results, &mut new, 5, &mut still_needed);
+        assert_eq!(results.crates.len(), 2);
+        assert_eq!(still_needed, 3);
+        assert_eq!(new.len(), 1); // "c" is left behind
+    }
+
+    #[test]
+    fn extend_adds_nothing_when_already_full() {
+        let mut results = SearchResults::new(1);
+        results.crates = vec![cr("x", false)];
+        let mut new = vec![cr("a", false)];
+        let mut still_needed = 0;
+        CrateSearchManager::extend_results(&mut results, &mut new, 1, &mut still_needed);
+        assert_eq!(results.crates.len(), 1);
+        assert_eq!(still_needed, 0);
+        assert_eq!(new.len(), 1); // untouched
+    }
+
+    #[test]
+    fn deduplicate_prefers_the_hydrated_copy() {
+        let mut results = SearchResults::new(1);
+        results.crates = vec![cr("a", false), cr("a", true), cr("b", false)];
+        CrateSearchManager::deduplicate(&mut results);
+        assert_eq!(results.crates.len(), 2);
+        let a = results.crates.iter().find(|c| c.id == "a").unwrap();
+        assert!(a.is_metadata_loaded());
+    }
+
+    #[test]
+    fn deduplicate_keeps_the_already_hydrated_entry() {
+        let mut results = SearchResults::new(1);
+        // Hydrated copy first, then an unhydrated duplicate: keep the hydrated one.
+        results.crates = vec![cr("a", true), cr("a", false)];
+        CrateSearchManager::deduplicate(&mut results);
+        assert_eq!(results.crates.len(), 1);
+        assert!(results.crates[0].is_metadata_loaded());
+    }
+}
