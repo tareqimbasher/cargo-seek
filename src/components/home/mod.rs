@@ -119,21 +119,15 @@ impl Home {
     }
 
     pub fn go_to_page(&self, page: usize, query: String) -> AppResult<()> {
-        if let Some(results) = &self.search_results {
-            let requested_page = if page >= results.page_count() {
-                results.page_count()
-            } else {
-                page
-            };
-
-            if requested_page != results.current_page() {
-                self.action_tx.send(Action::Search(SearchCommand::Run {
-                    term: query,
-                    page: requested_page,
-                    hide_help: false,
-                    status: Some(format!("Loading page {requested_page}")),
-                }))?;
-            }
+        if let Some(results) = &self.search_results
+            && let Some(requested_page) = results.resolve_page(page)
+        {
+            self.action_tx.send(Action::Search(SearchCommand::Run {
+                term: query,
+                page: requested_page,
+                hide_help: false,
+                status: Some(format!("Loading page {requested_page}")),
+            }))?;
         }
 
         Ok(())

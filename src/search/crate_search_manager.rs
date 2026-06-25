@@ -72,7 +72,8 @@ impl CrateSearchManager {
 
             let term = options.term.unwrap_or_default().to_lowercase();
             let search_all = options.scope == Scope::All;
-            let page = options.page.unwrap_or(1);
+            // Pages are 1-indexed
+            let page = options.page.unwrap_or(1).max(1);
             let per_page = options.per_page.unwrap_or(DEFAULT_PER_PAGE);
             let mut still_needed = per_page;
             let mut search_results = SearchResults::new(page, per_page);

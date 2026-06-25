@@ -27,11 +27,25 @@ impl SearchResults {
     }
 
     pub fn page_count(&self) -> usize {
+        debug_assert!(self.per_page > 0, "per_page must be non-zero");
         self.total_count.div_ceil(self.per_page)
     }
 
     pub fn current_page(&self) -> usize {
         self.current_page
+    }
+
+    /// Resolves a navigation request to the page that should be loaded, or `None` when there is
+    /// nothing to do (no results, or the request is already the current page).
+    ///
+    /// Pages are 1-indexed; `requested` is clamped into `1..=page_count()`.
+    pub fn resolve_page(&self, requested: usize) -> Option<usize> {
+        let last_page = self.page_count();
+        if last_page == 0 {
+            return None;
+        }
+        let target = requested.clamp(1, last_page);
+        (target != self.current_page).then_some(target)
     }
 
     pub fn current_page_len(&self) -> usize {
@@ -122,6 +136,27 @@ mod tests {
         assert_eq!(results_with(100, 1, 0).page_count(), 1);
         assert_eq!(results_with(101, 1, 0).page_count(), 2);
         assert_eq!(results_with(250, 1, 0).page_count(), 3);
+    }
+
+    #[test]
+    fn resolve_page_is_none_when_there_are_no_results() {
+        // A 0-result search has page_count() == 0; navigation must not emit page 0, which would
+        // underflow the search task's `(page - 1)` skip math.
+        let empty = SearchResults::new(1, DEFAULT_PER_PAGE);
+        assert_eq!(empty.resolve_page(0), None);
+        assert_eq!(empty.resolve_page(1), None);
+        assert_eq!(empty.resolve_page(5), None);
+    }
+
+    #[test]
+    fn resolve_page_clamps_into_one_to_page_count() {
+        // 250 results -> 3 pages; currently on page 2.
+        let on_page_2 = results_with(250, 2, 0);
+        assert_eq!(on_page_2.resolve_page(0), Some(1)); // clamps up to the first page
+        assert_eq!(on_page_2.resolve_page(1), Some(1));
+        assert_eq!(on_page_2.resolve_page(9), Some(3)); // clamps down to the last page
+        assert_eq!(on_page_2.resolve_page(3), Some(3));
+        assert_eq!(on_page_2.resolve_page(2), None); // already on the requested page
     }
 
     #[test]
