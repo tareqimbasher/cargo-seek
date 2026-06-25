@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
+use strum::{EnumIter, IntoEnumIterator};
 
 #[derive(Default, PartialEq, Clone, Debug, Eq, EnumIter, Serialize, Deserialize)]
 pub enum Focusable {

@@ -236,6 +236,10 @@ impl DerefMut for Tui {
 
 impl Drop for Tui {
     fn drop(&mut self) {
-        self.exit().unwrap();
+        // Don't panic while unwinding (e.g. during another panic's cleanup); a failure to restore
+        // the terminal here is worth logging but not worth aborting over.
+        if let Err(err) = self.exit() {
+            error!("failed to restore terminal on drop: {err:#}");
+        }
     }
 }

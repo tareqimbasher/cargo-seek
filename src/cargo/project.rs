@@ -5,8 +5,10 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use color_eyre::eyre::{WrapErr, bail};
+
 use crate::cargo::{Package, get_metadata};
-use crate::errors::{AppError, AppResult};
+use crate::errors::AppResult;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct DependencyInfo {
@@ -42,12 +44,18 @@ impl Project {
     /// Reads the current project and updates internal state.
     pub fn read(&mut self) -> AppResult<()> {
         if !self.manifest_file_path.exists() {
-            return Err(AppError::Unknown(
-                "Manifest file no longer exists".to_owned(),
-            ));
+            bail!(
+                "manifest file no longer exists: {}",
+                self.manifest_file_path.display()
+            );
         }
 
-        let metadata = get_metadata(&self.manifest_file_path)?;
+        let metadata = get_metadata(&self.manifest_file_path).wrap_err_with(|| {
+            format!(
+                "failed to read project metadata from {}",
+                self.manifest_file_path.display()
+            )
+        })?;
 
         let packages = metadata.packages;
 

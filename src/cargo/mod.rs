@@ -5,13 +5,15 @@
 
 mod api;
 mod cargo_env;
+mod error;
 mod project;
 
 use serde::Deserialize;
-use strum_macros::Display;
+use strum::Display;
 
 pub use api::*;
 pub use cargo_env::CargoEnv;
+pub use error::CargoError;
 pub use project::*;
 
 /// A cargo command to execute (handled by the app event loop).

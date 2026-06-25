@@ -1,49 +1,15 @@
-//! Error types: `AppError` (via `thiserror`) and the `AppResult<T>` alias most app code returns;
-//! only `main` uses `color_eyre`. `init` installs the error- and panic-reporting hooks.
+//! Error handling: the [`AppResult`] alias most app code returns, plus the error- and
+//! panic-reporting hooks installed by [`init`].
+//!
+//! The app uses a type-erased error model: fallible code returns [`AppResult<T>`] (a
+//! [`color_eyre`]/`eyre` result) and adds context with [`wrap_err`](color_eyre::eyre::WrapErr).
 
 use std::env;
 use tracing::error;
 
-use crate::action::Action;
-
-#[derive(thiserror::Error, Debug)]
-pub enum AppError {
-    #[error("Network Request Error: {0}")]
-    Http(#[from] reqwest::Error),
-    #[error(transparent)]
-    InvalidHeaderValue(#[from] reqwest::header::InvalidHeaderValue),
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-    #[error(transparent)]
-    Config(#[from] config::ConfigError),
-    #[error(transparent)]
-    Serialization(#[from] serde_json::Error),
-    #[error(transparent)]
-    FromUtf8(#[from] std::string::FromUtf8Error),
-    #[error(transparent)]
-    SendAction(#[from] tokio::sync::mpsc::error::SendError<Action>),
-    #[error(transparent)]
-    Join(#[from] tokio::task::JoinError),
-    #[error(transparent)]
-    CratesIoApi(#[from] crates_io_api::Error),
-    #[error("Error: {0}")]
-    Unknown(String),
-
-    // Custom
-    #[error("{0}")]
-    Cargo(String),
-}
-
-/// Catch-all: if an error that implements std::error::Error occurs
-/// and that error does not have a variant in AppError it will fallback
-/// to be mapped to Unknown
-impl From<Box<dyn std::error::Error>> for AppError {
-    fn from(error: Box<dyn std::error::Error>) -> Self {
-        AppError::Unknown(format!("{error:?}"))
-    }
-}
-
-pub type AppResult<T> = Result<T, AppError>;
+/// The result type used throughout the app: type-erased via [`color_eyre`]/`eyre`. Only `main`
+/// spells out [`color_eyre::Result`] directly.
+pub type AppResult<T> = color_eyre::Result<T>;
 
 pub fn init() -> color_eyre::Result<()> {
     let (panic_hook, eyre_hook) = color_eyre::config::HookBuilder::default()

@@ -2,7 +2,7 @@
 name = "cargo-seek"
 version = "0.1.0"
 edition = "2024"
-description = "A terminal user interface for searching, adding and installing cargo crates"
+description = "A terminal user interface for searching, adding and installing cargo crates."
 repository = "https://github.com/tareqimbasher/cargo-seek"
 homepage = "https://github.com/tareqimbasher/cargo-seek"
 readme = "README.md"
@@ -10,7 +10,6 @@ license = "MIT"
 authors = ["Tareq Imbasher <https://github.com/tareqimbasher>"]
 keywords = ["cargo", "crates", "search", "project", "installed"]
 categories = ["command-line-utilities", "development-tools::cargo-plugins"]
-build = "build.rs"
 
 [profile.release]
 opt-level = "z"
@@ -18,16 +17,11 @@ strip = true
 lto = true
 panic = "abort"
 
-[build-dependencies]
-anyhow = "1.0.86"
-vergen-gix = { version = "1.0.2", features = ["build", "cargo"] }
-
 [dependencies]
-anyhow = "1.0.86"
-async-trait = "0.1"
+async-trait = "0.1.89"
 better-panic = "0.3.0"
-chrono = { version = "0.4.38", features = ["serde"] }
-clap = { version = "4.5.18", features = [
+chrono = { version = "0.4.45", features = ["serde"] }
+clap = { version = "4.6.1", features = [
     "derive",
     "cargo",
     "wrap_help",
@@ -35,40 +29,39 @@ clap = { version = "4.5.18", features = [
     "string",
     "unstable-styles",
 ] }
-color-eyre = "0.6.3"
-config = "0.15"
+color-eyre = "0.6.5"
+config = "0.15.24"
 crates_io_api = "0.12.0"
 crossterm = { version = "0.28.1", features = ["serde", "event-stream"] }
 derive_deref = "1.1.1"
-directories = "6.0"
-futures = "0.3.30"
-human-panic = "2.0.1"
-indexmap = "2.8.0"
-json5 = "0.4.1"
+directories = "6.0.0"
+futures = "0.3.32"
+human-panic = "2.0.8"
+indexmap = "2.14.0"
+json5 = "1.0"
 num-format = "0.4.4"
-open = "5.3.0"
-pretty_assertions = { version = "1.4.1", features = ["unstable"] }
+open = "5.3.5"
 ratatui = { version = "0.28.1", features = [
     "serde",
     "macros",
     "unstable-rendered-line-info",
 ] }
-reqwest = { version = "0.12.7", features = ["blocking"] }
-serde = { version = "1.0.210", features = ["derive"] }
-serde_json = "1.0.128"
-signal-hook = "0.3.17"
-strip-ansi-escapes = "0.2.0"
-strum = { version = "0.27", features = ["derive"] }
-strum_macros = "0.27"
-sys-locale = "0.3.1"
-thiserror = "1.0.64"
+reqwest = "0.12.28"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+signal-hook = "0.4"
+strip-ansi-escapes = "0.2.1"
+strum = { version = "0.28", features = ["derive"] }
+sys-locale = "0.3.2"
+thiserror = "2.0"
 throbber-widgets-tui = "0.7"
-tokio = { version = "1.40.0", features = ["full"] }
-tokio-util = "0.7.12"
-tracing = "0.1.40"
-tracing-error = "0.2.0"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter", "serde"] }
+tokio = { version = "1.52.3", features = ["full"] }
+tokio-util = "0.7.18"
+tracing = "0.1.44"
+tracing-error = "0.2.1"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "serde"] }
 tui-input = "0.10.1"
 
 [dev-dependencies]
+pretty_assertions = { version = "1.4.1", features = ["unstable"] }
 tempfile = "3"

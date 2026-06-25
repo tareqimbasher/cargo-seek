@@ -9,11 +9,11 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 use crate::action::Action;
 use crate::cargo;
-use crate::cargo::{CargoCommand, CargoEnv, CargoEvent};
+use crate::cargo::{CargoCommand, CargoEnv, CargoError, CargoEvent};
 use crate::components::app_id::AppId;
 use crate::components::fps::FpsCounter;
 use crate::components::home::Home;
@@ -96,15 +96,25 @@ impl App {
             .frame_rate(self.frame_rate);
         tui.enter()?;
 
+        // Restore the terminal on every exit path, including a mid-loop error — otherwise a
+        // failure would leave it in raw mode. `Tui`'s `Drop` is only a last-resort backstop.
+        let result = self.run_loop(&mut tui).await;
+        let restored = tui.exit();
+        result.and(restored)
+    }
+
+    /// The main event/render loop: set up components, then run until `should_quit` or the first
+    /// error. The terminal is restored by `run`, not here.
+    async fn run_loop(&mut self, tui: &mut Tui) -> AppResult<()> {
         for component in self.components.iter_mut() {
             component.register_config_handler(self.config.clone())?;
-            component.init(&mut tui)?;
+            component.init(tui)?;
         }
 
         let action_tx = self.action_tx.clone();
         loop {
-            self.handle_events(&mut tui).await?;
-            self.handle_actions(&mut tui).await?;
+            self.handle_events(tui).await?;
+            self.handle_actions(tui).await?;
             if self.should_suspend {
                 tui.suspend()?;
                 action_tx.send(Action::Resume)?;
@@ -116,7 +126,6 @@ impl App {
                 break;
             }
         }
-        tui.exit()?;
         Ok(())
     }
 
@@ -187,6 +196,14 @@ impl App {
                 Action::Resize { w, h } => self.handle_resize(tui, w, h)?,
                 Action::Render => self.render(tui)?,
                 Action::Cargo(cargo_action) => self.handle_cargo_actions(tui, cargo_action).await?,
+                Action::Error(message) => {
+                    error!("{message}");
+                    self.action_tx
+                        .send(Action::Status(StatusCommand::UpdateStatus(
+                            StatusLevel::Error,
+                            message,
+                        )))?;
+                }
                 _ => {}
             }
 
@@ -256,8 +273,8 @@ impl App {
 
     /// Runs a cargo command on a background task, reporting progress/success/failure to the status
     /// bar and refreshing the cargo environment on success. Interactive commands (`add`/`install`)
-    /// stream their output to the real terminal, so the TUI is exited for the duration and
-    /// re-entered afterwards.
+    /// inherit the real terminal — the TUI is exited for the duration so cargo can render with full
+    /// color and live progress, then re-entered afterwards.
     async fn run_cargo_action<F>(
         &mut self,
         tui: &mut Tui,
@@ -283,7 +300,7 @@ impl App {
         let tx = self.action_tx.clone();
         tokio::spawn(async move {
             match op() {
-                Ok(_) => {
+                Ok(()) => {
                     tx.send(Action::Status(StatusCommand::UpdateStatus(
                         StatusLevel::Info,
                         success,
@@ -291,10 +308,19 @@ impl App {
                     .ok();
                     tx.send(Action::Cargo(CargoCommand::Refresh)).ok();
                 }
-                Err(_) => {
+                Err(report) => {
+                    error!("{failure}: {report:?}");
+
+                    // Prefer cargo's own diagnostics (e.g. "the crate `x` could not be found")
+                    // when the failure came from the subprocess; otherwise show the error itself.
+                    let detail = report
+                        .downcast_ref::<CargoError>()
+                        .map(CargoError::summary)
+                        .unwrap_or_else(|| format!("{report:#}"));
+
                     tx.send(Action::Status(StatusCommand::UpdateStatus(
                         StatusLevel::Error,
-                        failure,
+                        format!("{failure}: {detail}"),
                     )))
                     .ok();
                 }

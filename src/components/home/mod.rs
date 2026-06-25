@@ -13,7 +13,7 @@ use crossterm::event::KeyEvent;
 use ratatui::{Frame, layout::Rect};
 use serde::Deserialize;
 use std::sync::Arc;
-use strum_macros::Display;
+use strum::Display;
 use tokio::sync::RwLock;
 use tokio::sync::mpsc::UnboundedSender;
 use tui_input::Input;
@@ -85,7 +85,7 @@ impl Home {
                 Scope::default() as usize,
                 Box::new(move |selected: &Scope| {
                     tx.send(Action::Search(SearchCommand::Scope(selected.clone())))
-                        .unwrap();
+                        .ok();
                 }),
             ),
             sort_dropdown: Dropdown::new(
@@ -93,7 +93,7 @@ impl Home {
                 Sort::default() as usize,
                 Box::new(move |selected: &Sort| {
                     tx2.send(Action::Search(SearchCommand::SortBy(selected.clone())))
-                        .unwrap();
+                        .ok();
                 }),
             ),
             search_results: None,

@@ -36,14 +36,7 @@ pub struct Cli {
     pub counter: bool,
 }
 
-const VERSION_MESSAGE: &str = concat!(
-    env!("CARGO_PKG_VERSION"),
-    " -",
-    env!("VERGEN_GIT_DESCRIBE"),
-    " (",
-    env!("VERGEN_BUILD_DATE"),
-    ")"
-);
+const VERSION_MESSAGE: &str = env!("CARGO_PKG_VERSION");
 
 pub fn version() -> String {
     let description = clap::crate_description!();

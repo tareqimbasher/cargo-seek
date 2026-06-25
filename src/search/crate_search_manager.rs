@@ -6,10 +6,11 @@ use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{RwLock, oneshot};
 use tokio::task::JoinHandle;
+use tracing::error;
 
 use crate::action::Action;
 use crate::cargo::{CargoEnv, Project};
-use crate::errors::{AppError, AppResult};
+use crate::errors::AppResult;
 use crate::search::{
     Crate, DEFAULT_PER_PAGE, Scope, SearchEvent, SearchOptions, SearchResults, Sort,
 };
@@ -257,15 +258,25 @@ impl CrateSearchManager {
             tokio::time::sleep(Duration::from_millis(700)).await;
 
             if cancel_hydrate_rx.try_recv().is_ok() {
-                return Ok(());
+                return;
             }
 
-            let response = crates_io_client.get_crate(&name).await?;
-            tx.send(Action::SearchEvent(SearchEvent::MetadataLoaded(Box::new(
-                response,
-            ))))?;
-
-            Ok::<_, AppError>(())
+            match crates_io_client.get_crate(&name).await {
+                Ok(response) => {
+                    tx.send(Action::SearchEvent(SearchEvent::MetadataLoaded(Box::new(
+                        response,
+                    ))))
+                    .ok();
+                }
+                Err(err) => {
+                    error!("failed to load metadata for `{name}`: {err:#}");
+                    tx.send(Action::SearchEvent(SearchEvent::MetadataFailed {
+                        name,
+                        message: format!("{err}"),
+                    }))
+                    .ok();
+                }
+            }
         });
 
         Ok(())

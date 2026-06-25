@@ -74,7 +74,8 @@ static CONFIG_FOLDER: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
 
 impl Config {
     pub fn new() -> Result<Self, config::ConfigError> {
-        let default_config: Config = json5::from_str(CONFIG).unwrap();
+        let default_config: Config = json5::from_str(CONFIG)
+            .expect("the embedded default config (.config/config.json5) must be valid JSON5");
         let data_dir = get_data_dir();
         let config_dir = get_config_dir();
         let mut builder = config::Config::builder()

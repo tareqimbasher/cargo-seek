@@ -329,6 +329,15 @@ fn handle_search_event(home: &mut Home, event: SearchEvent) -> AppResult<Option<
                 }
             }
         }
+        SearchEvent::MetadataFailed { name, message } => {
+            home.action_tx
+                .send(Action::Status(StatusCommand::UpdateStatusWithDuration(
+                    StatusLevel::Error,
+                    StatusDuration::Short,
+                    format!("Couldn't load details for {name}: {message}"),
+                )))
+                .ok();
+        }
     }
     Ok(None)
 }

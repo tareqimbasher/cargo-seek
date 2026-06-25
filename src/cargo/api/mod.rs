@@ -1,10 +1,12 @@
-use std::io::{BufRead, BufReader};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::Command;
 
-use crate::errors::{AppError, AppResult};
+use color_eyre::eyre::WrapErr;
+
+use crate::cargo::CargoError;
+use crate::errors::AppResult;
 
 mod installed_binary;
 mod manifest_metadata;
@@ -20,16 +22,39 @@ pub fn get_metadata(manifest_path: &PathBuf) -> AppResult<ManifestMetadata> {
         .arg("1")
         .arg("--manifest-path")
         .arg(manifest_path)
-        .output()?;
+        .output()
+        .wrap_err("failed to run `cargo metadata`")?;
 
-    let stdout = String::from_utf8(output.stdout)?;
-    let metadata: ManifestMetadata = serde_json::from_str(&stdout)?;
-    Ok(metadata)
+    if !output.status.success() {
+        return Err(CargoError::Failed {
+            command: "metadata".to_string(),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        }
+        .into());
+    }
+
+    let stdout =
+        String::from_utf8(output.stdout).wrap_err("`cargo metadata` produced invalid UTF-8")?;
+    serde_json::from_str(&stdout).wrap_err("failed to parse `cargo metadata` output")
 }
 
 pub fn get_installed_binaries() -> AppResult<Vec<InstalledBinary>> {
-    let output = cargo_cmd().arg("install").arg("--list").output()?;
-    let stdout = String::from_utf8(output.stdout)?;
+    let output = cargo_cmd()
+        .arg("install")
+        .arg("--list")
+        .output()
+        .wrap_err("failed to run `cargo install --list`")?;
+
+    if !output.status.success() {
+        return Err(CargoError::Failed {
+            command: "install --list".to_string(),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        }
+        .into());
+    }
+
+    let stdout = String::from_utf8(output.stdout)
+        .wrap_err("`cargo install --list` produced invalid UTF-8")?;
     Ok(parse_installed_binaries(&stdout))
 }
 
@@ -125,32 +150,42 @@ pub fn uninstall(crate_name: String, print_output: bool) -> AppResult<()> {
 }
 
 fn run_cargo(args: Vec<&str>) -> AppResult<()> {
-    let mut cmd = cargo_cmd();
-    cmd.args(args);
+    let command = args.first().copied().unwrap_or("cargo").to_string();
 
-    cmd.stderr(Stdio::piped());
-    let mut child = cmd.spawn()?;
-    let stderr = child.stderr.take().unwrap();
+    // The TUI is down for the duration, so cargo inherits the real terminal and renders with full
+    // color and live progress. Don't pipe/capture here — that disables cargo's color; the user is
+    // watching, so the exit status alone drives success/failure.
+    let status = cargo_cmd()
+        .args(args)
+        .status()
+        .wrap_err("failed to run cargo")?;
 
-    // Stream output
-    let lines = BufReader::new(stderr).lines();
-    for line in lines {
-        println!("{}", line?);
-    }
-
-    if !child.wait()?.success() {
-        return Err(AppError::Cargo("Error running cargo".into()));
+    if !status.success() {
+        return Err(CargoError::Failed {
+            command,
+            stderr: String::new(),
+        }
+        .into());
     }
 
     Ok(())
 }
 
 fn run_cargo_suppress_output(args: Vec<&str>) -> AppResult<String> {
-    let output = cargo_cmd().args(args).output()?;
+    let command = args.first().copied().unwrap_or("cargo").to_string();
+
+    let output = cargo_cmd()
+        .args(args)
+        .output()
+        .wrap_err("failed to run cargo")?;
+    let stderr =
+        String::from_utf8(output.stderr).wrap_err("cargo wrote invalid UTF-8 to stderr")?;
+
     if !output.status.success() {
-        return Err(AppError::Cargo(String::from_utf8(output.stderr)?));
+        return Err(CargoError::Failed { command, stderr }.into());
     }
-    Ok(String::from_utf8(output.stderr)?)
+
+    Ok(stderr)
 }
 
 fn cargo_cmd() -> Command {

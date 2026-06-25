@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use tracing::warn;
+
 use crate::cargo::{InstalledBinary, Project, get_installed_binaries};
 use crate::errors::AppResult;
 
@@ -24,7 +26,13 @@ impl CargoEnv {
 
     /// Reads the current Cargo environment and updates the internal state.
     pub fn read(&mut self) -> AppResult<()> {
-        self.installed_binaries = get_installed_binaries().ok().unwrap_or_default();
+        self.installed_binaries = match get_installed_binaries() {
+            Ok(binaries) => binaries,
+            Err(err) => {
+                warn!("failed to list installed binaries: {err:#}");
+                Vec::new()
+            }
+        };
 
         self.installed_binary_versions = self
             .installed_binaries
@@ -38,8 +46,10 @@ impl CargoEnv {
             self.project = Project::from(project_dir);
         }
 
-        if let Some(project) = self.project.as_mut() {
-            project.read().ok();
+        if let Some(project) = self.project.as_mut()
+            && let Err(err) = project.read()
+        {
+            warn!("failed to read project manifest: {err:#}");
         }
 
         Ok(())

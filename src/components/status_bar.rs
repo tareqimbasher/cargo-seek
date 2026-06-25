@@ -118,7 +118,7 @@ impl StatusBar {
                         StatusLevel::Info,
                         "Ready".into(),
                     )))
-                    .unwrap();
+                    .ok();
                 });
             }
         }

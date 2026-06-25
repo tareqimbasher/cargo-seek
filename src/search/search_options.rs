@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use strum_macros::{Display, EnumIter};
+use strum::{Display, EnumIter};
 
 #[derive(Debug, Default, Display, Clone, EnumIter, PartialEq, Eq, Deserialize)]
 pub enum Scope {

@@ -32,10 +32,7 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
 fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
     let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
 
-    if let Some(_) = home.get_focused_crate()
-        && ctrl
-        && key.code == KeyCode::Char('d')
-    {
+    if home.get_focused_crate().is_some() && ctrl && key.code == KeyCode::Char('d') {
         return Ok(Some(Action::Home(HomeCommand::OpenDocs)));
     }
 
