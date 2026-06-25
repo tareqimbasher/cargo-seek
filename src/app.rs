@@ -13,7 +13,7 @@ use tracing::{debug, error, info};
 
 use crate::action::Action;
 use crate::cargo;
-use crate::cargo::{CargoCommand, CargoEnv, CargoError, CargoEvent};
+use crate::cargo::{CargoCommand, CargoEnv, CargoError, CargoEvent, OutputMode};
 use crate::components::app_id::AppId;
 use crate::components::fps::FpsCounter;
 use crate::components::home::Home;
@@ -228,36 +228,56 @@ impl App {
                 let progress = format!("Adding {name} v{version}");
                 let success = format!("Added {name} v{version}");
                 let failure = format!("Failed to add {name}");
-                self.run_cargo_action(tui, true, progress, success, failure, move || {
-                    cargo::add(&name, Some(version), true)
-                })
+                self.run_cargo_action(
+                    tui,
+                    OutputMode::Inherit,
+                    progress,
+                    success,
+                    failure,
+                    move |out| cargo::add(&name, Some(version), out),
+                )
                 .await?;
             }
             CargoCommand::Remove(name) => {
                 let progress = format!("Removing {name}");
                 let success = format!("Removed {name}");
                 let failure = format!("Failed to remove {name}");
-                self.run_cargo_action(tui, false, progress, success, failure, move || {
-                    cargo::remove(name, false)
-                })
+                self.run_cargo_action(
+                    tui,
+                    OutputMode::Capture,
+                    progress,
+                    success,
+                    failure,
+                    move |out| cargo::remove(name, out),
+                )
                 .await?;
             }
             CargoCommand::Install { name, version } => {
                 let progress = format!("Installing {name} v{version}");
                 let success = format!("Installed {name} v{version}");
                 let failure = format!("Failed to install {name}");
-                self.run_cargo_action(tui, true, progress, success, failure, move || {
-                    cargo::install(name, Some(version), true)
-                })
+                self.run_cargo_action(
+                    tui,
+                    OutputMode::Inherit,
+                    progress,
+                    success,
+                    failure,
+                    move |out| cargo::install(name, Some(version), out),
+                )
                 .await?;
             }
             CargoCommand::Uninstall(name) => {
                 let progress = format!("Uninstalling {name}");
                 let success = format!("Uninstalled {name}");
                 let failure = format!("Failed to uninstall {name}");
-                self.run_cargo_action(tui, false, progress, success, failure, move || {
-                    cargo::uninstall(name, false)
-                })
+                self.run_cargo_action(
+                    tui,
+                    OutputMode::Capture,
+                    progress,
+                    success,
+                    failure,
+                    move |out| cargo::uninstall(name, out),
+                )
                 .await?;
             }
             CargoCommand::Refresh => {
@@ -272,20 +292,24 @@ impl App {
     }
 
     /// Runs a cargo command on a background task, reporting progress/success/failure to the status
-    /// bar and refreshing the cargo environment on success. Interactive commands (`add`/`install`)
-    /// inherit the real terminal — the TUI is exited for the duration so cargo can render with full
-    /// color and live progress, then re-entered afterwards.
+    /// bar and refreshing the cargo environment on success.
+    ///
+    /// `out` is the single source of truth for how cargo connects to the terminal:
+    /// `OutputMode::Inherit` (add/install) exits the TUI for the duration so cargo can render with
+    /// full color and live progress, then re-enters afterwards; `OutputMode::Capture`
+    /// (remove/uninstall) leaves the TUI up and the subprocess output is captured. The same `out`
+    /// is handed to `op`, so the TUI dance and cargo's output mode can't diverge.
     async fn run_cargo_action<F>(
         &mut self,
         tui: &mut Tui,
-        interactive: bool,
+        out: OutputMode,
         progress: String,
         success: String,
         failure: String,
         op: F,
     ) -> AppResult<()>
     where
-        F: FnOnce() -> AppResult<()> + Send + 'static,
+        F: FnOnce(OutputMode) -> AppResult<()> + Send + 'static,
     {
         self.action_tx
             .send(Action::Status(StatusCommand::UpdateStatus(
@@ -293,13 +317,14 @@ impl App {
                 progress,
             )))?;
 
-        if interactive {
+        let foreground = out == OutputMode::Inherit;
+        if foreground {
             tui.exit()?;
         }
 
         let tx = self.action_tx.clone();
         tokio::spawn(async move {
-            match op() {
+            match op(out) {
                 Ok(()) => {
                     tx.send(Action::Status(StatusCommand::UpdateStatus(
                         StatusLevel::Info,
@@ -328,7 +353,7 @@ impl App {
         })
         .await?;
 
-        if interactive {
+        if foreground {
             tui.enter()?;
             tui.terminal.clear()?;
         }

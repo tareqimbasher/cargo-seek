@@ -98,63 +98,56 @@ fn parse_installed_binaries(stdout: &str) -> Vec<InstalledBinary> {
     packages
 }
 
-pub fn add(crate_name: &str, version: Option<String>, print_output: bool) -> AppResult<()> {
+/// How a cargo subprocess connects to the terminal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputMode {
+    /// Inherit the real terminal so cargo renders with full color and live progress.
+    ///
+    /// Precondition: the TUI must be down (alternate screen released) — otherwise cargo fights
+    /// ratatui over the display.
+    Inherit,
+    /// Capture stdout/stderr; the TUI stays up and the outcome is surfaced via the status bar.
+    Capture,
+}
+
+pub fn add(crate_name: &str, version: Option<String>, out: OutputMode) -> AppResult<()> {
     let crate_name = match version {
         Some(v) => format!("{crate_name}@{v}"),
         None => crate_name.to_string(),
     };
 
-    let args = vec!["add", &crate_name];
-
-    if print_output {
-        run_cargo(args)
-    } else {
-        run_cargo_suppress_output(args).map(|_| ())
-    }
+    run_cargo_with(out, vec!["add", &crate_name])
 }
 
-pub fn remove(crate_name: String, print_output: bool) -> AppResult<()> {
-    if print_output {
-        run_cargo(vec!["remove", crate_name.as_str()])?;
-    } else {
-        run_cargo_suppress_output(vec!["remove", crate_name.as_str()])?;
-    }
-    Ok(())
+pub fn remove(crate_name: String, out: OutputMode) -> AppResult<()> {
+    run_cargo_with(out, vec!["remove", crate_name.as_str()])
 }
 
-pub fn install(
-    mut crate_name: String,
-    version: Option<String>,
-    print_output: bool,
-) -> AppResult<()> {
+pub fn install(mut crate_name: String, version: Option<String>, out: OutputMode) -> AppResult<()> {
     if let Some(version) = version {
         crate_name = format!("{crate_name}@{version}");
     }
 
-    if print_output {
-        run_cargo(vec!["install", "--locked", crate_name.as_str()])?;
-    } else {
-        run_cargo_suppress_output(vec!["install", "--locked", crate_name.as_str()])?;
-    }
-
-    Ok(())
+    run_cargo_with(out, vec!["install", "--locked", crate_name.as_str()])
 }
 
-pub fn uninstall(crate_name: String, print_output: bool) -> AppResult<()> {
-    if print_output {
-        run_cargo(vec!["uninstall", crate_name.as_str()])?;
-    } else {
-        run_cargo_suppress_output(vec!["uninstall", crate_name.as_str()])?;
+pub fn uninstall(crate_name: String, out: OutputMode) -> AppResult<()> {
+    run_cargo_with(out, vec!["uninstall", crate_name.as_str()])
+}
+
+fn run_cargo_with(out: OutputMode, args: Vec<&str>) -> AppResult<()> {
+    match out {
+        OutputMode::Inherit => run_cargo(args),
+        OutputMode::Capture => run_cargo_captured(args).map(|_| ()),
     }
-    Ok(())
 }
 
 fn run_cargo(args: Vec<&str>) -> AppResult<()> {
     let command = args.first().copied().unwrap_or("cargo").to_string();
 
-    // The TUI is down for the duration, so cargo inherits the real terminal and renders with full
-    // color and live progress. Don't pipe/capture here — that disables cargo's color; the user is
-    // watching, so the exit status alone drives success/failure.
+    // Use `.status()`, not `.output()`: cargo inherits the terminal and keeps its color and live
+    // progress (capturing would strip the color). Nothing is captured, so the exit status alone
+    // drives success/failure — hence the empty stderr in the error below.
     let status = cargo_cmd()
         .args(args)
         .status()
@@ -171,7 +164,7 @@ fn run_cargo(args: Vec<&str>) -> AppResult<()> {
     Ok(())
 }
 
-fn run_cargo_suppress_output(args: Vec<&str>) -> AppResult<String> {
+fn run_cargo_captured(args: Vec<&str>) -> AppResult<String> {
     let command = args.first().copied().unwrap_or("cargo").to_string();
 
     let output = cargo_cmd()
