@@ -86,8 +86,7 @@ impl App {
     }
 
     pub async fn run(&mut self) -> AppResult<()> {
-        // Start by reading the current cargo environment
-        self.cargo_env.write().await.read().ok();
+        self.cargo_env.write().await.refresh_blocking();
 
         let mut tui = Tui::new()?
             // .mouse(true)
@@ -281,10 +280,27 @@ impl App {
                 .await?;
             }
             CargoCommand::Refresh => {
-                self.cargo_env.write().await.read()?;
-                self.action_tx
-                    .send(Action::CargoEvent(CargoEvent::Refreshed))
-                    .ok();
+                // The cargo subprocesses block, so gather off the event-loop task — running them
+                // here (under the write lock) would freeze rendering. Only the fast apply locks.
+                let cargo_env = self.cargo_env.clone();
+                let (project_dir, project) = {
+                    let env = cargo_env.read().await;
+                    (env.project_dir(), env.project.clone())
+                };
+                let tx = self.action_tx.clone();
+                tokio::spawn(async move {
+                    match tokio::task::spawn_blocking(move || {
+                        CargoEnv::gather(project_dir, project)
+                    })
+                    .await
+                    {
+                        Ok(gathered) => {
+                            cargo_env.write().await.apply(gathered);
+                            tx.send(Action::CargoEvent(CargoEvent::Refreshed)).ok();
+                        }
+                        Err(err) => error!("cargo environment refresh failed: {err}"),
+                    }
+                });
             }
         }
 
