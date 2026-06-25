@@ -57,6 +57,7 @@ pub struct Home {
     spinner_state: throbber_widgets_tui::ThrobberState,
     action_tx: UnboundedSender<Action>,
     vertical_help_scroll: usize,
+    max_help_scroll: usize,
 }
 
 impl Home {
@@ -99,6 +100,7 @@ impl Home {
             action_tx,
             config: Config::default(),
             vertical_help_scroll: 0,
+            max_help_scroll: 0,
         })
     }
 

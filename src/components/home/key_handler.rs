@@ -107,7 +107,7 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
             }
         }
         KeyCode::Down if home.focused == Focusable::Help => {
-            if home.vertical_help_scroll < 21 {
+            if home.vertical_help_scroll < home.max_help_scroll {
                 home.vertical_help_scroll += 1;
             }
         }

@@ -48,7 +48,11 @@ json5 = "0.4.1"
 num-format = "0.4.4"
 open = "5.3.0"
 pretty_assertions = { version = "1.4.1", features = ["unstable"] }
-ratatui = { version = "0.28.1", features = ["serde", "macros"] }
+ratatui = { version = "0.28.1", features = [
+    "serde",
+    "macros",
+    "unstable-rendered-line-info",
+] }
 reqwest = { version = "0.12.7", features = ["blocking"] }
 serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0.128"

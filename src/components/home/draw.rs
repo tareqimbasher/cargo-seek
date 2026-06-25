@@ -346,27 +346,22 @@ fn render_help(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> 
             _ => Style::default(),
         });
 
+    let inner = block.inner(area);
     frame.render_widget(&block, area);
 
-    frame.render_widget(
-        Paragraph::new(text)
-            .wrap(Wrap { trim: false })
-            .scroll((home.vertical_help_scroll as u16, 0)),
-        block.inner(area),
-    );
+    let paragraph = Paragraph::new(text).wrap(Wrap { trim: false });
 
-    // let paragraph = Paragraph::new(text.clone())
-    //     .gray()
-    //     .block(block)
-    //     .scroll((home.vertical_help_scroll as u16, 0));
-    // frame.render_widget(paragraph, area);
-    // frame.render_stateful_widget(
-    //     Scrollbar::new(ScrollbarOrientation::VerticalRight)
-    //         .begin_symbol(Some("↑"))
-    //         .end_symbol(Some("↓")),
-    //     area,
-    //     &mut home.vertical_help_scroll_state,
-    // );
+    // `line_count` is the wrapped height at this width, so the scroll bound tracks
+    // the terminal size and help-text edits rather than a hardcoded line count.
+    home.max_help_scroll = paragraph
+        .line_count(inner.width)
+        .saturating_sub(inner.height as usize);
+    home.vertical_help_scroll = home.vertical_help_scroll.min(home.max_help_scroll);
+
+    frame.render_widget(
+        paragraph.scroll((home.vertical_help_scroll as u16, 0)),
+        inner,
+    );
 
     Ok(())
 }
