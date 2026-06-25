@@ -1,5 +1,4 @@
 use crates_io_api::{AsyncClient, CratesQuery};
-use indexmap::IndexMap;
 use reqwest::{Client, header};
 use std::sync::Arc;
 use std::time::Duration;
@@ -162,7 +161,7 @@ impl CrateSearchManager {
             // Fresh guard, held only for the synchronous annotation and not across an await.
             {
                 let cargo_env = cargo_env.read().await;
-                Self::update_results(&mut search_results, &cargo_env);
+                search_results.update_results(&cargo_env);
             }
 
             tx.send(Action::SearchEvent(SearchEvent::Completed(search_results)))
@@ -291,68 +290,6 @@ impl CrateSearchManager {
 
         Ok(())
     }
-
-    pub fn update_results(search_results: &mut SearchResults, cargo_env: &CargoEnv) {
-        Self::deduplicate(search_results);
-
-        // Calculate project_version and installed_version
-        for cr in &mut search_results.crates {
-            if let Some(proj) = &cargo_env.project {
-                cr.project_version = proj.get_local_version(&cr.name);
-            }
-
-            cr.installed_version = cargo_env.get_installed_version(&cr.name);
-        }
-    }
-
-    fn deduplicate(search_results: &mut SearchResults) {
-        let mut map = IndexMap::<String, Crate>::new();
-
-        for cr in search_results.crates.drain(0..) {
-            if map.get(&cr.id).is_some_and(|v| v.is_metadata_loaded()) {
-                continue;
-            }
-            map.insert(cr.id.clone(), cr);
-        }
-
-        search_results.crates = map.into_values().collect();
-    }
-
-    pub fn hydrate(crate_response: Box<crates_io_api::CrateResponse>, cr: &mut Crate) {
-        let data = crate_response.crate_data;
-        cr.name = data.name;
-        cr.description = data.description;
-        cr.homepage = data.homepage;
-        cr.documentation = data.documentation;
-        cr.repository = data.repository;
-        cr.version = data
-            .max_stable_version
-            .clone()
-            .unwrap_or(data.max_version.clone());
-        cr.max_version = Some(data.max_version);
-        cr.max_stable_version = data.max_stable_version;
-        cr.downloads = Some(data.downloads);
-        cr.recent_downloads = data.recent_downloads;
-        if crate_response.versions.is_empty() {
-            cr.features = Some(Vec::new());
-        } else {
-            let latest = &crate_response.versions[0];
-            cr.features = Some(latest.features.iter().map(|x| x.0.clone()).collect())
-        }
-        if cr.categories.is_none() {
-            cr.categories = Some(
-                crate_response
-                    .categories
-                    .iter()
-                    .map(|c| c.category.clone())
-                    .collect(),
-            )
-        }
-        cr.created_at = Some(data.created_at);
-        cr.updated_at = Some(data.updated_at);
-        cr.exact_match = data.exact_match.unwrap_or_default();
-        cr.metadata_loaded = true;
-    }
 }
 
 #[cfg(test)]
@@ -400,25 +337,5 @@ mod tests {
         assert_eq!(results.crates.len(), 1);
         assert_eq!(still_needed, 0);
         assert_eq!(new.len(), 1); // untouched
-    }
-
-    #[test]
-    fn deduplicate_prefers_the_hydrated_copy() {
-        let mut results = SearchResults::new(1, DEFAULT_PER_PAGE);
-        results.crates = vec![cr("a", false), cr("a", true), cr("b", false)];
-        CrateSearchManager::deduplicate(&mut results);
-        assert_eq!(results.crates.len(), 2);
-        let a = results.crates.iter().find(|c| c.id == "a").unwrap();
-        assert!(a.is_metadata_loaded());
-    }
-
-    #[test]
-    fn deduplicate_keeps_the_already_hydrated_entry() {
-        let mut results = SearchResults::new(1, DEFAULT_PER_PAGE);
-        // Hydrated copy first, then an unhydrated duplicate: keep the hydrated one.
-        results.crates = vec![cr("a", true), cr("a", false)];
-        CrateSearchManager::deduplicate(&mut results);
-        assert_eq!(results.crates.len(), 1);
-        assert!(results.crates[0].is_metadata_loaded());
     }
 }

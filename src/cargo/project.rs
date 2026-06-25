@@ -10,18 +10,12 @@ use color_eyre::eyre::{WrapErr, bail};
 use crate::cargo::{Package, get_metadata};
 use crate::errors::AppResult;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-struct DependencyInfo {
-    kinds: Vec<String>,
-    version: String,
-}
-
 /// A local cargo project.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Project {
     pub manifest_file_path: PathBuf,
     pub packages: Vec<Package>,
-    dependency_versions: HashMap<String, DependencyInfo>,
+    dependency_versions: HashMap<String, String>,
 }
 
 impl Project {
@@ -59,33 +53,23 @@ impl Project {
 
         let packages = metadata.packages;
 
-        let mut dependencies: HashMap<String, DependencyInfo> = HashMap::new();
+        let mut dependency_versions: HashMap<String, String> = HashMap::new();
 
         for package in packages.iter() {
             for dependency in &package.dependencies {
-                let info = dependencies
-                    .entry(dependency.name.clone())
-                    .or_insert(DependencyInfo {
-                        kinds: vec![],
-                        version: String::new(),
-                    });
-
-                info.kinds.push(dependency.kind.clone().unwrap_or_default());
-                info.version = dependency.req.clone();
+                dependency_versions.insert(dependency.name.clone(), dependency.req.clone());
             }
         }
 
         self.packages = packages;
-        self.dependency_versions = dependencies;
+        self.dependency_versions = dependency_versions;
 
         Ok(())
     }
 
     /// Gets the version of the given crate name if it is added to the project, None otherwise.
     pub fn get_local_version(&self, package_name: &str) -> Option<String> {
-        self.dependency_versions
-            .get(package_name)
-            .map(|dep| dep.version.clone())
+        self.dependency_versions.get(package_name).cloned()
     }
 }
 

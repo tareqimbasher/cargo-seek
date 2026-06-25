@@ -1,5 +1,7 @@
+use indexmap::IndexMap;
 use ratatui::widgets::ListState;
 
+use crate::cargo::CargoEnv;
 use crate::search::Crate;
 
 /// Number of results requested per page.
@@ -107,6 +109,33 @@ impl SearchResults {
     pub fn select_last(&mut self) -> Option<&Crate> {
         let last = self.crates.len().saturating_sub(1);
         self.select_index(Some(last))
+    }
+
+    /// Deduplicates the results, then annotates each with its project/installed version from the
+    /// cargo environment.
+    pub fn update_results(&mut self, cargo_env: &CargoEnv) {
+        self.deduplicate();
+
+        for cr in &mut self.crates {
+            if let Some(proj) = &cargo_env.project {
+                cr.project_version = proj.get_local_version(&cr.name);
+            }
+            cr.installed_version = cargo_env.get_installed_version(&cr.name);
+        }
+    }
+
+    /// Collapses crates sharing an id, keeping an already-hydrated copy over a stub.
+    fn deduplicate(&mut self) {
+        let mut map = IndexMap::<String, Crate>::new();
+
+        for cr in self.crates.drain(0..) {
+            if map.get(&cr.id).is_some_and(|v| v.is_metadata_loaded()) {
+                continue;
+            }
+            map.insert(cr.id.clone(), cr);
+        }
+
+        self.crates = map.into_values().collect();
     }
 }
 
@@ -223,5 +252,34 @@ mod tests {
         r.select_first();
         r.select_previous();
         assert_eq!(r.selected_index(), Some(0));
+    }
+
+    fn cr(id: &str, metadata_loaded: bool) -> Crate {
+        Crate {
+            id: id.to_string(),
+            name: id.to_string(),
+            metadata_loaded,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn deduplicate_prefers_the_hydrated_copy() {
+        let mut results = SearchResults::new(1, DEFAULT_PER_PAGE);
+        results.crates = vec![cr("a", false), cr("a", true), cr("b", false)];
+        results.deduplicate();
+        assert_eq!(results.crates.len(), 2);
+        let a = results.crates.iter().find(|c| c.id == "a").unwrap();
+        assert!(a.is_metadata_loaded());
+    }
+
+    #[test]
+    fn deduplicate_keeps_the_already_hydrated_entry() {
+        let mut results = SearchResults::new(1, DEFAULT_PER_PAGE);
+        // Hydrated copy first, then an unhydrated duplicate: keep the hydrated one.
+        results.crates = vec![cr("a", true), cr("a", false)];
+        results.deduplicate();
+        assert_eq!(results.crates.len(), 1);
+        assert!(results.crates[0].is_metadata_loaded());
     }
 }

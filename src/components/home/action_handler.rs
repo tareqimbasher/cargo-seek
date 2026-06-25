@@ -159,7 +159,7 @@ pub async fn handle_action(
                 // Re-annotate the visible results when the cargo environment changes.
                 if let Some(search_results) = &mut home.search_results {
                     let cargo_env = home.cargo_env.read().await;
-                    CrateSearchManager::update_results(search_results, &cargo_env);
+                    search_results.update_results(&cargo_env);
                 }
             }
         },
@@ -239,16 +239,16 @@ fn handle_search_command(home: &mut Home, command: &SearchCommand) -> AppResult<
             })));
         }
         SearchCommand::NavPagesForward(pages) => {
-            home.go_pages_forward(*pages, home.input.value().to_string())?;
+            home.go_pages_forward(*pages, home.input.value())?;
         }
         SearchCommand::NavPagesBack(pages) => {
-            home.go_pages_back(*pages, home.input.value().to_string())?;
+            home.go_pages_back(*pages, home.input.value())?;
         }
         SearchCommand::NavFirstPage => {
-            home.go_to_page(1, home.input.value().to_string())?;
+            home.go_to_page(1, home.input.value())?;
         }
         SearchCommand::NavLastPage => {
-            home.go_to_last_page(home.input.value().to_string())?;
+            home.go_to_last_page(home.input.value())?;
         }
         _ => {
             if let Some(results) = home.search_results.as_mut() {
@@ -327,7 +327,7 @@ fn handle_search_event(home: &mut Home, event: &SearchEvent) -> AppResult<Option
             {
                 let cr = &mut results.crates[index];
                 if cr.id == data.crate_data.id {
-                    CrateSearchManager::hydrate(data.clone(), cr);
+                    cr.hydrate(data.clone());
                 }
             }
         }

@@ -67,7 +67,7 @@ impl Crate {
             version: c
                 .max_stable_version
                 .clone()
-                .unwrap_or(c.max_version.clone()),
+                .unwrap_or_else(|| c.max_version.clone()),
             max_version: Some(c.max_version),
             max_stable_version: c.max_stable_version,
             downloads: Some(c.downloads),
@@ -78,5 +78,42 @@ impl Crate {
             exact_match: c.exact_match.unwrap_or(false),
             ..Default::default()
         }
+    }
+
+    /// Fills in full metadata from a crates.io response (the lazy hydration of a selected crate).
+    pub fn hydrate(&mut self, response: Box<crates_io_api::CrateResponse>) {
+        let data = response.crate_data;
+        self.name = data.name;
+        self.description = data.description;
+        self.homepage = data.homepage;
+        self.documentation = data.documentation;
+        self.repository = data.repository;
+        self.version = data
+            .max_stable_version
+            .clone()
+            .unwrap_or_else(|| data.max_version.clone());
+        self.max_version = Some(data.max_version);
+        self.max_stable_version = data.max_stable_version;
+        self.downloads = Some(data.downloads);
+        self.recent_downloads = data.recent_downloads;
+        if response.versions.is_empty() {
+            self.features = Some(Vec::new());
+        } else {
+            let latest = &response.versions[0];
+            self.features = Some(latest.features.iter().map(|x| x.0.clone()).collect())
+        }
+        if self.categories.is_none() {
+            self.categories = Some(
+                response
+                    .categories
+                    .iter()
+                    .map(|c| c.category.clone())
+                    .collect(),
+            )
+        }
+        self.created_at = Some(data.created_at);
+        self.updated_at = Some(data.updated_at);
+        self.exact_match = data.exact_match.unwrap_or_default();
+        self.metadata_loaded = true;
     }
 }

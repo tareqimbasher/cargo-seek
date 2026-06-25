@@ -71,7 +71,7 @@ impl StatusBar {
         }
     }
 
-    pub fn set_status<S: Into<String>>(
+    fn set_status<S: Into<String>>(
         &mut self,
         status: S,
         level: StatusLevel,
@@ -124,35 +124,35 @@ impl StatusBar {
         }
     }
 
-    pub fn info<S: Into<String>>(&mut self, status: S) {
+    fn info<S: Into<String>>(&mut self, status: S) {
         self.set_status(status, StatusLevel::Info, StatusDuration::Long);
     }
 
-    pub fn info_with_duration<S: Into<String>>(&mut self, duration: StatusDuration, status: S) {
+    fn info_with_duration<S: Into<String>>(&mut self, duration: StatusDuration, status: S) {
         self.set_status(status, StatusLevel::Info, duration);
     }
 
-    pub fn progress<S: Into<String>>(&mut self, status: S) {
+    fn progress<S: Into<String>>(&mut self, status: S) {
         self.set_status(status, StatusLevel::Progress, StatusDuration::Sticky);
     }
 
-    pub fn progress_with_duration<S: Into<String>>(&mut self, duration: StatusDuration, status: S) {
+    fn progress_with_duration<S: Into<String>>(&mut self, duration: StatusDuration, status: S) {
         self.set_status(status, StatusLevel::Progress, duration);
     }
 
-    pub fn success<S: Into<String>>(&mut self, status: S) {
+    fn success<S: Into<String>>(&mut self, status: S) {
         self.set_status(status, StatusLevel::Success, StatusDuration::Long);
     }
 
-    pub fn success_with_duration<S: Into<String>>(&mut self, duration: StatusDuration, status: S) {
+    fn success_with_duration<S: Into<String>>(&mut self, duration: StatusDuration, status: S) {
         self.set_status(status, StatusLevel::Success, duration);
     }
 
-    pub fn error<S: Into<String>>(&mut self, status: S) {
+    fn error<S: Into<String>>(&mut self, status: S) {
         self.set_status(status, StatusLevel::Error, StatusDuration::Long);
     }
 
-    pub fn error_with_duration<S: Into<String>>(&mut self, duration: StatusDuration, status: S) {
+    fn error_with_duration<S: Into<String>>(&mut self, duration: StatusDuration, status: S) {
         self.set_status(status, StatusLevel::Error, duration);
     }
 }

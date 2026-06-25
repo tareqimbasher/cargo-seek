@@ -1,6 +1,6 @@
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
-use std::path::PathBuf;
+use std::path::Path;
 use std::process::Command;
 
 use color_eyre::eyre::WrapErr;
@@ -14,7 +14,7 @@ mod manifest_metadata;
 pub use installed_binary::*;
 pub use manifest_metadata::*;
 
-pub fn get_metadata(manifest_path: &PathBuf) -> AppResult<ManifestMetadata> {
+pub fn get_metadata(manifest_path: &Path) -> AppResult<ManifestMetadata> {
     let output = cargo_cmd()
         .arg("metadata")
         .arg("--no-deps")

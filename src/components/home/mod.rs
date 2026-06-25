@@ -118,12 +118,12 @@ impl Home {
         Ok(())
     }
 
-    pub fn go_to_page(&self, page: usize, query: String) -> AppResult<()> {
+    pub fn go_to_page(&self, page: usize, query: &str) -> AppResult<()> {
         if let Some(results) = &self.search_results
             && let Some(requested_page) = results.resolve_page(page)
         {
             self.action_tx.send(Action::Search(SearchCommand::Run {
-                term: query,
+                term: query.to_string(),
                 page: requested_page,
                 hide_help: false,
                 status: Some(format!("Loading page {requested_page}")),
@@ -133,14 +133,14 @@ impl Home {
         Ok(())
     }
 
-    pub fn go_to_last_page(&self, query: String) -> AppResult<()> {
+    pub fn go_to_last_page(&self, query: &str) -> AppResult<()> {
         if let Some(results) = &self.search_results {
             self.go_to_page(results.page_count(), query)?;
         }
         Ok(())
     }
 
-    pub fn go_pages_back(&self, pages: usize, query: String) -> AppResult<()> {
+    pub fn go_pages_back(&self, pages: usize, query: &str) -> AppResult<()> {
         if let Some(results) = &self.search_results {
             let requested_page = if pages >= results.current_page() {
                 1
@@ -154,7 +154,7 @@ impl Home {
         Ok(())
     }
 
-    pub fn go_pages_forward(&self, pages: usize, query: String) -> AppResult<()> {
+    pub fn go_pages_forward(&self, pages: usize, query: &str) -> AppResult<()> {
         if let Some(results) = &self.search_results {
             let mut requested_page = results.current_page() + pages;
 
