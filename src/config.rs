@@ -399,17 +399,24 @@ fn parse_color(s: &str) -> Option<Color> {
             .unwrap_or_default();
         Some(Color::Indexed(c))
     } else if s.contains("gray") {
-        let c = 232
-            + s.trim_start_matches("gray")
-                .parse::<u8>()
-                .unwrap_or_default();
-        Some(Color::Indexed(c))
+        // The 256-color grayscale ramp is palette indices 232..=255, so the offset must stay in
+        // 0..=23 or `232 + offset` overflows `u8`.
+        let offset = s
+            .trim_start_matches("gray")
+            .parse::<u16>()
+            .unwrap_or_default()
+            .min(23);
+        Some(Color::Indexed((232 + offset) as u8))
     } else if s.contains("rgb") {
-        let red = (s.as_bytes()[3] as char).to_digit(10).unwrap_or_default() as u8;
-        let green = (s.as_bytes()[4] as char).to_digit(10).unwrap_or_default() as u8;
-        let blue = (s.as_bytes()[5] as char).to_digit(10).unwrap_or_default() as u8;
-        let c = 16 + red * 36 + green * 6 + blue;
-        Some(Color::Indexed(c))
+        // "rgb" must be followed by three digits; `.get(3..6)` bails to `None` rather than indexing
+        // out of bounds on a short value like "rgb1". Each channel indexes the 6x6x6 color cube, so
+        // clamp to 0..=5 to keep `16 + r*36 + g*6 + b` within 16..=231.
+        let mut channels = s
+            .get(3..6)?
+            .chars()
+            .map(|ch| ch.to_digit(10).unwrap_or_default().min(5) as u16);
+        let (red, green, blue) = (channels.next()?, channels.next()?, channels.next()?);
+        Some(Color::Indexed((16 + red * 36 + green * 6 + blue) as u8))
     } else if s == "bold black" {
         Some(Color::Indexed(8))
     } else if s == "bold red" {
@@ -510,6 +517,28 @@ mod tests {
     fn test_parse_color_unknown() {
         let color = parse_color("unknown");
         assert_eq!(color, None);
+    }
+
+    #[test]
+    fn parse_color_rgb_too_short_is_none_not_panic() {
+        assert_eq!(parse_color("rgb"), None);
+        assert_eq!(parse_color("rgb1"), None);
+        assert_eq!(parse_color("rgb12"), None);
+    }
+
+    #[test]
+    fn parse_color_rgb_clamps_out_of_range_digits() {
+        // Channel digits past the 0..=5 cube axis clamp instead of overflowing `u8` (9*36 = 324).
+        assert_eq!(parse_color("rgb900"), Some(Color::Indexed(16 + 5 * 36)));
+    }
+
+    #[test]
+    fn parse_color_gray_clamps_to_palette_range() {
+        // Offsets past 23 clamp instead of overflowing `u8` (232 + 24 = 256).
+        assert_eq!(parse_color("gray0"), Some(Color::Indexed(232)));
+        assert_eq!(parse_color("gray23"), Some(Color::Indexed(255)));
+        assert_eq!(parse_color("gray24"), Some(Color::Indexed(255)));
+        assert_eq!(parse_color("gray999"), Some(Color::Indexed(255)));
     }
 
     #[test]
