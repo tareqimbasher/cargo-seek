@@ -14,7 +14,7 @@ use crate::tui::Tui;
 
 pub async fn handle_action(
     home: &mut Home,
-    action: Action,
+    action: &Action,
     tui: &mut Tui,
 ) -> AppResult<Option<Action>> {
     let _ = tui;
@@ -27,6 +27,7 @@ pub async fn handle_action(
 
         Action::Home(command) => match command {
             HomeCommand::Focus(focusable) => {
+                let focusable = focusable.clone();
                 home.sort_dropdown
                     .set_is_focused(focusable == Focusable::Sort);
                 home.scope_dropdown
@@ -167,7 +168,7 @@ pub async fn handle_action(
     Ok(None)
 }
 
-fn handle_search_command(home: &mut Home, command: SearchCommand) -> AppResult<Option<Action>> {
+fn handle_search_command(home: &mut Home, command: &SearchCommand) -> AppResult<Option<Action>> {
     match command {
         SearchCommand::Clear => home.reset()?,
         SearchCommand::Run {
@@ -181,23 +182,23 @@ fn handle_search_command(home: &mut Home, command: SearchCommand) -> AppResult<O
             let scope = home.scope_dropdown.get_selected();
             let sort = home.sort_dropdown.get_selected();
 
-            let status = status.unwrap_or("Searching".into());
+            let status = status.clone().unwrap_or_else(|| "Searching".into());
             tx.send(Action::Status(StatusCommand::UpdateStatus(
                 StatusLevel::Progress,
-                status.to_string(),
+                status,
             )))?;
 
             home.is_searching = true;
-            if hide_help {
+            if *hide_help {
                 home.show_help = false;
             }
 
             home.crate_search_manager.search(
                 SearchOptions {
-                    term: Some(term),
+                    term: Some(term.clone()),
                     scope,
                     sort,
-                    page: Some(page),
+                    page: Some(*page),
                     per_page: Some(DEFAULT_PER_PAGE),
                 },
                 Arc::clone(&home.cargo_env),
@@ -238,10 +239,10 @@ fn handle_search_command(home: &mut Home, command: SearchCommand) -> AppResult<O
             })));
         }
         SearchCommand::NavPagesForward(pages) => {
-            home.go_pages_forward(pages, home.input.value().to_string())?;
+            home.go_pages_forward(*pages, home.input.value().to_string())?;
         }
         SearchCommand::NavPagesBack(pages) => {
-            home.go_pages_back(pages, home.input.value().to_string())?;
+            home.go_pages_back(*pages, home.input.value().to_string())?;
         }
         SearchCommand::NavFirstPage => {
             home.go_to_page(1, home.input.value().to_string())?;
@@ -253,7 +254,7 @@ fn handle_search_command(home: &mut Home, command: SearchCommand) -> AppResult<O
             if let Some(results) = home.search_results.as_mut() {
                 match command {
                     SearchCommand::SelectIndex(index) => {
-                        results.select_index(index);
+                        results.select_index(*index);
                         load_metadata_if_needed(results, &mut home.crate_search_manager);
                     }
                     SearchCommand::SelectNext => {
@@ -280,9 +281,10 @@ fn handle_search_command(home: &mut Home, command: SearchCommand) -> AppResult<O
     Ok(None)
 }
 
-fn handle_search_event(home: &mut Home, event: SearchEvent) -> AppResult<Option<Action>> {
+fn handle_search_event(home: &mut Home, event: &SearchEvent) -> AppResult<Option<Action>> {
     match event {
-        SearchEvent::Completed(mut results) => {
+        SearchEvent::Completed(results) => {
+            let mut results = results.clone();
             home.is_searching = false;
 
             let results_len = results.current_page_len();
@@ -315,7 +317,7 @@ fn handle_search_event(home: &mut Home, event: SearchEvent) -> AppResult<Option<
             home.action_tx
                 .send(Action::Status(StatusCommand::UpdateStatus(
                     StatusLevel::Error,
-                    err,
+                    err.clone(),
                 )))
                 .ok();
         }
@@ -325,7 +327,7 @@ fn handle_search_event(home: &mut Home, event: SearchEvent) -> AppResult<Option<
             {
                 let cr = &mut results.crates[index];
                 if cr.id == data.crate_data.id {
-                    CrateSearchManager::hydrate(data, cr);
+                    CrateSearchManager::hydrate(data.clone(), cr);
                 }
             }
         }

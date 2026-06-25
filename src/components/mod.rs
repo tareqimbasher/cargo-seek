@@ -111,7 +111,7 @@ pub trait Component: Send + Sync {
     /// # Returns
     ///
     /// * `Result<Option<Action>>` - An action to be processed or none.
-    async fn update(&mut self, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
+    async fn update(&mut self, action: &Action, tui: &mut Tui) -> AppResult<Option<Action>> {
         let _ = action; // to appease clippy
         let _ = tui;
         Ok(None)

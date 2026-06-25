@@ -272,7 +272,7 @@ impl Component for Home {
         handle_key(self, key)
     }
 
-    async fn update(&mut self, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
+    async fn update(&mut self, action: &Action, tui: &mut Tui) -> AppResult<Option<Action>> {
         handle_action(self, action, tui).await
     }
 

@@ -181,13 +181,11 @@ impl App {
 
     async fn handle_actions(&mut self, tui: &mut Tui) -> AppResult<()> {
         while let Ok(action) = self.action_rx.try_recv() {
-            if !matches!(action, Action::Tick) && !matches!(action, Action::Render) {
+            if !matches!(action, Action::Tick | Action::Render) {
                 debug!("{action:?}");
             }
 
-            let action_clone = action.clone();
-
-            match action {
+            match &action {
                 Action::Tick => {
                     self.last_tick_key_events.drain(..);
                 }
@@ -195,22 +193,24 @@ impl App {
                 Action::Suspend => self.should_suspend = true,
                 Action::Resume => self.should_suspend = false,
                 Action::ClearScreen => tui.terminal.clear()?,
-                Action::Resize { w, h } => self.handle_resize(tui, w, h)?,
+                Action::Resize { w, h } => self.handle_resize(tui, *w, *h)?,
                 Action::Render => self.render(tui)?,
-                Action::Cargo(cargo_action) => self.handle_cargo_actions(tui, cargo_action).await?,
+                Action::Cargo(cargo_action) => {
+                    self.handle_cargo_actions(tui, cargo_action.clone()).await?
+                }
                 Action::Error(message) => {
                     error!("{message}");
                     self.action_tx
                         .send(Action::Status(StatusCommand::UpdateStatus(
                             StatusLevel::Error,
-                            message,
+                            message.clone(),
                         )))?;
                 }
                 _ => {}
             }
 
             for component in self.components.iter_mut() {
-                if let Some(sub_action) = component.update(action_clone.clone(), tui).await? {
+                if let Some(sub_action) = component.update(&action, tui).await? {
                     self.action_tx.send(sub_action)?
                 };
             }

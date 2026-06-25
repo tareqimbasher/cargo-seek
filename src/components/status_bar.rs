@@ -170,16 +170,18 @@ impl Component for StatusBar {
         Ok(())
     }
 
-    async fn update(&mut self, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
+    async fn update(&mut self, action: &Action, tui: &mut Tui) -> AppResult<Option<Action>> {
         let _ = tui;
         match action {
             Action::Status(StatusCommand::UpdateStatus(level, message)) => match level {
-                StatusLevel::Info => self.info(message),
-                StatusLevel::Progress => self.progress(message),
-                StatusLevel::Success => self.success(message),
-                StatusLevel::Error => self.error(message),
+                StatusLevel::Info => self.info(message.as_str()),
+                StatusLevel::Progress => self.progress(message.as_str()),
+                StatusLevel::Success => self.success(message.as_str()),
+                StatusLevel::Error => self.error(message.as_str()),
             },
             Action::Status(StatusCommand::UpdateStatusWithDuration(level, duration, message)) => {
+                let duration = duration.clone();
+                let message = message.as_str();
                 match level {
                     StatusLevel::Info => self.info_with_duration(duration, message),
                     StatusLevel::Progress => self.progress_with_duration(duration, message),

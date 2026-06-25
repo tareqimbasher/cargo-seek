@@ -1,12 +1,11 @@
 use ratatui::widgets::ListState;
-use serde::Deserialize;
 
 use crate::search::Crate;
 
 /// Number of results requested per page.
 pub const DEFAULT_PER_PAGE: usize = 100;
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SearchResults {
     pub crates: Vec<Crate>,
     pub total_count: usize,

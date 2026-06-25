@@ -27,7 +27,7 @@ pub enum SearchCommand {
 }
 
 /// The result of search-related work performed off the UI thread.
-#[derive(Debug, Clone, Display, Deserialize)]
+#[derive(Debug, Clone, Display)]
 pub enum SearchEvent {
     /// A search finished and produced these results.
     Completed(SearchResults),

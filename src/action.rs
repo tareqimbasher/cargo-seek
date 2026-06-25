@@ -16,7 +16,10 @@ pub enum Action {
     // Lifecycle
     Tick,
     Render,
-    Resize { w: u16, h: u16 },
+    Resize {
+        w: u16,
+        h: u16,
+    },
     Suspend,
     Resume,
     Quit,
@@ -31,6 +34,8 @@ pub enum Action {
     Status(StatusCommand),
 
     // Events
+    #[serde(skip)]
     SearchEvent(SearchEvent),
+    #[serde(skip)]
     CargoEvent(CargoEvent),
 }

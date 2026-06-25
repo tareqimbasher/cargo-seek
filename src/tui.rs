@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 use tokio::{
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     task::JoinHandle,
-    time::interval,
+    time::{MissedTickBehavior, interval},
 };
 use tokio_util::sync::CancellationToken;
 use tracing::error;
@@ -119,6 +119,9 @@ impl Tui {
         let mut event_stream = EventStream::new();
         let mut tick_interval = interval(Duration::from_secs_f64(1.0 / tick_rate));
         let mut render_interval = interval(Duration::from_secs_f64(1.0 / frame_rate));
+        // Skip missed ticks instead of bursting to catch up
+        tick_interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        render_interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
         // if this fails, then it's likely a bug in the calling code
         event_tx

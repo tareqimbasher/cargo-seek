@@ -36,7 +36,7 @@ pub enum CargoCommand {
 }
 
 /// A cargo-environment event (handled by the components that display it).
-#[derive(Debug, Clone, Display, Deserialize)]
+#[derive(Debug, Clone, Display)]
 pub enum CargoEvent {
     /// The cargo environment finished refreshing.
     Refreshed,

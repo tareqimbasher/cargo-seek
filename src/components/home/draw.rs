@@ -144,7 +144,7 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
                     "  "
                 };
 
-                let name = cr.name.to_string();
+                let name = &cr.name;
                 let mut version = cr.version.to_string();
 
                 // If metadata is not loaded, version might be the project or installed version
@@ -394,11 +394,11 @@ fn render_crate_details(home: &Home, cr: &Crate, frame: &mut Frame, area: Rect) 
     text.lines.extend(vec![
         Line::from(vec![
             format!("{:<left_column_width$}", "Stable Version:").set_style(prop_style),
-            cr.version.to_string().into(),
+            cr.version.as_str().into(),
         ]),
         Line::from(vec![
             format!("{:<left_column_width$}", "Latest Version:").set_style(prop_style),
-            cr.max_version.clone().unwrap_or_default().into(),
+            cr.max_version.as_deref().unwrap_or_default().into(),
         ]),
     ]);
 
@@ -407,7 +407,7 @@ fn render_crate_details(home: &Home, cr: &Crate, frame: &mut Frame, area: Rect) 
             format!("{:<left_column_width$}", "Project Version:")
                 .light_cyan()
                 .bold(),
-            project_version.to_string().bold(),
+            project_version.as_str().bold(),
         ]));
     }
 
@@ -416,26 +416,26 @@ fn render_crate_details(home: &Home, cr: &Crate, frame: &mut Frame, area: Rect) 
             format!("{:<left_column_width$}", "Installed Version:")
                 .light_magenta()
                 .bold(),
-            installed_version.to_string().bold(),
+            installed_version.as_str().bold(),
         ]));
     }
 
     text.lines.extend(vec![
         Line::from(vec![
             format!("{:<left_column_width$}", "Description:").set_style(prop_style),
-            cr.description.clone().unwrap_or_default().bold(),
+            cr.description.as_deref().unwrap_or_default().bold(),
         ]),
         Line::from(vec![
             format!("{:<left_column_width$}", "Home Page:").set_style(prop_style),
-            cr.homepage.clone().unwrap_or_default().into(),
+            cr.homepage.as_deref().unwrap_or_default().into(),
         ]),
         Line::from(vec![
             format!("{:<left_column_width$}", "Documentation:").set_style(prop_style),
-            cr.documentation.clone().unwrap_or_default().into(),
+            cr.documentation.as_deref().unwrap_or_default().into(),
         ]),
         Line::from(vec![
             format!("{:<left_column_width$}", "Repository:").set_style(prop_style),
-            cr.repository.clone().unwrap_or_default().into(),
+            cr.repository.as_deref().unwrap_or_default().into(),
         ]),
         Line::from(vec![
             format!("{:<left_column_width$}", "crates.io:").set_style(prop_style),

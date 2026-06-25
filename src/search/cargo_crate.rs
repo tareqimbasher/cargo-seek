@@ -1,9 +1,8 @@
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
 
 use crate::cargo::{Dependency, InstalledBinary};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Crate {
     pub id: String,
     pub name: String,
