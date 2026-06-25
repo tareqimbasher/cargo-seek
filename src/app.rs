@@ -8,6 +8,7 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::{RwLock, mpsc};
 use tracing::{debug, error, info};
 
@@ -25,6 +26,7 @@ use crate::tui::{Event, Tui};
 
 pub struct App {
     cargo_env: Arc<RwLock<CargoEnv>>,
+    cargo_busy: Arc<AtomicBool>,
     mode: Mode,
     config: Config,
     components: Vec<Box<dyn Component>>,
@@ -72,6 +74,7 @@ impl App {
 
         Ok(Self {
             cargo_env,
+            cargo_busy: Arc::new(AtomicBool::new(false)),
             mode: Mode::Home,
             config: Config::new()?,
             components,
@@ -307,14 +310,13 @@ impl App {
         Ok(())
     }
 
-    /// Runs a cargo command on a background task, reporting progress/success/failure to the status
-    /// bar and refreshing the cargo environment on success.
+    /// Runs a cargo command, reporting progress/success/failure to the status bar and refreshing
+    /// the cargo environment on success. A second command is rejected while one is running.
     ///
-    /// `out` is the single source of truth for how cargo connects to the terminal:
-    /// `OutputMode::Inherit` (add/install) exits the TUI for the duration so cargo can render with
-    /// full color and live progress, then re-enters afterwards; `OutputMode::Capture`
-    /// (remove/uninstall) leaves the TUI up and the subprocess output is captured. The same `out`
-    /// is handed to `op`, so the TUI dance and cargo's output mode can't diverge.
+    /// `out` drives both how cargo connects to the terminal and how the loop runs it:
+    /// `OutputMode::Inherit` (add/install) releases the terminal and awaits (nothing renders
+    /// meanwhile); `OutputMode::Capture` (remove/uninstall) keeps the TUI up and runs detached. The
+    /// same `out` reaches `op`, so terminal handling and output mode can't diverge.
     async fn run_cargo_action<F>(
         &mut self,
         tui: &mut Tui,
@@ -327,54 +329,95 @@ impl App {
     where
         F: FnOnce(OutputMode) -> AppResult<()> + Send + 'static,
     {
+        // Reject re-entry while a command runs (swap returns the previous value).
+        if self.cargo_busy.swap(true, Ordering::SeqCst) {
+            self.action_tx
+                .send(Action::Status(StatusCommand::UpdateStatus(
+                    StatusLevel::Info,
+                    "A cargo command is already running".into(),
+                )))?;
+            return Ok(());
+        }
+
         self.action_tx
             .send(Action::Status(StatusCommand::UpdateStatus(
                 StatusLevel::Info,
                 progress,
             )))?;
 
-        let foreground = out == OutputMode::Inherit;
-        if foreground {
-            tui.exit()?;
-        }
-
         let tx = self.action_tx.clone();
-        tokio::spawn(async move {
-            match op(out) {
-                Ok(()) => {
-                    tx.send(Action::Status(StatusCommand::UpdateStatus(
-                        StatusLevel::Info,
-                        success,
-                    )))
-                    .ok();
-                    tx.send(Action::Cargo(CargoCommand::Refresh)).ok();
-                }
-                Err(report) => {
-                    error!("{failure}: {report:?}");
+        let busy = self.cargo_busy.clone();
 
-                    // Prefer cargo's own diagnostics (e.g. "the crate `x` could not be found")
-                    // when the failure came from the subprocess; otherwise show the error itself.
-                    let detail = report
-                        .downcast_ref::<CargoError>()
-                        .map(CargoError::summary)
-                        .unwrap_or_else(|| format!("{report:#}"));
-
-                    tx.send(Action::Status(StatusCommand::UpdateStatus(
-                        StatusLevel::Error,
-                        format!("{failure}: {detail}"),
-                    )))
-                    .ok();
-                }
+        match out {
+            OutputMode::Inherit => {
+                let result = Self::with_terminal_released(tui, move || op(out)).await;
+                busy.store(false, Ordering::SeqCst);
+                Self::report_cargo_result(&tx, result, success, failure);
             }
-        })
-        .await?;
-
-        if foreground {
-            tui.enter()?;
-            tui.terminal.clear()?;
+            OutputMode::Capture => {
+                tokio::spawn(async move {
+                    let result = tokio::task::spawn_blocking(move || op(out))
+                        .await
+                        .unwrap_or_else(|err| Err(err.into()));
+                    busy.store(false, Ordering::SeqCst);
+                    Self::report_cargo_result(&tx, result, success, failure);
+                });
+            }
         }
 
         Ok(())
+    }
+
+    /// Runs the blocking `op` on a blocking thread with the TUI exited, re-entering afterwards. The
+    /// terminal is restored even if `op` fails, so an attached cargo command can never run with the
+    /// alternate screen still up.
+    async fn with_terminal_released<F, T>(tui: &mut Tui, op: F) -> AppResult<T>
+    where
+        F: FnOnce() -> AppResult<T> + Send + 'static,
+        T: Send + 'static,
+    {
+        tui.exit()?;
+        let joined = tokio::task::spawn_blocking(op).await;
+        tui.enter()?;
+        tui.terminal.clear()?;
+        match joined {
+            Ok(result) => result,
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    fn report_cargo_result(
+        tx: &mpsc::UnboundedSender<Action>,
+        result: AppResult<()>,
+        success: String,
+        failure: String,
+    ) {
+        match result {
+            Ok(()) => {
+                tx.send(Action::Status(StatusCommand::UpdateStatus(
+                    StatusLevel::Info,
+                    success,
+                )))
+                .ok();
+                tx.send(Action::Cargo(CargoCommand::Refresh)).ok();
+            }
+            Err(report) => {
+                error!("{failure}: {report:?}");
+
+                // Prefer cargo's own diagnostics (e.g. "the crate `x` could not be found") when the
+                // failure came from the subprocess; otherwise show the error itself.
+                let detail = report
+                    .downcast_ref::<CargoError>()
+                    .map(CargoError::summary)
+                    .unwrap_or_else(|| format!("{report:#}"));
+
+                tx.send(Action::Status(StatusCommand::UpdateStatus(
+                    StatusLevel::Error,
+                    format!("{failure}: {detail}"),
+                )))
+                .ok();
+            }
+        }
     }
 
     fn render(&mut self, tui: &mut Tui) -> AppResult<()> {
