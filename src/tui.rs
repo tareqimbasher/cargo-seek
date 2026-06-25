@@ -1,3 +1,8 @@
+//! Terminal setup/teardown and the async event stream.
+//!
+//! `Tui` wraps the `ratatui` terminal over a `crossterm` backend and runs a background task that
+//! emits `Event`s at the configured tick/frame rates.
+
 #![allow(dead_code)]
 
 use std::{

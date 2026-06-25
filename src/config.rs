@@ -1,3 +1,6 @@
+//! Configuration — defaults embedded from `.config/config.json5` at build time, merged with the
+//! user's config directory. Keybindings and styles deserialize from the merged config.
+
 #![allow(dead_code)]
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};

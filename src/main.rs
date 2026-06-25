@@ -1,3 +1,15 @@
+//! `cargo-seek` is a terminal UI for searching, adding, and installing cargo crates.
+//!
+//! It runs standalone (`cargo-seek`) or as a cargo subcommand (`cargo seek`), and is built on
+//! `ratatui`, `crossterm`, and `tokio`.
+//!
+//! # Architecture
+//!
+//! The app follows an Elm-style component + action message loop: nothing calls between components
+//! directly, and everything communicates by sending `Action`s over a single tokio mpsc channel.
+//! `App` (in `app`) owns the components, the channel, and the shared cargo environment; on each
+//! iteration it drains terminal events into actions, dispatches them, and renders.
+
 mod action;
 mod app;
 mod cargo;

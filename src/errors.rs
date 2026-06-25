@@ -1,3 +1,6 @@
+//! Error types: `AppError` (via `thiserror`) and the `AppResult<T>` alias most app code returns;
+//! only `main` uses `color_eyre`. `init` installs the error- and panic-reporting hooks.
+
 use std::env;
 use tracing::error;
 

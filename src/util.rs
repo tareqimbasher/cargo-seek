@@ -1,3 +1,5 @@
+//! Small shared formatting helpers.
+
 use chrono::{DateTime, Utc};
 use num_format::{Locale, ToFormattedStr, ToFormattedString};
 use std::str::FromStr;

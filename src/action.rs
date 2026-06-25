@@ -1,3 +1,8 @@
+//! The `Action` enum — the single message type that flows over the app's channel.
+//!
+//! State changes propagate only by sending `Action`s; a handler may return a follow-up `Action`
+//! that the loop re-queues. Variants wrap the per-area command/event enums.
+
 use serde::Deserialize;
 use strum::Display;
 

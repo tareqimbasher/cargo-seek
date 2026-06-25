@@ -1,3 +1,6 @@
+//! Crate search across scopes (online + local project/installed), with cancellable in-flight
+//! searches and lazy metadata hydration.
+
 mod action;
 mod cargo_crate;
 mod crate_search_manager;

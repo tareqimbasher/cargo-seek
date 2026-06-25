@@ -1,3 +1,8 @@
+//! File-based logging setup.
+//!
+//! `init` writes the log under the data directory; verbosity follows `RUST_LOG` or
+//! `CARGO_SEEK_LOGLEVEL`.
+
 use std::sync::LazyLock;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};

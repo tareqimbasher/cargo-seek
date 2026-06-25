@@ -1,3 +1,8 @@
+//! The application event loop.
+//!
+//! `App` owns the components, the `Action` channel, and the shared cargo environment. Each
+//! iteration translates terminal events into `Action`s, dispatches them, and renders.
+
 use crossterm::event::KeyEvent;
 use ratatui::layout::{Constraint, Layout, Rect};
 use serde::{Deserialize, Serialize};

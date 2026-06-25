@@ -1,3 +1,8 @@
+//! The `Component` trait and the UI units built on it.
+//!
+//! A `Component` is one visual, interactive piece of the UI. Trait methods have default
+//! implementations, so each component implements only what it needs.
+
 pub mod app_id;
 pub mod fps;
 pub mod home;

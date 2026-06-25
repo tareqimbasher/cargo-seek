@@ -1,3 +1,8 @@
+//! Command-line arguments (`clap`).
+//!
+//! `Cli` defines the flags shared by the standalone `cargo-seek` binary and the `cargo seek`
+//! subcommand.
+
 use clap::Parser;
 use std::path::PathBuf;
 

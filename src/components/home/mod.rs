@@ -1,3 +1,6 @@
+//! The home (main) view — most of the app, split by concern (input, actions, rendering, focus)
+//! into submodules.
+
 pub mod action_handler;
 pub mod draw;
 pub mod focusable;

@@ -1,3 +1,8 @@
+//! Wraps the `cargo` CLI and the current cargo environment.
+//!
+//! `CargoEnv` holds the parsed current project and the installed binaries. This module shells out
+//! to the relevant `cargo` subcommands and defines the command/event actions the app runs.
+
 mod api;
 mod cargo_env;
 mod project;
