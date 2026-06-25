@@ -18,7 +18,7 @@ use crate::errors::AppResult;
 use crate::tui::Tui;
 
 #[derive(Debug, Clone, Display, Deserialize)]
-pub enum StatusAction {
+pub enum StatusCommand {
     UpdateStatus(StatusLevel, String),
     UpdateStatusWithDuration(StatusLevel, StatusDuration, String),
 }
@@ -114,7 +114,7 @@ impl StatusBar {
                     if cancel_rx.try_recv().is_ok() {
                         return;
                     }
-                    tx.send(Action::Status(StatusAction::UpdateStatus(
+                    tx.send(Action::Status(StatusCommand::UpdateStatus(
                         StatusLevel::Info,
                         "Ready".into(),
                     )))
@@ -173,13 +173,13 @@ impl Component for StatusBar {
     async fn update(&mut self, action: Action, tui: &mut Tui) -> AppResult<Option<Action>> {
         let _ = tui;
         match action {
-            Action::Status(StatusAction::UpdateStatus(level, message)) => match level {
+            Action::Status(StatusCommand::UpdateStatus(level, message)) => match level {
                 StatusLevel::Info => self.info(message),
                 StatusLevel::Progress => self.progress(message),
                 StatusLevel::Success => self.success(message),
                 StatusLevel::Error => self.error(message),
             },
-            Action::Status(StatusAction::UpdateStatusWithDuration(level, duration, message)) => {
+            Action::Status(StatusCommand::UpdateStatusWithDuration(level, duration, message)) => {
                 match level {
                     StatusLevel::Info => self.info_with_duration(duration, message),
                     StatusLevel::Progress => self.progress_with_duration(duration, message),

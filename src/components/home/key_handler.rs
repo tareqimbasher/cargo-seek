@@ -2,10 +2,11 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tui_input::backend::crossterm::EventHandler;
 
 use crate::action::Action;
-use crate::cargo::CargoAction;
+use crate::cargo::CargoCommand;
 use crate::components::Component;
-use crate::components::home::{Focusable, Home, HomeAction, SearchAction};
+use crate::components::home::{Focusable, Home, HomeCommand};
 use crate::errors::AppResult;
+use crate::search::SearchCommand;
 
 pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
     if let Some(action) = handle_global_shortcuts(home, key)? {
@@ -35,22 +36,22 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
         && ctrl
         && key.code == KeyCode::Char('d')
     {
-        return Ok(Some(Action::Home(HomeAction::OpenDocs)));
+        return Ok(Some(Action::Home(HomeCommand::OpenDocs)));
     }
 
     match key.code {
         KeyCode::Char('h') if ctrl && home.search_results.is_some() => {
-            return Ok(Some(Action::Home(HomeAction::ToggleHelp)));
+            return Ok(Some(Action::Home(HomeCommand::ToggleHelp)));
         }
         KeyCode::Esc => {
             return if home.focused == Focusable::Search {
-                Ok(Some(Action::Home(HomeAction::Search(SearchAction::Clear))))
+                Ok(Some(Action::Search(SearchCommand::Clear)))
             } else {
-                Ok(Some(Action::Home(HomeAction::Focus(Focusable::Search))))
+                Ok(Some(Action::Home(HomeCommand::Focus(Focusable::Search))))
             };
         }
         KeyCode::Char('s') if ctrl => {
-            return Ok(Some(Action::Home(HomeAction::Focus(
+            return Ok(Some(Action::Home(HomeCommand::Focus(
                 if home.focused == Focusable::Sort {
                     Focusable::Search
                 } else {
@@ -59,7 +60,7 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
             ))));
         }
         KeyCode::Char('a') if ctrl => {
-            return Ok(Some(Action::Home(HomeAction::Focus(
+            return Ok(Some(Action::Home(HomeCommand::Focus(
                 if home.focused == Focusable::Scope {
                     Focusable::Search
                 } else {
@@ -68,37 +69,35 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
             ))));
         }
         KeyCode::Char('/') => {
-            return Ok(Some(Action::Home(HomeAction::Focus(Focusable::Search))));
+            return Ok(Some(Action::Home(HomeCommand::Focus(Focusable::Search))));
         }
         KeyCode::BackTab => {
-            return Ok(Some(Action::Home(HomeAction::FocusPrevious)));
+            return Ok(Some(Action::Home(HomeCommand::FocusPrevious)));
         }
         KeyCode::Tab => {
-            return Ok(Some(Action::Home(HomeAction::FocusNext)));
+            return Ok(Some(Action::Home(HomeCommand::FocusNext)));
         }
         KeyCode::Enter => match home.focused {
             Focusable::Search => {
-                return Ok(Some(Action::Home(HomeAction::Search(
-                    SearchAction::Search {
-                        term: home.input.value().to_string(),
-                        page: 1,
-                        hide_help: true,
-                        status: None,
-                    },
-                ))));
+                return Ok(Some(Action::Search(SearchCommand::Run {
+                    term: home.input.value().to_string(),
+                    page: 1,
+                    hide_help: true,
+                    status: None,
+                })));
             }
             Focusable::Results => {}
             Focusable::DocsButton => {
-                return Ok(Some(Action::Home(HomeAction::OpenDocs)));
+                return Ok(Some(Action::Home(HomeCommand::OpenDocs)));
             }
             Focusable::RepositoryButton => {
-                return Ok(Some(Action::Home(HomeAction::OpenReadme)));
+                return Ok(Some(Action::Home(HomeCommand::OpenReadme)));
             }
             Focusable::CratesIoButton => {
-                return Ok(Some(Action::Home(HomeAction::OpenCratesIo)));
+                return Ok(Some(Action::Home(HomeCommand::OpenCratesIo)));
             }
             Focusable::LibRsButton => {
-                return Ok(Some(Action::Home(HomeAction::OpenLibRs)));
+                return Ok(Some(Action::Home(HomeCommand::OpenLibRs)));
             }
             _ => {}
         },
@@ -125,7 +124,7 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
                 && let Some(search_results) = home.search_results.as_ref()
                 && let Some(selected) = search_results.selected()
             {
-                return Ok(Some(Action::Cargo(CargoAction::Add {
+                return Ok(Some(Action::Cargo(CargoCommand::Add {
                     name: selected.name.clone(),
                     version: selected.version.clone(),
                 })));
@@ -133,14 +132,14 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
         }
         KeyCode::Char('r') => {
             if let Some(selected) = home.get_focused_crate() {
-                return Ok(Some(Action::Cargo(CargoAction::Remove(
+                return Ok(Some(Action::Cargo(CargoCommand::Remove(
                     selected.name.clone(),
                 ))));
             }
         }
         KeyCode::Char('i') => {
             if let Some(selected) = home.get_focused_crate() {
-                return Ok(Some(Action::Cargo(CargoAction::Install {
+                return Ok(Some(Action::Cargo(CargoCommand::Install {
                     name: selected.name.clone(),
                     version: selected.version.clone(),
                 })));
@@ -148,7 +147,7 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
         }
         KeyCode::Char('u') => {
             if let Some(selected) = home.get_focused_crate() {
-                return Ok(Some(Action::Cargo(CargoAction::Uninstall(
+                return Ok(Some(Action::Cargo(CargoCommand::Uninstall(
                     selected.name.clone(),
                 ))));
             }
@@ -163,7 +162,7 @@ fn handle_search_focus(home: &mut Home, key: KeyEvent) -> AppResult<Option<Actio
     match key.code {
         KeyCode::Down => {
             if home.search_results.is_some() {
-                return Ok(Some(Action::Home(HomeAction::Focus(Focusable::Results))));
+                return Ok(Some(Action::Home(HomeCommand::Focus(Focusable::Results))));
             }
         }
         _ => {
@@ -188,50 +187,32 @@ fn handle_results_focus(home: &mut Home, key: KeyEvent) -> AppResult<Option<Acti
                 if let Some(selected_ix) = results.selected_index()
                     && selected_ix == 0
                 {
-                    return Ok(Some(Action::Home(HomeAction::Focus(Focusable::Search))));
+                    return Ok(Some(Action::Home(HomeCommand::Focus(Focusable::Search))));
                 }
 
-                return Ok(Some(Action::Home(HomeAction::Search(
-                    SearchAction::SelectPrev,
-                ))));
+                return Ok(Some(Action::Search(SearchCommand::SelectPrev)));
             }
             KeyCode::Down => {
-                return Ok(Some(Action::Home(HomeAction::Search(
-                    SearchAction::SelectNext,
-                ))));
+                return Ok(Some(Action::Search(SearchCommand::SelectNext)));
             }
             KeyCode::Home if !ctrl => {
-                return Ok(Some(Action::Home(HomeAction::Search(
-                    SearchAction::SelectFirst,
-                ))));
+                return Ok(Some(Action::Search(SearchCommand::SelectFirst)));
             }
             KeyCode::End if !ctrl => {
-                return Ok(Some(Action::Home(HomeAction::Search(
-                    SearchAction::SelectLast,
-                ))));
+                return Ok(Some(Action::Search(SearchCommand::SelectLast)));
             }
             // Page navigation
             KeyCode::Left if !ctrl && results.has_prev_page() => {
-                let pages = 1;
-                return Ok(Some(Action::Home(HomeAction::Search(
-                    SearchAction::NavPagesBack(pages),
-                ))));
+                return Ok(Some(Action::Search(SearchCommand::NavPagesBack(1))));
             }
             KeyCode::Right if !ctrl && results.has_next_page() => {
-                let pages = 1;
-                return Ok(Some(Action::Home(HomeAction::Search(
-                    SearchAction::NavPagesForward(pages),
-                ))));
+                return Ok(Some(Action::Search(SearchCommand::NavPagesForward(1))));
             }
             KeyCode::Home if ctrl => {
-                return Ok(Some(Action::Home(HomeAction::Search(
-                    SearchAction::NavFirstPage,
-                ))));
+                return Ok(Some(Action::Search(SearchCommand::NavFirstPage)));
             }
             KeyCode::End if ctrl => {
-                return Ok(Some(Action::Home(HomeAction::Search(
-                    SearchAction::NavLastPage,
-                ))));
+                return Ok(Some(Action::Search(SearchCommand::NavLastPage)));
             }
             _ => {}
         }
@@ -257,7 +238,7 @@ fn handle_details_focus(home: &mut Home, key: KeyEvent) -> AppResult<Option<Acti
     };
 
     if let Some(focusable) = next {
-        return Ok(Some(Action::Home(HomeAction::Focus(focusable))));
+        return Ok(Some(Action::Home(HomeCommand::Focus(focusable))));
     }
 
     Ok(None)

@@ -9,7 +9,7 @@ use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::{Frame, layout::Rect};
 use std::any::Any;
 
-use status_bar::StatusAction;
+use status_bar::StatusCommand;
 
 use crate::app::Mode;
 use crate::errors::AppResult;

@@ -3,7 +3,7 @@ pub mod draw;
 pub mod focusable;
 pub mod key_handler;
 
-use super::{Component, StatusAction};
+use super::{Component, StatusCommand};
 
 use async_trait::async_trait;
 use crossterm::event::KeyEvent;
@@ -23,49 +23,22 @@ use crate::components::home::{
 use crate::components::status_bar::StatusLevel;
 use crate::components::ux::Dropdown;
 use crate::errors::AppResult;
-use crate::search::{Crate, CrateSearchManager, Scope, SearchResults, Sort};
+use crate::search::{Crate, CrateSearchManager, Scope, SearchCommand, SearchResults, Sort};
 use crate::tui::Tui;
 use crate::{action::Action, app::Mode, config::Config};
 
 #[derive(Debug, Clone, PartialEq, Eq, Display, Deserialize)]
-pub enum HomeAction {
+pub enum HomeCommand {
     Focus(Focusable),
     FocusNext,
     FocusPrevious,
     ToggleHelp,
-
-    Search(SearchAction),
 
     OpenDocs,
     OpenReadme,
     RenderReadme(String),
     OpenCratesIo,
     OpenLibRs,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Display, Deserialize)]
-pub enum SearchAction {
-    Clear,
-    Search {
-        term: String,
-        page: usize,
-        hide_help: bool,
-        status: Option<String>,
-    },
-    Error(String),
-    SortBy(Sort),
-    Scope(Scope),
-    Render(SearchResults),
-
-    NavPagesForward(usize),
-    NavPagesBack(usize),
-    NavFirstPage,
-    NavLastPage,
-    SelectIndex(Option<usize>),
-    SelectNext,
-    SelectPrev,
-    SelectFirst,
-    SelectLast,
 }
 
 /// The home (main) component.
@@ -107,20 +80,16 @@ impl Home {
                 "Search in".into(),
                 Scope::default() as usize,
                 Box::new(move |selected: &Scope| {
-                    tx.send(Action::Home(HomeAction::Search(SearchAction::Scope(
-                        selected.clone(),
-                    ))))
-                    .unwrap();
+                    tx.send(Action::Search(SearchCommand::Scope(selected.clone())))
+                        .unwrap();
                 }),
             ),
             sort_dropdown: Dropdown::new(
                 "Sort by".into(),
                 Sort::default() as usize,
                 Box::new(move |selected: &Sort| {
-                    tx2.send(Action::Home(HomeAction::Search(SearchAction::SortBy(
-                        selected.clone(),
-                    ))))
-                    .unwrap();
+                    tx2.send(Action::Search(SearchCommand::SortBy(selected.clone())))
+                        .unwrap();
                 }),
             ),
             search_results: None,
@@ -137,7 +106,7 @@ impl Home {
         self.input.reset();
         self.search_results = None;
         self.action_tx
-            .send(Action::Status(StatusAction::UpdateStatus(
+            .send(Action::Status(StatusCommand::UpdateStatus(
                 StatusLevel::Info,
                 "Ready".into(),
             )))?;
@@ -153,13 +122,12 @@ impl Home {
             };
 
             if requested_page != results.current_page() {
-                self.action_tx
-                    .send(Action::Home(HomeAction::Search(SearchAction::Search {
-                        term: query,
-                        page: requested_page,
-                        hide_help: false,
-                        status: Some(format!("Loading page {requested_page}")),
-                    })))?;
+                self.action_tx.send(Action::Search(SearchCommand::Run {
+                    term: query,
+                    page: requested_page,
+                    hide_help: false,
+                    status: Some(format!("Loading page {requested_page}")),
+                }))?;
             }
         }
 
@@ -289,12 +257,12 @@ impl Component for Home {
         let initial_search_term = self.input.value();
         if !initial_search_term.is_empty() {
             self.action_tx
-                .send(Action::Home(HomeAction::Search(SearchAction::Search {
+                .send(Action::Search(SearchCommand::Run {
                     term: initial_search_term.to_string(),
                     page: 1,
                     hide_help: true,
                     status: None,
-                })))
+                }))
                 .ok();
         }
 

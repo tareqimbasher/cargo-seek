@@ -8,12 +8,12 @@ use tracing::{debug, info};
 
 use crate::action::Action;
 use crate::cargo;
-use crate::cargo::{CargoAction, CargoEnv};
+use crate::cargo::{CargoCommand, CargoEnv, CargoEvent};
 use crate::components::Component;
 use crate::components::app_id::AppId;
 use crate::components::fps::FpsCounter;
 use crate::components::home::Home;
-use crate::components::status_bar::{StatusAction, StatusBar, StatusLevel};
+use crate::components::status_bar::{StatusBar, StatusCommand, StatusLevel};
 use crate::config::Config;
 use crate::errors::AppResult;
 use crate::tui::{Event, Tui};
@@ -200,9 +200,9 @@ impl App {
         Ok(())
     }
 
-    async fn handle_cargo_actions(&mut self, tui: &mut Tui, action: CargoAction) -> AppResult<()> {
+    async fn handle_cargo_actions(&mut self, tui: &mut Tui, action: CargoCommand) -> AppResult<()> {
         match action {
-            CargoAction::Add { name, version } => {
+            CargoCommand::Add { name, version } => {
                 let progress = format!("Adding {name} v{version}");
                 let success = format!("Added {name} v{version}");
                 let failure = format!("Failed to add {name}");
@@ -211,7 +211,7 @@ impl App {
                 })
                 .await?;
             }
-            CargoAction::Remove(name) => {
+            CargoCommand::Remove(name) => {
                 let progress = format!("Removing {name}");
                 let success = format!("Removed {name}");
                 let failure = format!("Failed to remove {name}");
@@ -220,7 +220,7 @@ impl App {
                 })
                 .await?;
             }
-            CargoAction::Install { name, version } => {
+            CargoCommand::Install { name, version } => {
                 let progress = format!("Installing {name} v{version}");
                 let success = format!("Installed {name} v{version}");
                 let failure = format!("Failed to install {name}");
@@ -229,7 +229,7 @@ impl App {
                 })
                 .await?;
             }
-            CargoAction::Uninstall(name) => {
+            CargoCommand::Uninstall(name) => {
                 let progress = format!("Uninstalling {name}");
                 let success = format!("Uninstalled {name}");
                 let failure = format!("Failed to uninstall {name}");
@@ -238,13 +238,12 @@ impl App {
                 })
                 .await?;
             }
-            CargoAction::RefreshCargoEnv => {
+            CargoCommand::Refresh => {
                 self.cargo_env.write().await.read()?;
                 self.action_tx
-                    .send(Action::Cargo(CargoAction::CargoEnvRefreshed))
+                    .send(Action::CargoEvent(CargoEvent::Refreshed))
                     .ok();
             }
-            _ => {}
         }
 
         Ok(())
@@ -267,7 +266,7 @@ impl App {
         F: FnOnce() -> AppResult<()> + Send + 'static,
     {
         self.action_tx
-            .send(Action::Status(StatusAction::UpdateStatus(
+            .send(Action::Status(StatusCommand::UpdateStatus(
                 StatusLevel::Info,
                 progress,
             )))?;
@@ -280,15 +279,15 @@ impl App {
         tokio::spawn(async move {
             match op() {
                 Ok(_) => {
-                    tx.send(Action::Status(StatusAction::UpdateStatus(
+                    tx.send(Action::Status(StatusCommand::UpdateStatus(
                         StatusLevel::Info,
                         success,
                     )))
                     .ok();
-                    tx.send(Action::Cargo(CargoAction::RefreshCargoEnv)).ok();
+                    tx.send(Action::Cargo(CargoCommand::Refresh)).ok();
                 }
                 Err(_) => {
-                    tx.send(Action::Status(StatusAction::UpdateStatus(
+                    tx.send(Action::Status(StatusCommand::UpdateStatus(
                         StatusLevel::Error,
                         failure,
                     )))

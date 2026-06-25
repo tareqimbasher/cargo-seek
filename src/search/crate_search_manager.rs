@@ -8,10 +8,11 @@ use tokio::sync::{RwLock, oneshot};
 use tokio::task::JoinHandle;
 
 use crate::action::Action;
-use crate::cargo::{CargoAction, CargoEnv, Project};
-use crate::components::home::{HomeAction, SearchAction};
+use crate::cargo::{CargoEnv, Project};
 use crate::errors::{AppError, AppResult};
-use crate::search::{Crate, DEFAULT_PER_PAGE, Scope, SearchOptions, SearchResults, Sort};
+use crate::search::{
+    Crate, DEFAULT_PER_PAGE, Scope, SearchEvent, SearchOptions, SearchResults, Sort,
+};
 
 pub struct CrateSearchManager {
     crates_io_client: Arc<AsyncClient>,
@@ -140,9 +141,8 @@ impl CrateSearchManager {
                         search_results.total_count += count;
                     }
                     Err(err) => {
-                        let _ = tx.send(Action::Home(HomeAction::Search(SearchAction::Error(
-                            format!("{err:#}"),
-                        ))));
+                        let _ =
+                            tx.send(Action::SearchEvent(SearchEvent::Failed(format!("{err:#}"))));
                         return;
                     }
                 }
@@ -154,10 +154,8 @@ impl CrateSearchManager {
 
             Self::update_results(&mut search_results, &cargo_env);
 
-            tx.send(Action::Home(HomeAction::Search(SearchAction::Render(
-                search_results,
-            ))))
-            .ok();
+            tx.send(Action::SearchEvent(SearchEvent::Completed(search_results)))
+                .ok();
         })
     }
 
@@ -263,7 +261,7 @@ impl CrateSearchManager {
             }
 
             let response = crates_io_client.get_crate(&name).await?;
-            tx.send(Action::Cargo(CargoAction::CrateMetadataLoaded(Box::new(
+            tx.send(Action::SearchEvent(SearchEvent::MetadataLoaded(Box::new(
                 response,
             ))))?;
 

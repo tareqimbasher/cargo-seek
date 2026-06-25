@@ -2,12 +2,14 @@ use reqwest::Url;
 use std::sync::Arc;
 
 use crate::action::Action;
-use crate::cargo::CargoAction;
+use crate::cargo::CargoEvent;
 use crate::components::home::focusable::Focusable;
-use crate::components::home::{Home, HomeAction, SearchAction};
-use crate::components::status_bar::{StatusAction, StatusDuration, StatusLevel};
+use crate::components::home::{Home, HomeCommand};
+use crate::components::status_bar::{StatusCommand, StatusDuration, StatusLevel};
 use crate::errors::AppResult;
-use crate::search::{CrateSearchManager, DEFAULT_PER_PAGE, SearchOptions, SearchResults};
+use crate::search::{
+    CrateSearchManager, DEFAULT_PER_PAGE, SearchCommand, SearchEvent, SearchOptions, SearchResults,
+};
 use crate::tui::Tui;
 
 pub async fn handle_action(
@@ -23,15 +25,15 @@ pub async fn handle_action(
             }
         }
 
-        Action::Home(home_action) => match home_action {
-            HomeAction::Focus(focusable) => {
+        Action::Home(command) => match command {
+            HomeCommand::Focus(focusable) => {
                 home.sort_dropdown
                     .set_is_focused(focusable == Focusable::Sort);
                 home.scope_dropdown
                     .set_is_focused(focusable == Focusable::Scope);
                 home.focused = focusable;
             }
-            HomeAction::FocusNext => {
+            HomeCommand::FocusNext => {
                 let has_search_results = home.search_results.is_some();
                 let show_help = home.show_help;
 
@@ -42,7 +44,7 @@ pub async fn handle_action(
                         Focusable::Results => Focusable::Help,
                         _ => Focusable::Help,
                     };
-                    return Ok(Some(Action::Home(HomeAction::Focus(next))));
+                    return Ok(Some(Action::Home(HomeCommand::Focus(next))));
                 } else {
                     let mut next = home.focused.next();
                     // Tab focus cycle should skip these elements
@@ -52,10 +54,10 @@ pub async fn handle_action(
                     {
                         next = next.next();
                     }
-                    return Ok(Some(Action::Home(HomeAction::Focus(next))));
+                    return Ok(Some(Action::Home(HomeCommand::Focus(next))));
                 }
             }
-            HomeAction::FocusPrevious => {
+            HomeCommand::FocusPrevious => {
                 let has_search_results = home.search_results.is_some();
                 let show_help = home.show_help;
 
@@ -66,7 +68,7 @@ pub async fn handle_action(
                         Focusable::Results => Focusable::Search,
                         _ => Focusable::Search,
                     };
-                    return Ok(Some(Action::Home(HomeAction::Focus(prev))));
+                    return Ok(Some(Action::Home(HomeCommand::Focus(prev))));
                 } else {
                     let mut prev = home.focused.prev();
                     // Tab focus cycle should skip these elements
@@ -81,21 +83,20 @@ pub async fn handle_action(
                         prev = prev.prev();
                     }
 
-                    return Ok(Some(Action::Home(HomeAction::Focus(prev))));
+                    return Ok(Some(Action::Home(HomeCommand::Focus(prev))));
                 }
             }
-            HomeAction::ToggleHelp => {
+            HomeCommand::ToggleHelp => {
                 let was_showing = home.show_help;
                 home.show_help = !home.show_help;
                 home.vertical_help_scroll = 0;
                 return if was_showing {
-                    Ok(Some(Action::Home(HomeAction::Focus(Focusable::Search))))
+                    Ok(Some(Action::Home(HomeCommand::Focus(Focusable::Search))))
                 } else {
-                    Ok(Some(Action::Home(HomeAction::Focus(Focusable::Help))))
+                    Ok(Some(Action::Home(HomeCommand::Focus(Focusable::Help))))
                 };
             }
-            HomeAction::Search(action) => return handle_search_action(home, action),
-            HomeAction::OpenReadme => {
+            HomeCommand::OpenReadme => {
                 // TODO setting if open in browser or cli
                 if let Some(url) = home
                     .search_results
@@ -107,11 +108,11 @@ pub async fn handle_action(
                     open::that(url.to_string())?;
                 }
             }
-            HomeAction::RenderReadme(_) => {
+            HomeCommand::RenderReadme(_) => {
                 // TODO: optionally render the README in-terminal (glow/mdcat) instead of
                 // opening it in the browser; fall back to the browser if neither exists.
             }
-            HomeAction::OpenDocs => {
+            HomeCommand::OpenDocs => {
                 if let Some(url) = home
                     .search_results
                     .as_ref()
@@ -122,7 +123,7 @@ pub async fn handle_action(
                     open::that(url.to_string())?;
                 }
             }
-            HomeAction::OpenCratesIo => {
+            HomeCommand::OpenCratesIo => {
                 if let Some(url) = home
                     .search_results
                     .as_ref()
@@ -134,7 +135,7 @@ pub async fn handle_action(
                     open::that(url.to_string())?;
                 }
             }
-            HomeAction::OpenLibRs => {
+            HomeCommand::OpenLibRs => {
                 if let Some(url) = home
                     .search_results
                     .as_ref()
@@ -148,35 +149,28 @@ pub async fn handle_action(
             }
         },
 
-        Action::Cargo(cargo_action) => match cargo_action {
-            CargoAction::CargoEnvRefreshed => {
-                // Update search results when cargo environment is refreshed
+        Action::Search(command) => return handle_search_command(home, command),
+
+        Action::SearchEvent(event) => return handle_search_event(home, event),
+
+        Action::CargoEvent(event) => match event {
+            CargoEvent::Refreshed => {
+                // Re-annotate the visible results when the cargo environment changes.
                 if let Some(search_results) = &mut home.search_results {
                     let cargo_env = home.cargo_env.read().await;
                     CrateSearchManager::update_results(search_results, &cargo_env);
                 }
             }
-            CargoAction::CrateMetadataLoaded(data) => {
-                if let Some(results) = home.search_results.as_mut()
-                    && let Some(index) = results.selected_index()
-                {
-                    let cr = &mut results.crates[index];
-                    if cr.id == data.crate_data.id {
-                        CrateSearchManager::hydrate(data, cr);
-                    }
-                }
-            }
-            _ => {}
         },
         _ => {}
     }
     Ok(None)
 }
 
-fn handle_search_action(home: &mut Home, action: SearchAction) -> AppResult<Option<Action>> {
-    match action {
-        SearchAction::Clear => home.reset()?,
-        SearchAction::Search {
+fn handle_search_command(home: &mut Home, command: SearchCommand) -> AppResult<Option<Action>> {
+    match command {
+        SearchCommand::Clear => home.reset()?,
+        SearchCommand::Run {
             term,
             page,
             hide_help,
@@ -188,7 +182,7 @@ fn handle_search_action(home: &mut Home, action: SearchAction) -> AppResult<Opti
             let sort = home.sort_dropdown.get_selected();
 
             let status = status.unwrap_or("Searching".into());
-            tx.send(Action::Status(StatusAction::UpdateStatus(
+            tx.send(Action::Status(StatusCommand::UpdateStatus(
                 StatusLevel::Progress,
                 status.to_string(),
             )))?;
@@ -211,52 +205,84 @@ fn handle_search_action(home: &mut Home, action: SearchAction) -> AppResult<Opti
 
             return Ok(None);
         }
-        SearchAction::Error(err) => {
-            home.is_searching = false;
+        SearchCommand::SortBy(sort) => {
             home.action_tx
-                .send(Action::Status(StatusAction::UpdateStatus(
-                    StatusLevel::Error,
-                    err,
-                )))
-                .ok();
-        }
-        SearchAction::SortBy(sort) => {
-            home.action_tx
-                .send(Action::Home(HomeAction::Focus(Focusable::Search)))?;
+                .send(Action::Home(HomeCommand::Focus(Focusable::Search)))?;
 
             if home.search_results.is_none() {
                 return Ok(None);
             }
 
             let status = format!("Sorting by: {sort}");
-            return Ok(Some(Action::Home(HomeAction::Search(
-                SearchAction::Search {
-                    term: home.input.value().into(),
-                    page: 1,
-                    hide_help: false,
-                    status: Some(status),
-                },
-            ))));
+            return Ok(Some(Action::Search(SearchCommand::Run {
+                term: home.input.value().into(),
+                page: 1,
+                hide_help: false,
+                status: Some(status),
+            })));
         }
-        SearchAction::Scope(scope) => {
+        SearchCommand::Scope(scope) => {
             home.action_tx
-                .send(Action::Home(HomeAction::Focus(Focusable::Search)))?;
+                .send(Action::Home(HomeCommand::Focus(Focusable::Search)))?;
 
             if home.search_results.is_none() {
                 return Ok(None);
             }
 
             let status = format!("Scoped to: {scope}");
-            return Ok(Some(Action::Home(HomeAction::Search(
-                SearchAction::Search {
-                    term: home.input.value().into(),
-                    page: 1,
-                    hide_help: false,
-                    status: Some(status),
-                },
-            ))));
+            return Ok(Some(Action::Search(SearchCommand::Run {
+                term: home.input.value().into(),
+                page: 1,
+                hide_help: false,
+                status: Some(status),
+            })));
         }
-        SearchAction::Render(mut results) => {
+        SearchCommand::NavPagesForward(pages) => {
+            home.go_pages_forward(pages, home.input.value().to_string())?;
+        }
+        SearchCommand::NavPagesBack(pages) => {
+            home.go_pages_back(pages, home.input.value().to_string())?;
+        }
+        SearchCommand::NavFirstPage => {
+            home.go_to_page(1, home.input.value().to_string())?;
+        }
+        SearchCommand::NavLastPage => {
+            home.go_to_last_page(home.input.value().to_string())?;
+        }
+        _ => {
+            if let Some(results) = home.search_results.as_mut() {
+                match command {
+                    SearchCommand::SelectIndex(index) => {
+                        results.select_index(index);
+                        load_metadata_if_needed(results, &mut home.crate_search_manager);
+                    }
+                    SearchCommand::SelectNext => {
+                        results.select_next();
+                        load_metadata_if_needed(results, &mut home.crate_search_manager);
+                    }
+                    SearchCommand::SelectPrev => {
+                        results.select_previous();
+                        load_metadata_if_needed(results, &mut home.crate_search_manager);
+                    }
+                    SearchCommand::SelectFirst => {
+                        results.select_first();
+                        load_metadata_if_needed(results, &mut home.crate_search_manager);
+                    }
+                    SearchCommand::SelectLast => {
+                        results.select_last();
+                        load_metadata_if_needed(results, &mut home.crate_search_manager);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn handle_search_event(home: &mut Home, event: SearchEvent) -> AppResult<Option<Action>> {
+    match event {
+        SearchEvent::Completed(mut results) => {
             home.is_searching = false;
 
             let results_len = results.current_page_count();
@@ -265,7 +291,7 @@ fn handle_search_action(home: &mut Home, action: SearchAction) -> AppResult<Opti
             if exact_match_ix.is_some() {
                 results.select_index(exact_match_ix);
                 home.action_tx
-                    .send(Action::Home(HomeAction::Focus(Focusable::Results)))?;
+                    .send(Action::Home(HomeCommand::Focus(Focusable::Results)))?;
             } else if results_len > 0 {
                 results.select_index(Some(0));
             }
@@ -274,7 +300,7 @@ fn handle_search_action(home: &mut Home, action: SearchAction) -> AppResult<Opti
             home.search_results = Some(results);
 
             home.action_tx
-                .send(Action::Status(StatusAction::UpdateStatusWithDuration(
+                .send(Action::Status(StatusCommand::UpdateStatusWithDuration(
                     StatusLevel::Success,
                     StatusDuration::Short,
                     if results_len > 0 {
@@ -284,42 +310,22 @@ fn handle_search_action(home: &mut Home, action: SearchAction) -> AppResult<Opti
                     },
                 )))?;
         }
-        SearchAction::NavPagesForward(pages) => {
-            home.go_pages_forward(pages, home.input.value().to_string())?;
+        SearchEvent::Failed(err) => {
+            home.is_searching = false;
+            home.action_tx
+                .send(Action::Status(StatusCommand::UpdateStatus(
+                    StatusLevel::Error,
+                    err,
+                )))
+                .ok();
         }
-        SearchAction::NavPagesBack(pages) => {
-            home.go_pages_back(pages, home.input.value().to_string())?;
-        }
-        SearchAction::NavFirstPage => {
-            home.go_to_page(1, home.input.value().to_string())?;
-        }
-        SearchAction::NavLastPage => {
-            home.go_to_last_page(home.input.value().to_string())?;
-        }
-        _ => {
-            if let Some(results) = home.search_results.as_mut() {
-                match action {
-                    SearchAction::SelectIndex(index) => {
-                        results.select_index(index);
-                        load_metadata_if_needed(results, &mut home.crate_search_manager);
-                    }
-                    SearchAction::SelectNext => {
-                        results.select_next();
-                        load_metadata_if_needed(results, &mut home.crate_search_manager);
-                    }
-                    SearchAction::SelectPrev => {
-                        results.select_previous();
-                        load_metadata_if_needed(results, &mut home.crate_search_manager);
-                    }
-                    SearchAction::SelectFirst => {
-                        results.select_first();
-                        load_metadata_if_needed(results, &mut home.crate_search_manager);
-                    }
-                    SearchAction::SelectLast => {
-                        results.select_last();
-                        load_metadata_if_needed(results, &mut home.crate_search_manager);
-                    }
-                    _ => {}
+        SearchEvent::MetadataLoaded(data) => {
+            if let Some(results) = home.search_results.as_mut()
+                && let Some(index) = results.selected_index()
+            {
+                let cr = &mut results.crates[index];
+                if cr.id == data.crate_data.id {
+                    CrateSearchManager::hydrate(data, cr);
                 }
             }
         }
