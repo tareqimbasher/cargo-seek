@@ -285,7 +285,7 @@ fn handle_search_event(home: &mut Home, event: SearchEvent) -> AppResult<Option<
         SearchEvent::Completed(mut results) => {
             home.is_searching = false;
 
-            let results_len = results.current_page_count();
+            let results_len = results.current_page_len();
 
             let exact_match_ix = results.crates.iter().position(|c| c.exact_match);
             if exact_match_ix.is_some() {

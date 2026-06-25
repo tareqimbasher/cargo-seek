@@ -122,8 +122,4 @@ impl<T: IntoEnumIterator + Default + Display + Clone + 'static> Component for Dr
 
         Ok(())
     }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
 }

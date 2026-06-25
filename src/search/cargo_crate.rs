@@ -22,13 +22,15 @@ pub struct Crate {
     pub updated_at: Option<DateTime<Utc>>,
 
     pub exact_match: bool,
+    /// Whether full metadata has been hydrated for this crate (see [`Crate::is_metadata_loaded`]).
+    pub metadata_loaded: bool,
     pub project_version: Option<String>,
     pub installed_version: Option<String>,
 }
 
 impl Crate {
     pub fn is_metadata_loaded(&self) -> bool {
-        self.features.is_some()
+        self.metadata_loaded
     }
 
     /// Builds a stub crate from a globally installed binary.

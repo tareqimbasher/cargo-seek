@@ -99,8 +99,4 @@ impl Component for FpsCounter {
         frame.render_widget(paragraph, container);
         Ok(())
     }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
 }

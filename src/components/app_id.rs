@@ -39,8 +39,4 @@ impl Component for AppId {
         frame.render_widget(paragraph, left);
         Ok(())
     }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
 }

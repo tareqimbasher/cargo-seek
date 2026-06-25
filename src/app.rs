@@ -9,11 +9,11 @@ use tracing::{debug, info};
 use crate::action::Action;
 use crate::cargo;
 use crate::cargo::{CargoCommand, CargoEnv, CargoEvent};
-use crate::components::Component;
 use crate::components::app_id::AppId;
 use crate::components::fps::FpsCounter;
 use crate::components::home::Home;
 use crate::components::status_bar::{StatusBar, StatusCommand, StatusLevel};
+use crate::components::{Component, Placement};
 use crate::config::Config;
 use crate::errors::AppResult;
 use crate::tui::{Event, Tui};
@@ -311,11 +311,10 @@ impl App {
                 Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(frame.area());
 
             for component in self.components.iter_mut() {
-                let mut area = main_content_area;
-
-                if component.as_any().downcast_ref::<StatusBar>().is_some() {
-                    area = status_bar_area;
-                }
+                let area = match component.placement() {
+                    Placement::Main => main_content_area,
+                    Placement::StatusBar => status_bar_area,
+                };
 
                 if let Err(err) = component.draw(&self.mode, frame, area) {
                     let _ = self

@@ -283,8 +283,4 @@ impl Component for Home {
         }
         render(self, frame, area)
     }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
 }

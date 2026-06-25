@@ -7,7 +7,6 @@ pub mod ux;
 use async_trait::async_trait;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::{Frame, layout::Rect};
-use std::any::Any;
 
 use status_bar::StatusCommand;
 
@@ -16,13 +15,23 @@ use crate::errors::AppResult;
 use crate::tui::Tui;
 use crate::{action::Action, config::Config, tui::Event};
 
+/// Where a component is drawn within the application layout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Placement {
+    /// The main content area (everything above the status bar).
+    #[default]
+    Main,
+    /// The single-row status bar along the bottom.
+    StatusBar,
+}
+
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 ///
 /// Implementors of this trait can be registered with the main application loop and will be able to
 /// receive events, update state, and be rendered on the screen.
 
 #[async_trait]
-pub trait Component: Any + Send + Sync {
+pub trait Component: Send + Sync {
     /// Register a configuration handler that provides configuration settings if necessary.
     ///
     /// # Arguments
@@ -115,5 +124,8 @@ pub trait Component: Any + Send + Sync {
     /// * `Result<()>` - An Ok result or an error.
     fn draw(&mut self, mode: &Mode, frame: &mut Frame, area: Rect) -> AppResult<()>;
 
-    fn as_any(&self) -> &dyn Any;
+    /// Where this component should be drawn. Defaults to the main content area.
+    fn placement(&self) -> Placement {
+        Placement::Main
+    }
 }

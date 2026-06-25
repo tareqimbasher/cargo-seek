@@ -12,7 +12,7 @@ use tokio::sync::oneshot;
 
 use crate::action::Action;
 use crate::app::Mode;
-use crate::components::Component;
+use crate::components::{Component, Placement};
 use crate::config::Config;
 use crate::errors::AppResult;
 use crate::tui::Tui;
@@ -232,7 +232,7 @@ impl Component for StatusBar {
         Ok(())
     }
 
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
+    fn placement(&self) -> Placement {
+        Placement::StatusBar
     }
 }

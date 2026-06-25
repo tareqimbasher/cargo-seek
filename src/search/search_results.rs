@@ -34,7 +34,7 @@ impl SearchResults {
         self.current_page
     }
 
-    pub fn current_page_count(&self) -> usize {
+    pub fn current_page_len(&self) -> usize {
         self.crates.len()
     }
 

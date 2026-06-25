@@ -31,16 +31,16 @@ impl<'de> Deserialize<'de> for KeyBindings {
     {
         let parsed_map = HashMap::<Mode, HashMap<String, Action>>::deserialize(deserializer)?;
 
-        let keybindings = parsed_map
-            .into_iter()
-            .map(|(mode, inner_map)| {
-                let converted_inner_map = inner_map
-                    .into_iter()
-                    .map(|(key_str, cmd)| (parse_key_sequence(&key_str).unwrap(), cmd))
-                    .collect();
-                (mode, converted_inner_map)
-            })
-            .collect();
+        let mut keybindings = HashMap::new();
+        for (mode, inner_map) in parsed_map {
+            let mut converted_inner_map = HashMap::new();
+            for (key_str, cmd) in inner_map {
+                // Surface a malformed keybinding as a config error instead of panicking.
+                let keys = parse_key_sequence(&key_str).map_err(serde::de::Error::custom)?;
+                converted_inner_map.insert(keys, cmd);
+            }
+            keybindings.insert(mode, converted_inner_map);
+        }
 
         Ok(KeyBindings(keybindings))
     }
@@ -75,8 +75,8 @@ impl Config {
         let data_dir = get_data_dir();
         let config_dir = get_config_dir();
         let mut builder = config::Config::builder()
-            .set_default("data_dir", data_dir.to_str().unwrap())?
-            .set_default("config_dir", config_dir.to_str().unwrap())?;
+            .set_default("data_dir", data_dir.to_string_lossy().to_string())?
+            .set_default("config_dir", config_dir.to_string_lossy().to_string())?;
 
         let config_files = [
             ("config.json5", config::FileFormat::Json5),
@@ -520,6 +520,13 @@ mod tests {
             &Action::Quit
         );
         Ok(())
+    }
+
+    #[test]
+    fn malformed_keybinding_is_an_error_not_a_panic() {
+        let json = r#"{ "Home": { "<not-a-real-key>": "Quit" } }"#;
+        let result: Result<KeyBindings, _> = json5::from_str(json);
+        assert!(result.is_err());
     }
 
     #[test]

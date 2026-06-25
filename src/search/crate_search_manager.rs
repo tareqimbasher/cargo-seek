@@ -330,6 +330,7 @@ impl CrateSearchManager {
         cr.created_at = Some(data.created_at);
         cr.updated_at = Some(data.updated_at);
         cr.exact_match = data.exact_match.unwrap_or_default();
+        cr.metadata_loaded = true;
     }
 }
 
@@ -338,16 +339,12 @@ mod tests {
     use super::*;
 
     fn cr(id: &str, metadata_loaded: bool) -> Crate {
-        let mut c = Crate {
+        Crate {
             id: id.to_string(),
             name: id.to_string(),
+            metadata_loaded,
             ..Default::default()
-        };
-        if metadata_loaded {
-            // `is_metadata_loaded()` keys off `features.is_some()`.
-            c.features = Some(Vec::new());
         }
-        c
     }
 
     #[test]
