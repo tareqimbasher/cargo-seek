@@ -3,26 +3,31 @@ use serde::Deserialize;
 
 use crate::search::Crate;
 
+/// Number of results requested per page.
+pub const DEFAULT_PER_PAGE: usize = 100;
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct SearchResults {
     pub crates: Vec<Crate>,
     pub total_count: usize,
     pub list_state: ListState,
     current_page: usize,
+    per_page: usize,
 }
 
 impl SearchResults {
-    pub fn new(page: usize) -> Self {
+    pub fn new(page: usize, per_page: usize) -> Self {
         SearchResults {
             crates: Vec::default(),
             total_count: 0,
             current_page: page,
+            per_page,
             list_state: ListState::default(),
         }
     }
 
     pub fn page_count(&self) -> usize {
-        self.total_count.div_ceil(100)
+        self.total_count.div_ceil(self.per_page)
     }
 
     pub fn current_page(&self) -> usize {
@@ -33,58 +38,62 @@ impl SearchResults {
         self.crates.len()
     }
 
+    /// Number of results on all pages before the current one.
+    pub fn items_before_current_page(&self) -> usize {
+        self.current_page.saturating_sub(1) * self.per_page
+    }
+
     pub fn has_next_page(&self) -> bool {
-        let so_far = self.current_page * 100;
-        so_far < self.total_count
+        self.current_page * self.per_page < self.total_count
     }
 
     pub fn has_prev_page(&self) -> bool {
         self.current_page > 1
     }
 
+    /// The selected index, always clamped into range (or `None` when there is no selection or no
+    /// results). The selection can briefly fall out of range — `ListState` over-increments past
+    /// the last item, and results may be replaced/deduplicated underneath it — so every read
+    /// clamps rather than trusting the raw value.
     pub fn selected_index(&self) -> Option<usize> {
-        if let Some(index) = self.list_state.selected() {
-            if index == usize::MAX {
-                // Index can be usize::MAX to denote last item
-                return Some(self.crates.len() - 1);
-            }
-            return Some(index);
+        let selected = self.list_state.selected()?;
+        if self.crates.is_empty() {
+            None
+        } else {
+            Some(selected.min(self.crates.len() - 1))
         }
-        None
     }
 
     pub fn selected(&self) -> Option<&Crate> {
-        if let Some(ix) = self.selected_index()
-            && let Some(item) = self.crates.get(ix)
-        {
-            return Some(item);
-        }
-        None
+        self.crates.get(self.selected_index()?)
     }
 
     pub fn select_index(&mut self, index: Option<usize>) -> Option<&Crate> {
+        let index = match index {
+            Some(i) if !self.crates.is_empty() => Some(i.min(self.crates.len() - 1)),
+            _ => None,
+        };
         self.list_state.select(index);
         self.selected()
     }
 
     pub fn select_next(&mut self) -> Option<&Crate> {
-        self.list_state.select_next();
-        self.selected()
+        let next = self.selected_index().map_or(0, |i| i + 1);
+        self.select_index(Some(next))
     }
 
     pub fn select_previous(&mut self) -> Option<&Crate> {
-        self.list_state.select_previous();
-        self.selected()
+        let prev = self.selected_index().map_or(0, |i| i.saturating_sub(1));
+        self.select_index(Some(prev))
     }
 
     pub fn select_first(&mut self) -> Option<&Crate> {
-        self.list_state.select_first();
-        self.selected()
+        self.select_index(Some(0))
     }
 
     pub fn select_last(&mut self) -> Option<&Crate> {
-        self.list_state.select_last();
-        self.selected()
+        let last = self.crates.len().saturating_sub(1);
+        self.select_index(Some(last))
     }
 }
 
@@ -95,7 +104,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     fn results_with(total_count: usize, current_page: usize, crates: usize) -> SearchResults {
-        let mut r = SearchResults::new(current_page);
+        let mut r = SearchResults::new(current_page, DEFAULT_PER_PAGE);
         r.total_count = total_count;
         r.crates = (0..crates)
             .map(|i| Crate {
@@ -108,7 +117,7 @@ mod tests {
 
     #[test]
     fn page_count_rounds_up() {
-        assert_eq!(SearchResults::new(1).page_count(), 0);
+        assert_eq!(SearchResults::new(1, DEFAULT_PER_PAGE).page_count(), 0);
         assert_eq!(results_with(1, 1, 0).page_count(), 1);
         assert_eq!(results_with(100, 1, 0).page_count(), 1);
         assert_eq!(results_with(101, 1, 0).page_count(), 2);
@@ -130,10 +139,28 @@ mod tests {
     }
 
     #[test]
-    fn selected_index_resolves_usize_max_to_the_last_item() {
+    fn items_before_current_page_counts_prior_pages() {
+        assert_eq!(results_with(250, 1, 0).items_before_current_page(), 0);
+        assert_eq!(results_with(250, 3, 0).items_before_current_page(), 200);
+    }
+
+    #[test]
+    fn selected_index_clamps_out_of_range_to_last() {
         let mut r = results_with(3, 1, 3);
+        // ListState can hold an out-of-range value (over-increment, or usize::MAX from
+        // select_last); selected_index() clamps it to the last item.
         r.list_state.select(Some(usize::MAX));
         assert_eq!(r.selected_index(), Some(2));
+        r.list_state.select(Some(99));
+        assert_eq!(r.selected_index(), Some(2));
+    }
+
+    #[test]
+    fn selected_index_is_none_when_empty() {
+        let mut r = results_with(0, 1, 0);
+        r.list_state.select(Some(0));
+        assert_eq!(r.selected_index(), None);
+        assert_eq!(r.selected(), None);
     }
 
     #[test]
@@ -143,5 +170,24 @@ mod tests {
         assert_eq!(r.selected_index(), Some(1));
         r.list_state.select(None);
         assert_eq!(r.selected_index(), None);
+    }
+
+    #[test]
+    fn select_next_stops_at_the_last_item() {
+        let mut r = results_with(3, 1, 3);
+        r.select_last();
+        assert_eq!(r.selected_index(), Some(2));
+        // Pressing down again must not over-scroll past the end (previously blanked selection).
+        r.select_next();
+        assert_eq!(r.selected_index(), Some(2));
+        assert!(r.selected().is_some());
+    }
+
+    #[test]
+    fn select_previous_stops_at_the_first_item() {
+        let mut r = results_with(3, 1, 3);
+        r.select_first();
+        r.select_previous();
+        assert_eq!(r.selected_index(), Some(0));
     }
 }

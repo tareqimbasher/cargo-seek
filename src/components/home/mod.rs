@@ -166,6 +166,13 @@ impl Home {
         Ok(())
     }
 
+    pub fn go_to_last_page(&self, query: String) -> AppResult<()> {
+        if let Some(results) = &self.search_results {
+            self.go_to_page(results.page_count(), query)?;
+        }
+        Ok(())
+    }
+
     pub fn go_pages_back(&self, pages: usize, query: String) -> AppResult<()> {
         if let Some(results) = &self.search_results {
             let requested_page = if pages >= results.current_page() {

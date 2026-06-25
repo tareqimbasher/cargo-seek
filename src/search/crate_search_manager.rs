@@ -11,7 +11,7 @@ use crate::action::Action;
 use crate::cargo::{CargoAction, CargoEnv, Project};
 use crate::components::home::{HomeAction, SearchAction};
 use crate::errors::{AppError, AppResult};
-use crate::search::{Crate, Scope, SearchOptions, SearchResults, Sort};
+use crate::search::{Crate, DEFAULT_PER_PAGE, Scope, SearchOptions, SearchResults, Sort};
 
 pub struct CrateSearchManager {
     crates_io_client: Arc<AsyncClient>,
@@ -71,9 +71,9 @@ impl CrateSearchManager {
             let term = options.term.unwrap_or_default().to_lowercase();
             let search_all = options.scope == Scope::All;
             let page = options.page.unwrap_or(1);
-            let per_page = options.per_page.unwrap_or(100);
+            let per_page = options.per_page.unwrap_or(DEFAULT_PER_PAGE);
             let mut still_needed = per_page;
-            let mut search_results = SearchResults::new(page);
+            let mut search_results = SearchResults::new(page, per_page);
 
             // Search crates added to the current project
             if (search_all || options.scope == Scope::Project)
@@ -167,26 +167,9 @@ impl CrateSearchManager {
         for bin in &cargo_env.installed_binaries {
             let name_lower = bin.name.to_lowercase();
             if name_lower.contains(term) {
-                results.push(Crate {
-                    id: bin.name.clone(),
-                    name: bin.name.clone(),
-                    description: None,
-                    homepage: None,
-                    documentation: None,
-                    repository: None,
-                    version: bin.version.clone(),
-                    max_version: None,
-                    max_stable_version: None,
-                    downloads: None,
-                    recent_downloads: None,
-                    created_at: None,
-                    updated_at: None,
-                    features: None,
-                    categories: None,
-                    exact_match: name_lower == term,
-                    project_version: None,
-                    installed_version: Some(bin.version.clone()),
-                });
+                let mut cr = Crate::from_binary(bin);
+                cr.exact_match = name_lower == term;
+                results.push(cr);
             }
         }
 
@@ -200,26 +183,9 @@ impl CrateSearchManager {
             for dep in &package.dependencies {
                 let name_lower = dep.name.to_lowercase();
                 if name_lower.contains(term) {
-                    results.push(Crate {
-                        id: dep.name.clone(),
-                        name: dep.name.clone(),
-                        description: None,
-                        homepage: None,
-                        documentation: None,
-                        repository: None,
-                        version: dep.req.clone(),
-                        max_version: None,
-                        max_stable_version: None,
-                        downloads: None,
-                        recent_downloads: None,
-                        created_at: None,
-                        updated_at: None,
-                        features: None,
-                        categories: None,
-                        exact_match: name_lower == term,
-                        project_version: Some(dep.req.clone()),
-                        installed_version: None,
-                    });
+                    let mut cr = Crate::from_dependency(dep);
+                    cr.exact_match = name_lower == term;
+                    results.push(cr);
                 }
             }
         }
@@ -257,29 +223,7 @@ impl CrateSearchManager {
         let results = result
             .crates
             .into_iter()
-            .map(|c| Crate {
-                id: c.id,
-                name: c.name,
-                description: c.description,
-                homepage: c.homepage,
-                documentation: c.documentation,
-                repository: c.repository,
-                version: c
-                    .max_stable_version
-                    .clone()
-                    .unwrap_or(c.max_version.clone()),
-                max_version: Some(c.max_version),
-                max_stable_version: c.max_stable_version,
-                downloads: Some(c.downloads),
-                recent_downloads: c.recent_downloads,
-                created_at: Some(c.created_at),
-                updated_at: Some(c.updated_at),
-                features: None,
-                categories: c.categories,
-                exact_match: c.exact_match.unwrap_or(false),
-                project_version: None,
-                installed_version: None,
-            })
+            .map(Crate::from_crates_io)
             .collect();
         Ok((results, result.meta.total as usize))
     }
@@ -410,7 +354,7 @@ mod tests {
 
     #[test]
     fn extend_appends_all_when_there_is_room() {
-        let mut results = SearchResults::new(1);
+        let mut results = SearchResults::new(1, DEFAULT_PER_PAGE);
         let mut new = vec![cr("a", false), cr("b", false)];
         let mut still_needed = 5;
         CrateSearchManager::extend_results(&mut results, &mut new, 5, &mut still_needed);
@@ -421,7 +365,7 @@ mod tests {
 
     #[test]
     fn extend_takes_only_whats_still_needed() {
-        let mut results = SearchResults::new(1);
+        let mut results = SearchResults::new(1, DEFAULT_PER_PAGE);
         let mut new = vec![cr("a", false), cr("b", false), cr("c", false)];
         let mut still_needed = 2;
         CrateSearchManager::extend_results(&mut results, &mut new, 5, &mut still_needed);
@@ -432,7 +376,7 @@ mod tests {
 
     #[test]
     fn extend_adds_nothing_when_already_full() {
-        let mut results = SearchResults::new(1);
+        let mut results = SearchResults::new(1, DEFAULT_PER_PAGE);
         results.crates = vec![cr("x", false)];
         let mut new = vec![cr("a", false)];
         let mut still_needed = 0;
@@ -444,7 +388,7 @@ mod tests {
 
     #[test]
     fn deduplicate_prefers_the_hydrated_copy() {
-        let mut results = SearchResults::new(1);
+        let mut results = SearchResults::new(1, DEFAULT_PER_PAGE);
         results.crates = vec![cr("a", false), cr("a", true), cr("b", false)];
         CrateSearchManager::deduplicate(&mut results);
         assert_eq!(results.crates.len(), 2);
@@ -454,7 +398,7 @@ mod tests {
 
     #[test]
     fn deduplicate_keeps_the_already_hydrated_entry() {
-        let mut results = SearchResults::new(1);
+        let mut results = SearchResults::new(1, DEFAULT_PER_PAGE);
         // Hydrated copy first, then an unhydrated duplicate: keep the hydrated one.
         results.crates = vec![cr("a", true), cr("a", false)];
         CrateSearchManager::deduplicate(&mut results);

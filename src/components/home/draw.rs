@@ -181,29 +181,8 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
             })
             .collect();
 
-        let current_page = results.current_page();
-        let items_in_prev_pages = if current_page < 1 {
-            0
-        } else {
-            (current_page - 1) * 100
-        };
-
-        let selected_item_num = match selected_index {
-            None => 0,
-            Some(ix) => {
-                if ix == usize::MAX {
-                    results.current_page_count()
-                } else if ix == usize::MIN {
-                    1
-                } else if ix > results.current_page_count() - 1 {
-                    // ListState select_next() increments selected even after last item is selected
-                    ix
-                } else {
-                    ix + 1
-                }
-            }
-        };
-
+        let items_in_prev_pages = results.items_before_current_page();
+        let selected_item_num = selected_index.map_or(0, |ix| ix + 1);
         let selected_item_num_in_total = items_in_prev_pages + selected_item_num;
         let selected = results.selected();
 

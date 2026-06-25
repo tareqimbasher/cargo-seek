@@ -7,7 +7,7 @@ use crate::components::home::focusable::Focusable;
 use crate::components::home::{Home, HomeAction, SearchAction};
 use crate::components::status_bar::{StatusAction, StatusDuration, StatusLevel};
 use crate::errors::AppResult;
-use crate::search::{CrateSearchManager, SearchOptions, SearchResults};
+use crate::search::{CrateSearchManager, DEFAULT_PER_PAGE, SearchOptions, SearchResults};
 use crate::tui::Tui;
 
 pub async fn handle_action(
@@ -204,7 +204,7 @@ fn handle_search_action(home: &mut Home, action: SearchAction) -> AppResult<Opti
                     scope,
                     sort,
                     page: Some(page),
-                    per_page: Some(100),
+                    per_page: Some(DEFAULT_PER_PAGE),
                 },
                 Arc::clone(&home.cargo_env),
             );
@@ -294,7 +294,7 @@ fn handle_search_action(home: &mut Home, action: SearchAction) -> AppResult<Opti
             home.go_to_page(1, home.input.value().to_string())?;
         }
         SearchAction::NavLastPage => {
-            home.go_to_page(usize::MAX, home.input.value().to_string())?;
+            home.go_to_last_page(home.input.value().to_string())?;
         }
         _ => {
             if let Some(results) = home.search_results.as_mut() {
