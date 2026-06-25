@@ -68,8 +68,6 @@ impl CrateSearchManager {
                 return;
             }
 
-            let cargo_env = cargo_env.read().await;
-
             let term = options.term.unwrap_or_default().to_lowercase();
             let search_all = options.scope == Scope::All;
             // Pages are 1-indexed
@@ -78,44 +76,51 @@ impl CrateSearchManager {
             let mut still_needed = per_page;
             let mut search_results = SearchResults::new(page, per_page);
 
-            // Search crates added to the current project
-            if (search_all || options.scope == Scope::Project)
-                && let Some(project) = &cargo_env.project
+            // The read guard must not be held across the network call below: tokio's RwLock is
+            // write-fair, so a `Refresh` writer parked behind the ~10 s request would freeze the
+            // event loop.
             {
-                let mut results = Self::search_project(&term, project);
-                search_results.total_count += results.len();
-                results = results
-                    .into_iter()
-                    .skip((page - 1) * per_page)
-                    .take(still_needed)
-                    .collect();
-                Self::extend_results(
-                    &mut search_results,
-                    &mut results,
-                    per_page,
-                    &mut still_needed,
-                );
-            }
+                let cargo_env = cargo_env.read().await;
 
-            if cancelled() {
-                return;
-            }
+                // Search crates added to the current project
+                if (search_all || options.scope == Scope::Project)
+                    && let Some(project) = &cargo_env.project
+                {
+                    let mut results = Self::search_project(&term, project);
+                    search_results.total_count += results.len();
+                    results = results
+                        .into_iter()
+                        .skip((page - 1) * per_page)
+                        .take(still_needed)
+                        .collect();
+                    Self::extend_results(
+                        &mut search_results,
+                        &mut results,
+                        per_page,
+                        &mut still_needed,
+                    );
+                }
 
-            // Search globally installed binaries
-            if search_all || options.scope == Scope::Installed {
-                let mut results = Self::search_binaries(&term, &cargo_env);
-                search_results.total_count += results.len();
-                results = results
-                    .into_iter()
-                    .skip((page - 1) * per_page)
-                    .take(still_needed)
-                    .collect();
-                Self::extend_results(
-                    &mut search_results,
-                    &mut results,
-                    per_page,
-                    &mut still_needed,
-                );
+                if cancelled() {
+                    return;
+                }
+
+                // Search globally installed binaries
+                if search_all || options.scope == Scope::Installed {
+                    let mut results = Self::search_binaries(&term, &cargo_env);
+                    search_results.total_count += results.len();
+                    results = results
+                        .into_iter()
+                        .skip((page - 1) * per_page)
+                        .take(still_needed)
+                        .collect();
+                    Self::extend_results(
+                        &mut search_results,
+                        &mut results,
+                        per_page,
+                        &mut still_needed,
+                    );
+                }
             }
 
             if cancelled() {
@@ -154,7 +159,11 @@ impl CrateSearchManager {
                 return;
             }
 
-            Self::update_results(&mut search_results, &cargo_env);
+            // Fresh guard, held only for the synchronous annotation and not across an await.
+            {
+                let cargo_env = cargo_env.read().await;
+                Self::update_results(&mut search_results, &cargo_env);
+            }
 
             tx.send(Action::SearchEvent(SearchEvent::Completed(search_results)))
                 .ok();
