@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeSet;
 use std::fs;
 use std::fs::DirEntry;
 use std::path::{Path, PathBuf};
@@ -15,7 +15,6 @@ use crate::errors::AppResult;
 pub struct Project {
     pub manifest_file_path: PathBuf,
     pub packages: Vec<Package>,
-    dependency_versions: HashMap<String, String>,
 }
 
 impl Project {
@@ -28,7 +27,6 @@ impl Project {
             Some(Project {
                 manifest_file_path,
                 packages: Vec::new(),
-                dependency_versions: HashMap::new(),
             })
         } else {
             None
@@ -51,25 +49,28 @@ impl Project {
             )
         })?;
 
-        let packages = metadata.packages;
-
-        let mut dependency_versions: HashMap<String, String> = HashMap::new();
-
-        for package in packages.iter() {
-            for dependency in &package.dependencies {
-                dependency_versions.insert(dependency.name.clone(), dependency.req.clone());
-            }
-        }
-
-        self.packages = packages;
-        self.dependency_versions = dependency_versions;
+        self.packages = metadata.packages;
 
         Ok(())
     }
 
-    /// Gets the version of the given crate name if it is added to the project, None otherwise.
+    /// The version requirement(s) under which `package_name` is declared in the project, or `None`
+    /// if it isn't a dependency. Workspace members can declare the same crate at differing reqs, so
+    /// the distinct reqs are returned joined (e.g. `"1.0, 2.0"`).
     pub fn get_local_version(&self, package_name: &str) -> Option<String> {
-        self.dependency_versions.get(package_name).cloned()
+        let reqs: BTreeSet<&str> = self
+            .packages
+            .iter()
+            .flat_map(|package| &package.dependencies)
+            .filter(|dependency| dependency.name == package_name)
+            .map(|dependency| dependency.req.as_str())
+            .collect();
+
+        if reqs.is_empty() {
+            None
+        } else {
+            Some(reqs.into_iter().collect::<Vec<_>>().join(", "))
+        }
     }
 }
 
@@ -110,9 +111,35 @@ fn find_project_manifest(starting_dir_path: &Path) -> AppResult<Option<PathBuf>>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cargo::Dependency;
     use pretty_assertions::assert_eq;
     use std::fs;
     use tempfile::TempDir;
+
+    fn dep(name: &str, req: &str) -> Dependency {
+        Dependency {
+            name: name.into(),
+            req: req.into(),
+            kind: None,
+            optional: false,
+        }
+    }
+
+    fn package(name: &str, dependencies: Vec<Dependency>) -> Package {
+        Package {
+            name: name.into(),
+            version: None,
+            description: None,
+            dependencies,
+        }
+    }
+
+    fn project(packages: Vec<Package>) -> Project {
+        Project {
+            manifest_file_path: PathBuf::from("Cargo.toml"),
+            packages,
+        }
+    }
 
     #[test]
     fn finds_manifest_in_the_starting_dir() {
@@ -153,5 +180,43 @@ mod tests {
         fs::create_dir_all(&nested).unwrap();
         // Walks up to the filesystem root without finding a manifest.
         assert_eq!(find_project_manifest(&nested).unwrap(), None);
+    }
+
+    #[test]
+    fn get_local_version_returns_the_declared_req() {
+        let project = project(vec![package(
+            "app",
+            vec![dep("serde", "1.0"), dep("tokio", "1")],
+        )]);
+        assert_eq!(project.get_local_version("serde"), Some("1.0".to_string()));
+        assert_eq!(project.get_local_version("tokio"), Some("1".to_string()));
+    }
+
+    #[test]
+    fn get_local_version_is_none_for_a_non_dependency() {
+        let project = project(vec![package("app", vec![dep("serde", "1.0")])]);
+        assert_eq!(project.get_local_version("rand"), None);
+    }
+
+    #[test]
+    fn get_local_version_joins_distinct_reqs_across_members() {
+        let project = project(vec![
+            package("member_a", vec![dep("serde", "2.0")]),
+            package("member_b", vec![dep("serde", "1.0")]),
+        ]);
+        // Distinct reqs are deduplicated and returned in sorted order, regardless of member order.
+        assert_eq!(
+            project.get_local_version("serde"),
+            Some("1.0, 2.0".to_string())
+        );
+    }
+
+    #[test]
+    fn get_local_version_dedups_identical_reqs() {
+        let project = project(vec![
+            package("member_a", vec![dep("serde", "1.0")]),
+            package("member_b", vec![dep("serde", "1.0")]),
+        ]);
+        assert_eq!(project.get_local_version("serde"), Some("1.0".to_string()));
     }
 }

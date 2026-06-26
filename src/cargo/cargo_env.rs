@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 use tracing::warn;
@@ -10,7 +9,6 @@ pub struct CargoEnv {
     pub project: Option<Project>,
     pub installed_binaries: Vec<InstalledBinary>,
     project_dir: Option<PathBuf>,
-    installed_binary_versions: HashMap<String, String>,
 }
 
 /// Snapshot returned by [`CargoEnv::gather`] and consumed by [`CargoEnv::apply`].
@@ -25,7 +23,6 @@ impl CargoEnv {
             project_dir,
             project: None,
             installed_binaries: Vec::new(),
-            installed_binary_versions: HashMap::new(),
         }
     }
 
@@ -53,13 +50,8 @@ impl CargoEnv {
         }
     }
 
-    /// Stores a [`GatheredEnv`] and rebuilds the installed-version lookup. No I/O.
+    /// Stores a [`GatheredEnv`]. No I/O.
     pub fn apply(&mut self, gathered: GatheredEnv) {
-        self.installed_binary_versions = gathered
-            .installed_binaries
-            .iter()
-            .map(|bin| (bin.name.clone(), bin.version.clone()))
-            .collect();
         self.installed_binaries = gathered.installed_binaries;
         self.project = gathered.project;
     }
@@ -77,6 +69,48 @@ impl CargoEnv {
 
     /// Gets the installed version of the given crate name if it is installed, None otherwise.
     pub fn get_installed_version(&self, name: &str) -> Option<String> {
-        self.installed_binary_versions.get(name).cloned()
+        self.installed_binaries
+            .iter()
+            .find(|binary| binary.name == name)
+            .map(|binary| binary.version.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    fn binary(name: &str, version: &str) -> InstalledBinary {
+        InstalledBinary {
+            name: name.into(),
+            version: version.into(),
+        }
+    }
+
+    fn env(installed_binaries: Vec<InstalledBinary>) -> CargoEnv {
+        CargoEnv {
+            project: None,
+            installed_binaries,
+            project_dir: None,
+        }
+    }
+
+    #[test]
+    fn get_installed_version_returns_the_version_of_an_installed_binary() {
+        let env = env(vec![
+            binary("ripgrep", "14.1.0"),
+            binary("fd-find", "10.2.0"),
+        ]);
+        assert_eq!(
+            env.get_installed_version("ripgrep"),
+            Some("14.1.0".to_string())
+        );
+    }
+
+    #[test]
+    fn get_installed_version_is_none_when_not_installed() {
+        let env = env(vec![binary("ripgrep", "14.1.0")]);
+        assert_eq!(env.get_installed_version("bat"), None);
     }
 }
