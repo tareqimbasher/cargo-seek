@@ -4,11 +4,17 @@ use tui_input::backend::crossterm::EventHandler;
 use crate::action::Action;
 use crate::cargo::CargoCommand;
 use crate::components::Component;
+use crate::components::home::feature_selector::{FeatureIntent, KeyOutcome};
 use crate::components::home::{Focusable, Home, HomeCommand};
 use crate::errors::AppResult;
 use crate::search::SearchCommand;
 
 pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
+    // While the feature picker is open it is modal: it consumes all keys.
+    if home.feature_picker.is_some() {
+        return handle_feature_picker_key(home, key);
+    }
+
     if let Some(action) = handle_global_shortcuts(home, key)? {
         return Ok(Some(action));
     }
@@ -117,14 +123,8 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
             return Ok(None);
         }
         KeyCode::Char('a') => {
-            if home.is_results_or_details_focused()
-                && let Some(search_results) = home.search_results.as_ref()
-                && let Some(selected) = search_results.selected()
-            {
-                return Ok(Some(Action::Cargo(CargoCommand::Add {
-                    name: selected.name.clone(),
-                    version: selected.version.clone(),
-                })));
+            if let Some(action) = open_picker_or_dispatch(home, FeatureIntent::Add) {
+                return Ok(Some(action));
             }
         }
         KeyCode::Char('r') => {
@@ -135,11 +135,8 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
             }
         }
         KeyCode::Char('i') => {
-            if let Some(selected) = home.get_focused_crate() {
-                return Ok(Some(Action::Cargo(CargoCommand::Install {
-                    name: selected.name.clone(),
-                    version: selected.version.clone(),
-                })));
+            if let Some(action) = open_picker_or_dispatch(home, FeatureIntent::Install) {
+                return Ok(Some(action));
             }
         }
         KeyCode::Char('u') => {
@@ -153,6 +150,51 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
     }
 
     Ok(None)
+}
+
+fn handle_feature_picker_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
+    let outcome = match home.feature_picker.as_mut() {
+        Some(picker) => picker.handle_key(key),
+        None => return Ok(None),
+    };
+
+    match outcome {
+        KeyOutcome::Pending => Ok(None),
+        KeyOutcome::Cancelled => {
+            home.feature_picker = None;
+            Ok(None)
+        }
+        KeyOutcome::Submitted => Ok(home.feature_picker.take().map(|picker| picker.confirm())),
+    }
+}
+
+/// Opens the feature picker for the focused crate, or returns the add/install action directly when
+/// there are no features to choose (see [`Home::feature_picker_for`]).
+fn open_picker_or_dispatch(home: &mut Home, intent: FeatureIntent) -> Option<Action> {
+    let cr = home.get_focused_crate()?;
+    let name = cr.name.clone();
+    let version = cr.version.clone();
+
+    if let Some(picker) = home.feature_picker_for(intent) {
+        home.feature_picker = Some(picker);
+        return None;
+    }
+
+    let command = match intent {
+        FeatureIntent::Add => CargoCommand::Add {
+            name,
+            version,
+            features: Vec::new(),
+            no_default_features: false,
+        },
+        FeatureIntent::Install => CargoCommand::Install {
+            name,
+            version,
+            features: Vec::new(),
+            no_default_features: false,
+        },
+    };
+    Some(Action::Cargo(command))
 }
 
 fn handle_search_focus(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {

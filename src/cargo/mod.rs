@@ -16,12 +16,16 @@ pub use cargo_env::CargoEnv;
 pub use error::CargoError;
 pub use project::*;
 
-/// A cargo command to execute (handled by the app event loop).
+/// A cargo command to execute.
 #[derive(Debug, Clone, Display, Deserialize)]
 pub enum CargoCommand {
     Add {
         name: String,
         version: String,
+        /// Features to enable. Empty means none beyond the defaults.
+        features: Vec<String>,
+        /// Pass `--no-default-features` (set when the user unchecks a default feature).
+        no_default_features: bool,
     },
     Remove(String),
     // Update(String),
@@ -29,13 +33,17 @@ pub enum CargoCommand {
     Install {
         name: String,
         version: String,
+        /// Features to enable. Empty means none beyond the defaults.
+        features: Vec<String>,
+        /// Pass `--no-default-features` (set when the user unchecked a default feature).
+        no_default_features: bool,
     },
     Uninstall(String),
-    /// Re-read the cargo environment (installed binaries + current project).
+    /// Re-read the cargo environment.
     Refresh,
 }
 
-/// A cargo-environment event (handled by the components that display it).
+/// A cargo-environment event.
 #[derive(Debug, Clone, Display)]
 pub enum CargoEvent {
     /// The cargo environment finished refreshing.

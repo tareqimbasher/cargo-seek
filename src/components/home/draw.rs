@@ -28,6 +28,11 @@ pub fn render(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> {
 
     render_left(home, frame, left_col_area)?;
     render_right(home, frame, right_col_area)?;
+
+    if let Some(picker) = home.feature_picker.as_mut() {
+        picker.draw(frame, area);
+    }
+
     Ok(())
 }
 
@@ -305,11 +310,11 @@ fn render_help(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> 
         Line::from(vec!["RESULTS".set_style(header_style)]),
         Line::from(vec![
             format!("{:<PAD$}", "a, r:").set_style(prop_style),
-            "Add/remove to current project".set_style(desc_style),
+            "Add (pick features) / remove from project".set_style(desc_style),
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "i, u:").set_style(prop_style),
-            "Install/uninstall binary".set_style(desc_style),
+            "Install (pick features) / uninstall binary".set_style(desc_style),
         ]),
         Line::from(vec![
             format!("{:<PAD$}", "Ctrl + d:").set_style(prop_style),
@@ -447,14 +452,7 @@ fn render_crate_details(home: &Home, cr: &Crate, frame: &mut Frame, area: Rect) 
             format!("{:<left_column_width$}", "Recent Downloads:").set_style(prop_style),
             format_number(cr.recent_downloads).into(),
         ]),
-        Line::from(vec![
-            format!("{:<left_column_width$}", "Features:").set_style(prop_style),
-            cr.features
-                .as_ref()
-                .map(|v| v.join(", "))
-                .unwrap_or("Loading...".into())
-                .into(),
-        ]),
+        render_features(cr, prop_style, left_column_width),
         Line::from(vec![
             format!("{:<left_column_width$}", "Categories:").set_style(prop_style),
             cr.categories
@@ -570,6 +568,27 @@ fn render_crate_details(home: &Home, cr: &Crate, frame: &mut Frame, area: Rect) 
     }
 
     Ok(())
+}
+
+fn render_features(cr: &Crate, label_style: Style, label_width: usize) -> Line<'static> {
+    let mut spans = vec![format!("{:<label_width$}", "Features:").set_style(label_style)];
+    match cr.features.as_ref() {
+        None => spans.push("Loading...".into()),
+        Some(features) if features.is_empty() => spans.push("(none)".dim()),
+        Some(features) => {
+            for (i, name) in features.iter().enumerate() {
+                if i > 0 {
+                    spans.push(", ".into());
+                }
+                spans.push(if cr.is_default_feature(name) {
+                    name.clone().bold()
+                } else {
+                    name.clone().into()
+                });
+            }
+        }
+    }
+    Line::from(spans)
 }
 
 fn render_no_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> {

@@ -3,6 +3,7 @@
 
 pub mod action_handler;
 pub mod draw;
+pub mod feature_selector;
 pub mod focusable;
 pub mod key_handler;
 
@@ -19,6 +20,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tui_input::Input;
 
 use crate::cargo::CargoEnv;
+use crate::components::home::feature_selector::{FeatureIntent, FeatureSelector};
 use crate::components::home::focusable::Focusable;
 use crate::components::home::{
     action_handler::handle_action, draw::render, key_handler::handle_key,
@@ -57,6 +59,7 @@ pub struct Home {
     sort_dropdown: Dropdown<Sort>,
     is_searching: bool,
     search_results: Option<SearchResults>,
+    feature_picker: Option<FeatureSelector>,
     spinner_state: throbber_widgets_tui::ThrobberState,
     action_tx: UnboundedSender<Action>,
     vertical_help_scroll: usize,
@@ -97,6 +100,7 @@ impl Home {
                 }),
             ),
             search_results: None,
+            feature_picker: None,
             crate_search_manager: CrateSearchManager::new(action_tx.clone())?,
             is_searching: false,
             spinner_state: throbber_widgets_tui::ThrobberState::default(),
@@ -188,6 +192,26 @@ impl Home {
         } else {
             None
         }
+    }
+
+    /// Builds a feature picker for the focused crate, or `None` when there is nothing to pick —
+    /// metadata not yet loaded, or the crate exposes no features — in which case the caller should
+    /// add/install directly.
+    fn feature_picker_for(&self, intent: FeatureIntent) -> Option<FeatureSelector> {
+        let cr = self.get_focused_crate()?;
+        let features = cr.features.as_deref()?;
+        if features.is_empty() {
+            return None;
+        }
+
+        Some(FeatureSelector::new(
+            self.config.clone(),
+            cr.name.clone(),
+            cr.version.clone(),
+            intent,
+            features,
+            &cr.default_features,
+        ))
     }
 
     fn should_show_docs_button(&self) -> bool {

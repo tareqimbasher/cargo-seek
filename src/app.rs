@@ -226,7 +226,12 @@ impl App {
 
     async fn handle_cargo_actions(&mut self, tui: &mut Tui, action: CargoCommand) -> AppResult<()> {
         match action {
-            CargoCommand::Add { name, version } => {
+            CargoCommand::Add {
+                name,
+                version,
+                features,
+                no_default_features,
+            } => {
                 let progress = format!("Adding {name} v{version}");
                 let success = format!("Added {name} v{version}");
                 let failure = format!("Failed to add {name}");
@@ -236,7 +241,9 @@ impl App {
                     progress,
                     success,
                     failure,
-                    move |out| cargo::add(&name, Some(version), out),
+                    move |out| {
+                        cargo::add(&name, Some(version), &features, no_default_features, out)
+                    },
                 )
                 .await?;
             }
@@ -254,7 +261,12 @@ impl App {
                 )
                 .await?;
             }
-            CargoCommand::Install { name, version } => {
+            CargoCommand::Install {
+                name,
+                version,
+                features,
+                no_default_features,
+            } => {
                 let progress = format!("Installing {name} v{version}");
                 let success = format!("Installed {name} v{version}");
                 let failure = format!("Failed to install {name}");
@@ -264,7 +276,9 @@ impl App {
                     progress,
                     success,
                     failure,
-                    move |out| cargo::install(name, Some(version), out),
+                    move |out| {
+                        cargo::install(name, Some(version), &features, no_default_features, out)
+                    },
                 )
                 .await?;
             }

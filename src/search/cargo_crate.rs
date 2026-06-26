@@ -15,7 +15,11 @@ pub struct Crate {
     pub max_stable_version: Option<String>,
     pub downloads: Option<u64>,
     pub recent_downloads: Option<u64>,
+    /// The crate's selectable feature names (the `default` umbrella excluded), sorted. `None` until
+    /// metadata is hydrated; `Some(empty)` for a crate with no features.
     pub features: Option<Vec<String>>,
+    /// Names of the features enabled by the crate's `default` feature.
+    pub default_features: Vec<String>,
     pub categories: Option<Vec<String>>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
@@ -30,6 +34,11 @@ pub struct Crate {
 impl Crate {
     pub fn is_metadata_loaded(&self) -> bool {
         self.metadata_loaded
+    }
+
+    /// Whether `feature` is enabled by the crate's default feature set.
+    pub fn is_default_feature(&self, feature: &str) -> bool {
+        self.default_features.iter().any(|f| f == feature)
     }
 
     /// Builds a stub crate from a globally installed binary.
@@ -96,11 +105,20 @@ impl Crate {
         self.max_stable_version = data.max_stable_version;
         self.downloads = Some(data.downloads);
         self.recent_downloads = data.recent_downloads;
-        if response.versions.is_empty() {
-            self.features = Some(Vec::new());
+        if let Some(latest) = response.versions.first() {
+            self.default_features = latest.features.get("default").cloned().unwrap_or_default();
+            // Drop `default` since it isn't an individually selectable feature.
+            let mut features: Vec<String> = latest
+                .features
+                .keys()
+                .filter(|name| name.as_str() != "default")
+                .cloned()
+                .collect();
+            features.sort();
+            self.features = Some(features);
         } else {
-            let latest = &response.versions[0];
-            self.features = Some(latest.features.iter().map(|x| x.0.clone()).collect())
+            self.features = Some(Vec::new());
+            self.default_features = Vec::new();
         }
         if self.categories.is_none() {
             self.categories = Some(

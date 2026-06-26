@@ -110,25 +110,58 @@ pub enum OutputMode {
     Capture,
 }
 
-pub fn add(crate_name: &str, version: Option<String>, out: OutputMode) -> AppResult<()> {
-    let crate_name = match version {
+pub fn add(
+    crate_name: &str,
+    version: Option<String>,
+    features: &[String],
+    no_default_features: bool,
+    out: OutputMode,
+) -> AppResult<()> {
+    let spec = match version {
         Some(v) => format!("{crate_name}@{v}"),
         None => crate_name.to_string(),
     };
+    let features = features.join(",");
 
-    run_cargo_with(out, vec!["add", &crate_name])
+    let mut args = vec!["add", spec.as_str()];
+    if no_default_features {
+        args.push("--no-default-features");
+    }
+    if !features.is_empty() {
+        args.push("--features");
+        args.push(features.as_str());
+    }
+
+    run_cargo_with(out, args)
 }
 
 pub fn remove(crate_name: String, out: OutputMode) -> AppResult<()> {
     run_cargo_with(out, vec!["remove", crate_name.as_str()])
 }
 
-pub fn install(mut crate_name: String, version: Option<String>, out: OutputMode) -> AppResult<()> {
-    if let Some(version) = version {
-        crate_name = format!("{crate_name}@{version}");
+pub fn install(
+    crate_name: String,
+    version: Option<String>,
+    features: &[String],
+    no_default_features: bool,
+    out: OutputMode,
+) -> AppResult<()> {
+    let spec = match version {
+        Some(v) => format!("{crate_name}@{v}"),
+        None => crate_name,
+    };
+    let features = features.join(",");
+
+    let mut args = vec!["install", "--locked", spec.as_str()];
+    if no_default_features {
+        args.push("--no-default-features");
+    }
+    if !features.is_empty() {
+        args.push("--features");
+        args.push(features.as_str());
     }
 
-    run_cargo_with(out, vec!["install", "--locked", crate_name.as_str()])
+    run_cargo_with(out, args)
 }
 
 pub fn uninstall(crate_name: String, out: OutputMode) -> AppResult<()> {
