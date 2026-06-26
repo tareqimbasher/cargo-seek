@@ -34,7 +34,7 @@ impl Component for AppId {
 
     fn draw(&mut self, _: &Mode, frame: &mut Frame, area: Rect) -> AppResult<()> {
         let [left, _] = Layout::horizontal([Constraint::Min(0), Constraint::Length(1)]).areas(area);
-        let span = Span::styled(&self.id, self.config.styles[&Mode::App]["title"]);
+        let span = Span::styled(&self.id, self.config.theme.title);
         let paragraph = Paragraph::new(span).right_aligned();
         frame.render_widget(paragraph, left);
         Ok(())

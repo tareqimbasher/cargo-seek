@@ -59,7 +59,7 @@ fn render_search(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()
                 .title(" Search ")
                 .borders(Borders::ALL)
                 .border_style(match home.focused {
-                    Focusable::Search => home.config.styles[&Mode::App]["accent_active"],
+                    Focusable::Search => home.config.theme.accent_active,
                     _ => Style::default(),
                 }),
         );
@@ -82,7 +82,7 @@ fn render_search(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()
         frame.render_widget(&throbber_border, spinner_area);
 
         let throbber = throbber_widgets_tui::Throbber::default()
-            .style(home.config.styles[&Mode::App]["throbber"])
+            .style(home.config.theme.throbber)
             .throbber_set(throbber_widgets_tui::BRAILLE_EIGHT)
             .use_type(throbber_widgets_tui::WhichUse::Spin);
 
@@ -100,14 +100,14 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(match home.focused {
-            Focusable::Results => home.config.styles[&Mode::App]["accent_active"],
+            Focusable::Results => home.config.theme.accent_active,
             _ => Style::default(),
         })
         .title(
             Title::from(
                 format!(" ▼ {} ", home.scope_dropdown.get_selected()).set_style(
                     if home.focused == Focusable::Scope {
-                        home.config.styles[&Mode::App]["title"]
+                        home.config.theme.title
                     } else {
                         Style::default()
                     },
@@ -119,7 +119,7 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
             Title::from(
                 format!(" ▼ {} ", home.sort_dropdown.get_selected()).set_style(
                     if home.focused == Focusable::Sort {
-                        home.config.styles[&Mode::App]["title"]
+                        home.config.theme.title
                     } else {
                         Style::default()
                     },
@@ -217,9 +217,7 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
             } else {
                 Style::default()
                     .bold()
-                    .bg(home.config.styles[&Mode::App]["accent"]
-                        .fg
-                        .unwrap_or(Color::Yellow))
+                    .bg(home.config.theme.accent.fg.unwrap_or(Color::Yellow))
                     .fg(Color::Black)
             });
 
@@ -253,7 +251,7 @@ fn render_right(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()>
 
 fn render_help(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> {
     let header_style = Style::default().bold();
-    let prop_style = home.config.styles[&Mode::App]["accent"].bold();
+    let prop_style = home.config.theme.accent.bold();
     let desc_style = Style::default();
 
     const PAD: usize = 20;
@@ -338,11 +336,11 @@ fn render_help(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> 
 
     let block = Block::default()
         .title(" 📖 Help ")
-        .title_style(home.config.styles[&Mode::App]["title"])
+        .title_style(home.config.theme.title)
         .padding(Padding::uniform(1))
         .borders(Borders::ALL)
         .border_style(match home.focused {
-            Focusable::Help => home.config.styles[&Mode::App]["accent_active"],
+            Focusable::Help => home.config.theme.accent_active,
             _ => Style::default(),
         });
 
@@ -371,22 +369,22 @@ fn render_crate_details(home: &Home, cr: &Crate, frame: &mut Frame, area: Rect) 
 
     let main_block = Block::default()
         .title(format!(" 🧐 {} ", cr.name))
-        .title_style(home.config.styles[&Mode::App]["title"])
+        .title_style(home.config.theme.title)
         .padding(Padding::horizontal(1))
         .borders(Borders::ALL)
         .border_style(if details_focused {
-            home.config.styles[&Mode::App]["accent_active"]
+            home.config.theme.accent_active
         } else {
             Style::default()
         });
 
     let left_column_width = 25;
 
-    let prop_style = home.config.styles[&Mode::App][if details_focused {
-        "accent_active"
+    let prop_style = if details_focused {
+        home.config.theme.accent_active
     } else {
-        "accent"
-    }]
+        home.config.theme.accent
+    }
     .bold();
 
     let mut text = Text::default();
@@ -577,7 +575,7 @@ fn render_crate_details(home: &Home, cr: &Crate, frame: &mut Frame, area: Rect) 
 fn render_no_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> {
     let main_block = Block::default()
         .title(" No results ")
-        .title_style(home.config.styles[&Mode::App]["title"])
+        .title_style(home.config.theme.title)
         .padding(Padding::uniform(1))
         .borders(Borders::ALL);
 

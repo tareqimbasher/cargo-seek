@@ -196,7 +196,7 @@ impl Component for StatusBar {
     }
 
     fn draw(&mut self, _: &Mode, frame: &mut Frame, area: Rect) -> AppResult<()> {
-        let accent = self.config.styles[&Mode::App]["accent"];
+        let accent = self.config.theme.accent;
         let text = vec![
             "/: ".set_style(accent),
             "search".into(),

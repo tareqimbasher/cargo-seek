@@ -109,13 +109,13 @@ impl<T: IntoEnumIterator + Default + Display + Clone + 'static> Component for Dr
 
         let dropdown = Block::bordered()
             .title(Title::from(format!(" {0}: ", self.header)).alignment(Alignment::Center))
-            .border_style(self.config.styles[&Mode::App]["accent"]);
+            .border_style(self.config.theme.accent);
 
         frame.render_widget(Clear, dropdown_wrapper_rect);
         frame.render_widget(&dropdown, dropdown_rect);
 
         let list = List::new(T::iter().map(|x| ListItem::new(x.to_string())))
-            .highlight_style(self.config.styles[&Mode::App]["accent"].bold())
+            .highlight_style(self.config.theme.accent.bold())
             .highlight_symbol("▶ ");
 
         frame.render_stateful_widget(list, dropdown.inner(dropdown_rect), &mut self.state);

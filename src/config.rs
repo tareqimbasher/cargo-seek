@@ -49,14 +49,22 @@ impl<'de> Deserialize<'de> for KeyBindings {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default)]
 pub struct Config {
-    #[serde(default, flatten)]
     pub config: AppConfig,
-    #[serde(default)]
     pub keybindings: KeyBindings,
+    pub theme: Theme,
+}
+
+/// Config exactly as parsed from disk, before the embedded defaults are merged in.
+#[derive(Default, Deserialize)]
+struct RawConfig {
+    #[serde(default, flatten)]
+    config: AppConfig,
     #[serde(default)]
-    pub styles: Styles,
+    keybindings: KeyBindings,
+    #[serde(default)]
+    styles: ThemeConfig,
 }
 
 pub static PROJECT_NAME: LazyLock<String> =
@@ -74,7 +82,7 @@ static CONFIG_FOLDER: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
 
 impl Config {
     pub fn new() -> Result<Self, config::ConfigError> {
-        let default_config: Config = json5::from_str(CONFIG)
+        let default_config: RawConfig = json5::from_str(CONFIG)
             .expect("the embedded default config (.config/config.json5) must be valid JSON5");
         let data_dir = get_data_dir();
         let config_dir = get_config_dir();
@@ -103,7 +111,7 @@ impl Config {
             error!("No configuration file found. Application may not behave as expected");
         }
 
-        let mut cfg: Self = builder.build()?.try_deserialize()?;
+        let mut cfg: RawConfig = builder.build()?.try_deserialize()?;
 
         for (mode, default_bindings) in default_config.keybindings.iter() {
             let user_bindings = cfg.keybindings.entry(*mode).or_default();
@@ -113,14 +121,12 @@ impl Config {
                     .or_insert_with(|| cmd.clone());
             }
         }
-        for (mode, default_styles) in default_config.styles.iter() {
-            let user_styles = cfg.styles.entry(*mode).or_default();
-            for (style_key, style) in default_styles.iter() {
-                user_styles.entry(style_key.clone()).or_insert(*style);
-            }
-        }
 
-        Ok(cfg)
+        Ok(Config {
+            config: cfg.config,
+            theme: cfg.styles.resolve(&default_config.styles),
+            keybindings: cfg.keybindings,
+        })
     }
 }
 
@@ -318,34 +324,47 @@ fn parse_key_sequence(raw: &str) -> Result<Vec<KeyEvent>, String> {
     sequences.into_iter().map(parse_key_event).collect()
 }
 
-#[derive(Clone, Debug, Default, Deref, DerefMut)]
-pub struct Styles(pub HashMap<Mode, HashMap<String, Style>>);
+/// The effective theme used by render code: the user's configured styles layered over the embedded
+/// defaults (see [`ThemeConfig::resolve`]).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Theme {
+    pub accent: Style,
+    pub accent_active: Style,
+    pub title: Style,
+    pub throbber: Style,
+}
 
-impl<'de> Deserialize<'de> for Styles {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let parsed_map = HashMap::<Mode, HashMap<String, String>>::deserialize(deserializer)?;
+/// A theme as written in a config file: each field is an optional style string (e.g. `"bold
+/// lightyellow"`). Unset fields fall back to the embedded defaults when resolved into a [`Theme`].
+#[derive(Default, Deserialize)]
+#[serde(default)]
+struct ThemeConfig {
+    accent: Option<String>,
+    accent_active: Option<String>,
+    title: Option<String>,
+    throbber: Option<String>,
+}
 
-        let styles = parsed_map
-            .into_iter()
-            .map(|(mode, inner_map)| {
-                let converted_inner_map = inner_map
-                    .into_iter()
-                    .map(|(str, style)| (str, parse_style(&style)))
-                    .collect();
-                (mode, converted_inner_map)
-            })
-            .collect();
-
-        Ok(Styles(styles))
+impl ThemeConfig {
+    /// Resolve into a [`Theme`]: each field is the user's value if set, otherwise `fallback`'s.
+    fn resolve(self, fallback: &ThemeConfig) -> Theme {
+        let pick = |user: Option<String>, default: &Option<String>| {
+            parse_style(user.as_deref().or(default.as_deref()).unwrap_or_default())
+        };
+        Theme {
+            accent: pick(self.accent, &fallback.accent),
+            accent_active: pick(self.accent_active, &fallback.accent_active),
+            title: pick(self.title, &fallback.title),
+            throbber: pick(self.throbber, &fallback.throbber),
+        }
     }
 }
 
 fn parse_style(line: &str) -> Style {
-    let (foreground, background) =
-        line.split_at(line.to_lowercase().find("on ").unwrap_or(line.len()));
+    // Find and split on the same string: an index taken from one string can fall on a non-char
+    // boundary of another when `to_lowercase()` changes byte length (e.g. a leading `İ`) and panic.
+    let line = line.to_lowercase();
+    let (foreground, background) = line.split_at(line.find("on ").unwrap_or(line.len()));
     let foreground = process_color_string(foreground);
     let background = process_color_string(&background.replace("on ", ""));
 
@@ -539,6 +558,33 @@ mod tests {
         assert_eq!(parse_color("gray23"), Some(Color::Indexed(255)));
         assert_eq!(parse_color("gray24"), Some(Color::Indexed(255)));
         assert_eq!(parse_color("gray999"), Some(Color::Indexed(255)));
+    }
+
+    #[test]
+    fn parse_style_non_ascii_does_not_panic() {
+        // `İ`.to_lowercase() is two bytes ("i̇"); finding and splitting on different strings would
+        // land off a char boundary here and panic.
+        assert_eq!(parse_style("İ on red").bg, Some(Color::Indexed(1)));
+    }
+
+    #[test]
+    fn theme_resolve_prefers_user_then_falls_back() {
+        let fallback = ThemeConfig {
+            accent: Some("yellow".into()),
+            accent_active: Some("lightyellow".into()),
+            title: Some("bold lightyellow".into()),
+            throbber: Some("lightyellow".into()),
+        };
+        let user = ThemeConfig {
+            accent: Some("red".into()),
+            ..Default::default()
+        };
+
+        let theme = user.resolve(&fallback);
+
+        assert_eq!(theme.accent, parse_style("red"));
+        assert_eq!(theme.accent_active, parse_style("lightyellow"));
+        assert_eq!(theme.title, parse_style("bold lightyellow"));
     }
 
     #[test]
