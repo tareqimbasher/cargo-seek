@@ -124,7 +124,7 @@ impl App {
                 // tui.mouse(true);
                 tui.enter()?;
             } else if self.should_quit {
-                tui.stop()?;
+                tui.stop();
                 break;
             }
         }

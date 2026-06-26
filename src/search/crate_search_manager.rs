@@ -4,7 +4,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{RwLock, oneshot};
-use tokio::task::JoinHandle;
 use tracing::error;
 
 use crate::action::Action;
@@ -45,11 +44,7 @@ impl CrateSearchManager {
         })
     }
 
-    pub fn search(
-        &mut self,
-        options: SearchOptions,
-        cargo_env: Arc<RwLock<CargoEnv>>,
-    ) -> JoinHandle<()> {
+    pub fn search(&mut self, options: SearchOptions, cargo_env: Arc<RwLock<CargoEnv>>) {
         // Cancel previous search
         if let Some(cancel_search_tx) = self.cancel_search_tx.take() {
             let _ = cancel_search_tx.send(());
@@ -61,9 +56,7 @@ impl CrateSearchManager {
         let crates_io_client = self.crates_io_client.clone();
 
         tokio::spawn(async move {
-            let mut cancelled = || cancel_search_rx.try_recv().is_ok();
-
-            if cancelled() {
+            if cancel_search_rx.try_recv().is_ok() {
                 return;
             }
 
@@ -75,9 +68,7 @@ impl CrateSearchManager {
             let mut still_needed = per_page;
             let mut search_results = SearchResults::new(page, per_page);
 
-            // The read guard must not be held across the network call below: tokio's RwLock is
-            // write-fair, so a `Refresh` writer parked behind the ~10 s request would freeze the
-            // event loop.
+            // The read guard must not be held across the network call below.
             {
                 let cargo_env = cargo_env.read().await;
 
@@ -100,7 +91,7 @@ impl CrateSearchManager {
                     );
                 }
 
-                if cancelled() {
+                if cancel_search_rx.try_recv().is_ok() {
                     return;
                 }
 
@@ -122,21 +113,25 @@ impl CrateSearchManager {
                 }
             }
 
-            if cancelled() {
+            if cancel_search_rx.try_recv().is_ok() {
                 return;
             }
 
             // Search the online registry
             if search_all || options.scope == Scope::Online {
-                match Self::search_registry(
+                let registry = Self::search_registry(
                     crates_io_client,
                     &term,
                     still_needed,
                     page,
                     options.sort,
-                )
-                .await
-                {
+                );
+                let outcome = tokio::select! {
+                    biased;
+                    _ = &mut cancel_search_rx => return,
+                    outcome = registry => outcome,
+                };
+                match outcome {
                     Ok((mut results, count)) => {
                         Self::extend_results(
                             &mut search_results,
@@ -154,7 +149,7 @@ impl CrateSearchManager {
                 }
             }
 
-            if cancelled() {
+            if cancel_search_rx.try_recv().is_ok() {
                 return;
             }
 
@@ -166,7 +161,7 @@ impl CrateSearchManager {
 
             tx.send(Action::SearchEvent(SearchEvent::Completed(search_results)))
                 .ok();
-        })
+        });
     }
 
     fn search_binaries(term: &str, cargo_env: &CargoEnv) -> Vec<Crate> {
@@ -264,13 +259,21 @@ impl CrateSearchManager {
         let name = name.to_owned();
 
         tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_millis(700)).await;
-
-            if cancel_hydrate_rx.try_recv().is_ok() {
-                return;
+            // Debounce, then run the request both racing cancellation so reselecting quickly
+            // drops the pending work instead of running it to completion.
+            tokio::select! {
+                biased;
+                _ = &mut cancel_hydrate_rx => return,
+                _ = tokio::time::sleep(Duration::from_millis(700)) => {}
             }
 
-            match crates_io_client.get_crate(&name).await {
+            let response = tokio::select! {
+                biased;
+                _ = &mut cancel_hydrate_rx => return,
+                response = crates_io_client.get_crate(&name) => response,
+            };
+
+            match response {
                 Ok(response) => {
                     tx.send(Action::SearchEvent(SearchEvent::MetadataLoaded(Box::new(
                         response,

@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
-use strum::{EnumIter, IntoEnumIterator};
+use strum::{EnumCount, FromRepr};
 
-#[derive(Default, PartialEq, Clone, Debug, Eq, EnumIter, Serialize, Deserialize)]
+#[derive(
+    Default, PartialEq, Clone, Copy, Debug, Eq, EnumCount, FromRepr, Serialize, Deserialize,
+)]
+#[repr(usize)]
 pub enum Focusable {
     Help,
     #[default]
@@ -16,22 +19,34 @@ pub enum Focusable {
 }
 
 impl Focusable {
+    /// The next focus target in Tab order, wrapping past the last back to the first.
     pub fn next(&self) -> Focusable {
-        let mut variants = Focusable::iter();
-        variants.find(|v| v == self);
-        if let Some(next) = variants.next() {
-            next
-        } else {
-            variants.get(0).unwrap()
-        }
+        Self::from_repr((*self as usize + 1) % Self::COUNT).expect("modulo COUNT stays in range")
     }
 
+    /// The previous focus target in Tab order, wrapping past the first back to the last.
     pub fn prev(&self) -> Focusable {
-        let variants: Vec<_> = Focusable::iter().collect();
-        let pos = variants
-            .iter()
-            .position(|v| *v == *self)
-            .expect("self should be in the list of variants");
-        variants[(pos + variants.len() - 1) % variants.len()].clone()
+        Self::from_repr((*self as usize + Self::COUNT - 1) % Self::COUNT)
+            .expect("modulo COUNT stays in range")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn next_advances_and_wraps_past_the_last() {
+        assert_eq!(Focusable::Help.next(), Focusable::Search);
+        assert_eq!(Focusable::Search.next(), Focusable::Sort);
+        assert_eq!(Focusable::LibRsButton.next(), Focusable::Help);
+    }
+
+    #[test]
+    fn prev_retreats_and_wraps_past_the_first() {
+        assert_eq!(Focusable::Sort.prev(), Focusable::Search);
+        assert_eq!(Focusable::Search.prev(), Focusable::Help);
+        assert_eq!(Focusable::Help.prev(), Focusable::LibRsButton);
     }
 }

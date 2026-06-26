@@ -27,7 +27,7 @@ pub async fn handle_action(
 
         Action::Home(command) => match command {
             HomeCommand::Focus(focusable) => {
-                let focusable = focusable.clone();
+                let focusable = *focusable;
                 home.sort_dropdown
                     .set_is_focused(focusable == Focusable::Sort);
                 home.scope_dropdown
@@ -210,33 +210,27 @@ fn handle_search_command(home: &mut Home, command: &SearchCommand) -> AppResult<
             home.action_tx
                 .send(Action::Home(HomeCommand::Focus(Focusable::Search)))?;
 
-            if home.search_results.is_none() {
-                return Ok(None);
+            if home.search_results.is_some() {
+                home.action_tx.send(Action::Search(SearchCommand::Run {
+                    term: home.input.value().into(),
+                    page: 1,
+                    hide_help: false,
+                    status: Some(format!("Sorting by: {sort}")),
+                }))?;
             }
-
-            let status = format!("Sorting by: {sort}");
-            return Ok(Some(Action::Search(SearchCommand::Run {
-                term: home.input.value().into(),
-                page: 1,
-                hide_help: false,
-                status: Some(status),
-            })));
         }
         SearchCommand::Scope(scope) => {
             home.action_tx
                 .send(Action::Home(HomeCommand::Focus(Focusable::Search)))?;
 
-            if home.search_results.is_none() {
-                return Ok(None);
+            if home.search_results.is_some() {
+                home.action_tx.send(Action::Search(SearchCommand::Run {
+                    term: home.input.value().into(),
+                    page: 1,
+                    hide_help: false,
+                    status: Some(format!("Scoped to: {scope}")),
+                }))?;
             }
-
-            let status = format!("Scoped to: {scope}");
-            return Ok(Some(Action::Search(SearchCommand::Run {
-                term: home.input.value().into(),
-                page: 1,
-                hide_help: false,
-                status: Some(status),
-            })));
         }
         SearchCommand::NavPagesForward(pages) => {
             home.go_pages_forward(*pages, home.input.value())?;

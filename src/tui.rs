@@ -156,21 +156,10 @@ impl Tui {
         cancellation_token.cancel();
     }
 
-    pub fn stop(&self) -> AppResult<()> {
+    /// Stops the event-loop task: cancels it (so it can break cleanly) and aborts as a backstop.
+    pub fn stop(&self) {
         self.cancel();
-        let mut counter = 0;
-        while !self.task.is_finished() {
-            std::thread::sleep(Duration::from_millis(1));
-            counter += 1;
-            if counter > 50 {
-                self.task.abort();
-            }
-            if counter > 100 {
-                error!("Failed to abort task in 100 milliseconds for unknown reason");
-                break;
-            }
-        }
-        Ok(())
+        self.task.abort();
     }
 
     pub fn enter(&mut self) -> AppResult<()> {
@@ -187,7 +176,7 @@ impl Tui {
     }
 
     pub fn exit(&mut self) -> AppResult<()> {
-        self.stop()?;
+        self.stop();
         if crossterm::terminal::is_raw_mode_enabled()? {
             self.flush()?;
             if self.paste {
