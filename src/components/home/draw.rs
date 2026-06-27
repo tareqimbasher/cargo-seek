@@ -1,13 +1,10 @@
 use chrono::Utc;
 use ratatui::{
     Frame,
-    layout::{Alignment, Constraint, Flex, Layout, Rect},
+    layout::{Constraint, Flex, Layout, Rect},
     style::{Color, Style, Styled, Stylize},
     text::{Line, Text},
-    widgets::{
-        Block, Borders, List, ListItem, Padding, Paragraph, Wrap,
-        block::{Position, Title},
-    },
+    widgets::{Block, Borders, List, ListItem, Padding, Paragraph, Wrap},
 };
 
 use crate::app::Mode;
@@ -109,7 +106,7 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
             _ => Style::default(),
         })
         .title(
-            Title::from(
+            Line::from(
                 format!(" ▼ {} ", home.scope_dropdown.get_selected()).set_style(
                     if home.focused == Focusable::Scope {
                         home.config.theme.title
@@ -118,10 +115,10 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
                     },
                 ),
             )
-            .alignment(Alignment::Right),
+            .right_aligned(),
         )
         .title(
-            Title::from(
+            Line::from(
                 format!(" ▼ {} ", home.sort_dropdown.get_selected()).set_style(
                     if home.focused == Focusable::Sort {
                         home.config.theme.title
@@ -130,7 +127,7 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
                     },
                 ),
             )
-            .alignment(Alignment::Right),
+            .right_aligned(),
         );
 
     if let Some(results) = home.search_results.as_mut() {
@@ -194,18 +191,17 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<(
         let list = List::new(list_items)
             .block(
                 block
-                    .title(Title::from(format!(
+                    .title(format!(
                         " {}/{} ",
                         selected_item_num_in_total, results.total_count
-                    )))
-                    .title(
-                        Title::from(format!(
+                    ))
+                    .title_bottom(
+                        Line::from(format!(
                             " Page {}/{} ",
                             results.current_page(),
                             results.page_count(),
                         ))
-                        .position(Position::Bottom)
-                        .alignment(Alignment::Right),
+                        .right_aligned(),
                     ),
             )
             // Selected row highlight style

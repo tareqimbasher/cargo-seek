@@ -1,9 +1,8 @@
 use async_trait::async_trait;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
-use ratatui::layout::{Alignment, Constraint, Layout, Rect};
-use ratatui::prelude::Stylize;
-use ratatui::widgets::block::Title;
+use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::text::Line;
 use ratatui::widgets::{Block, Clear, List, ListItem, ListState};
 use std::fmt::Display;
 use strum::IntoEnumIterator;
@@ -108,7 +107,7 @@ impl<T: IntoEnumIterator + Default + Display + Clone + 'static> Component for Dr
         .areas(dropdown_wrapper_rect);
 
         let dropdown = Block::bordered()
-            .title(Title::from(format!(" {0}: ", self.header)).alignment(Alignment::Center))
+            .title(Line::from(format!(" {0}: ", self.header)).centered())
             .border_style(self.config.theme.accent);
 
         frame.render_widget(Clear, dropdown_wrapper_rect);

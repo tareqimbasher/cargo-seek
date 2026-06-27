@@ -1,9 +1,8 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
-use ratatui::layout::{Alignment, Constraint, Layout, Rect};
+use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::prelude::Stylize;
 use ratatui::text::Line;
-use ratatui::widgets::block::{Position, Title};
 use ratatui::widgets::{Block, Clear, List, ListItem, ListState};
 
 use crate::action::Action;
@@ -167,15 +166,8 @@ impl FeatureSelector {
         let popup = center(area, 54.min(area.width), inner_height + 2);
 
         let block = Block::bordered()
-            .title(
-                Title::from(format!(" {verb} {} — features ", self.crate_name))
-                    .alignment(Alignment::Center),
-            )
-            .title(
-                Title::from(" Space toggle · Enter confirm · Esc cancel ")
-                    .position(Position::Bottom)
-                    .alignment(Alignment::Center),
-            )
+            .title(Line::from(format!(" {verb} {} — features ", self.crate_name)).centered())
+            .title_bottom(Line::from(" Space toggle · Enter confirm · Esc cancel ").centered())
             .border_style(self.config.theme.accent);
 
         let items: Vec<ListItem> = self
