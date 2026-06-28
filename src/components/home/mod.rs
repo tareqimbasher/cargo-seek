@@ -6,6 +6,7 @@ pub mod draw;
 pub mod feature_selector;
 pub mod focusable;
 pub mod key_handler;
+pub mod overlay;
 
 use super::{Component, StatusCommand};
 
@@ -22,11 +23,11 @@ use tui_input::Input;
 use crate::cargo::CargoEnv;
 use crate::components::home::feature_selector::{FeatureIntent, FeatureSelector};
 use crate::components::home::focusable::Focusable;
+use crate::components::home::overlay::Overlay;
 use crate::components::home::{
     action_handler::handle_action, draw::render, key_handler::handle_key,
 };
 use crate::components::status_bar::StatusLevel;
-use crate::components::ux::Dropdown;
 use crate::errors::AppResult;
 use crate::search::{Crate, CrateSearchManager, Scope, SearchCommand, SearchResults, Sort};
 use crate::tui::Tui;
@@ -55,11 +56,11 @@ pub struct Home {
     show_help: bool,
     focused: Focusable,
     input: Input,
-    scope_dropdown: Dropdown<Scope>,
-    sort_dropdown: Dropdown<Sort>,
+    sort: Sort,
+    scope: Scope,
+    overlay: Option<Overlay>,
     is_searching: bool,
     search_results: Option<SearchResults>,
-    feature_picker: Option<FeatureSelector>,
     spinner_state: throbber_widgets_tui::ThrobberState,
     action_tx: UnboundedSender<Action>,
     vertical_help_scroll: usize,
@@ -72,9 +73,6 @@ impl Home {
         cargo_env: Arc<RwLock<CargoEnv>>,
         action_tx: UnboundedSender<Action>,
     ) -> AppResult<Self> {
-        let tx = action_tx.clone();
-        let tx2 = action_tx.clone();
-
         let input = Input::default().with_value(initial_search_term.unwrap_or_default());
 
         Ok(Self {
@@ -83,24 +81,10 @@ impl Home {
             show_help: true,
             focused: Focusable::default(),
             input,
-            scope_dropdown: Dropdown::new(
-                "Search in".into(),
-                Scope::default() as usize,
-                Box::new(move |selected: &Scope| {
-                    tx.send(Action::Search(SearchCommand::Scope(selected.clone())))
-                        .ok();
-                }),
-            ),
-            sort_dropdown: Dropdown::new(
-                "Sort by".into(),
-                Sort::default() as usize,
-                Box::new(move |selected: &Sort| {
-                    tx2.send(Action::Search(SearchCommand::SortBy(selected.clone())))
-                        .ok();
-                }),
-            ),
+            sort: Sort::default(),
+            scope: Scope::default(),
+            overlay: None,
             search_results: None,
-            feature_picker: None,
             crate_search_manager: CrateSearchManager::new(action_tx.clone())?,
             is_searching: false,
             spinner_state: throbber_widgets_tui::ThrobberState::default(),
@@ -194,9 +178,7 @@ impl Home {
         }
     }
 
-    /// Builds a feature picker for the focused crate, or `None` when there is nothing to pick —
-    /// metadata not yet loaded, or the crate exposes no features — in which case the caller should
-    /// add/install directly.
+    /// Builds a feature picker for the focused crate, or `None` when there is nothing to pick.
     fn feature_picker_for(&self, intent: FeatureIntent) -> Option<FeatureSelector> {
         let cr = self.get_focused_crate()?;
         let features = cr.features.as_deref()?;
@@ -267,9 +249,6 @@ impl Home {
 #[async_trait]
 impl Component for Home {
     fn register_config_handler(&mut self, config: Config) -> AppResult<()> {
-        self.sort_dropdown.register_config_handler(config.clone())?;
-        self.scope_dropdown
-            .register_config_handler(config.clone())?;
         self.config = config;
         Ok(())
     }

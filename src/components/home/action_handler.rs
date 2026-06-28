@@ -27,12 +27,7 @@ pub async fn handle_action(
 
         Action::Home(command) => match command {
             HomeCommand::Focus(focusable) => {
-                let focusable = *focusable;
-                home.sort_dropdown
-                    .set_is_focused(focusable == Focusable::Sort);
-                home.scope_dropdown
-                    .set_is_focused(focusable == Focusable::Scope);
-                home.focused = focusable;
+                home.focused = *focusable;
             }
             HomeCommand::FocusNext => {
                 let has_search_results = home.search_results.is_some();
@@ -48,11 +43,8 @@ pub async fn handle_action(
                     return Ok(Some(Action::Home(HomeCommand::Focus(next))));
                 } else {
                     let mut next = home.focused.next();
-                    // Tab focus cycle should skip these elements
-                    while next == Focusable::Help
-                        || next == Focusable::Sort
-                        || next == Focusable::Scope
-                    {
+                    // Help isn't a Tab stop when it's hidden.
+                    while next == Focusable::Help {
                         next = next.next();
                     }
                     return Ok(Some(Action::Home(HomeCommand::Focus(next))));
@@ -72,18 +64,10 @@ pub async fn handle_action(
                     return Ok(Some(Action::Home(HomeCommand::Focus(prev))));
                 } else {
                     let mut prev = home.focused.prev();
-                    // Tab focus cycle should skip these elements
-                    while prev == Focusable::Help
-                        || prev == Focusable::Sort
-                        || prev == Focusable::Scope
-                    {
+                    // Help isn't a Tab stop when it's hidden.
+                    while prev == Focusable::Help {
                         prev = prev.prev();
                     }
-
-                    if !home.show_help && prev == Focusable::Help {
-                        prev = prev.prev();
-                    }
-
                     return Ok(Some(Action::Home(HomeCommand::Focus(prev))));
                 }
             }
@@ -179,8 +163,8 @@ fn handle_search_command(home: &mut Home, command: &SearchCommand) -> AppResult<
         } => {
             let tx = home.action_tx.clone();
 
-            let scope = home.scope_dropdown.get_selected();
-            let sort = home.sort_dropdown.get_selected();
+            let scope = home.scope.clone();
+            let sort = home.sort.clone();
 
             let status = status.clone().unwrap_or_else(|| "Searching".into());
             tx.send(Action::Status(StatusCommand::UpdateStatus(
@@ -207,6 +191,7 @@ fn handle_search_command(home: &mut Home, command: &SearchCommand) -> AppResult<
             return Ok(None);
         }
         SearchCommand::SortBy(sort) => {
+            home.sort = sort.clone();
             home.action_tx
                 .send(Action::Home(HomeCommand::Focus(Focusable::Search)))?;
 
@@ -220,6 +205,7 @@ fn handle_search_command(home: &mut Home, command: &SearchCommand) -> AppResult<
             }
         }
         SearchCommand::Scope(scope) => {
+            home.scope = scope.clone();
             home.action_tx
                 .send(Action::Home(HomeCommand::Focus(Focusable::Search)))?;
 

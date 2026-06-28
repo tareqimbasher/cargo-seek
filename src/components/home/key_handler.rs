@@ -3,16 +3,16 @@ use tui_input::backend::crossterm::EventHandler;
 
 use crate::action::Action;
 use crate::cargo::CargoCommand;
-use crate::components::Component;
-use crate::components::home::feature_selector::{FeatureIntent, KeyOutcome};
+use crate::components::home::feature_selector::FeatureIntent;
+use crate::components::home::overlay::Overlay;
 use crate::components::home::{Focusable, Home, HomeCommand};
+use crate::components::ux::{Dropdown, KeyOutcome};
 use crate::errors::AppResult;
 use crate::search::SearchCommand;
 
 pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
-    // While the feature picker is open it is modal: it consumes all keys.
-    if home.feature_picker.is_some() {
-        return handle_feature_picker_key(home, key);
+    if home.overlay.is_some() {
+        return handle_overlay_key(home, key);
     }
 
     if let Some(action) = handle_global_shortcuts(home, key)? {
@@ -24,8 +24,6 @@ pub fn handle_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
     match home.focused {
         Focusable::Search => handle_search_focus(home, key),
         Focusable::Results if !is_details_focused => handle_results_focus(home, key),
-        Focusable::Sort => handle_sort_focus(home, key),
-        Focusable::Scope => handle_scope_focus(home, key),
         _ => {
             if is_details_focused {
                 return handle_details_focus(home, key);
@@ -54,22 +52,12 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
             };
         }
         KeyCode::Char('s') if ctrl => {
-            return Ok(Some(Action::Home(HomeCommand::Focus(
-                if home.focused == Focusable::Sort {
-                    Focusable::Search
-                } else {
-                    Focusable::Sort
-                },
-            ))));
+            open_sort_overlay(home);
+            return Ok(None);
         }
         KeyCode::Char('a') if ctrl => {
-            return Ok(Some(Action::Home(HomeCommand::Focus(
-                if home.focused == Focusable::Scope {
-                    Focusable::Search
-                } else {
-                    Focusable::Scope
-                },
-            ))));
+            open_scope_overlay(home);
+            return Ok(None);
         }
         KeyCode::Char('/') => {
             return Ok(Some(Action::Home(HomeCommand::Focus(Focusable::Search))));
@@ -123,7 +111,7 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
             return Ok(None);
         }
         KeyCode::Char('a') => {
-            if let Some(action) = open_picker_or_dispatch(home, FeatureIntent::Add) {
+            if let Some(action) = open_feature_picker_or_dispatch(home, FeatureIntent::Add) {
                 return Ok(Some(action));
             }
         }
@@ -135,7 +123,7 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
             }
         }
         KeyCode::Char('i') => {
-            if let Some(action) = open_picker_or_dispatch(home, FeatureIntent::Install) {
+            if let Some(action) = open_feature_picker_or_dispatch(home, FeatureIntent::Install) {
                 return Ok(Some(action));
             }
         }
@@ -152,31 +140,53 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
     Ok(None)
 }
 
-fn handle_feature_picker_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
-    let outcome = match home.feature_picker.as_mut() {
-        Some(picker) => picker.handle_key(key),
+/// Routes a key to the active overlay and applies its outcome.
+fn handle_overlay_key(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
+    let outcome = match home.overlay.as_mut() {
+        Some(overlay) => overlay.handle_key(key),
         None => return Ok(None),
     };
 
     match outcome {
         KeyOutcome::Pending => Ok(None),
         KeyOutcome::Cancelled => {
-            home.feature_picker = None;
+            home.overlay = None;
             Ok(None)
         }
-        KeyOutcome::Submitted => Ok(home.feature_picker.take().map(|picker| picker.confirm())),
+        KeyOutcome::Submitted(action) => {
+            home.overlay = None;
+            Ok(Some(action))
+        }
     }
 }
 
+/// Opens the sort dropdown, initialized to the current sort.
+fn open_sort_overlay(home: &mut Home) {
+    home.overlay = Some(Overlay::Sort(Dropdown::new(
+        home.config.clone(),
+        "Sort by".into(),
+        home.sort.clone(),
+    )));
+}
+
+/// Opens the scope dropdown, initialized to the current scope.
+fn open_scope_overlay(home: &mut Home) {
+    home.overlay = Some(Overlay::Scope(Dropdown::new(
+        home.config.clone(),
+        "Search in".into(),
+        home.scope.clone(),
+    )));
+}
+
 /// Opens the feature picker for the focused crate, or returns the add/install action directly when
-/// there are no features to choose (see [`Home::feature_picker_for`]).
-fn open_picker_or_dispatch(home: &mut Home, intent: FeatureIntent) -> Option<Action> {
+/// there are no features to choose.
+fn open_feature_picker_or_dispatch(home: &mut Home, intent: FeatureIntent) -> Option<Action> {
     let cr = home.get_focused_crate()?;
     let name = cr.name.clone();
     let version = cr.version.clone();
 
     if let Some(picker) = home.feature_picker_for(intent) {
-        home.feature_picker = Some(picker);
+        home.overlay = Some(Overlay::Features(picker));
         return None;
     }
 
@@ -281,22 +291,6 @@ fn handle_details_focus(home: &mut Home, key: KeyEvent) -> AppResult<Option<Acti
     }
 
     Ok(None)
-}
-
-fn handle_sort_focus(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
-    if let Some(action) = home.sort_dropdown.handle_key_event(key)? {
-        Ok(Some(action))
-    } else {
-        Ok(None)
-    }
-}
-
-fn handle_scope_focus(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
-    if let Some(action) = home.scope_dropdown.handle_key_event(key)? {
-        Ok(Some(action))
-    } else {
-        Ok(None)
-    }
 }
 
 // Used for focus positioning for buttons in the details pane/box

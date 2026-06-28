@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use strum::{Display, EnumIter};
 
 #[derive(Debug, Default, Display, Clone, EnumIter, PartialEq, Eq, Deserialize)]
@@ -10,7 +10,14 @@ pub enum Scope {
     Installed,
 }
 
-#[derive(Debug, Default, Clone, EnumIter, PartialEq, Eq, Serialize, Deserialize)]
+impl Scope {
+    /// Whether this scope queries `source`. `All` includes every source.
+    pub fn includes(&self, source: Scope) -> bool {
+        *self == Scope::All || *self == source
+    }
+}
+
+#[derive(Debug, Default, Clone, EnumIter, PartialEq, Eq, Deserialize)]
 pub enum Sort {
     #[default]
     Relevance,

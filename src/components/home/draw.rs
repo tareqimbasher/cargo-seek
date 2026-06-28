@@ -7,10 +7,9 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, Padding, Paragraph, Wrap},
 };
 
-use crate::app::Mode;
-use crate::components::Component;
 use crate::components::home::Home;
 use crate::components::home::focusable::Focusable;
+use crate::components::home::overlay::Overlay;
 use crate::components::ux::{Button, GRAY, ORANGE, PURPLE, State, YELLOW};
 use crate::errors::AppResult;
 use crate::search::Crate;
@@ -26,8 +25,9 @@ pub fn render(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> {
     render_left(home, frame, left_col_area)?;
     render_right(home, frame, right_col_area)?;
 
-    if let Some(picker) = home.feature_picker.as_mut() {
-        picker.draw(frame, area);
+    // Draw overlay last so the modal sits on top of everything.
+    if let Some(overlay) = home.overlay.as_mut() {
+        overlay.draw(frame, area);
     }
 
     Ok(())
@@ -39,8 +39,6 @@ fn render_left(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> 
 
     render_search(home, frame, search_area)?;
     render_results(home, frame, results_area)?;
-    home.scope_dropdown.draw(&Mode::Home, frame, area)?;
-    home.sort_dropdown.draw(&Mode::Home, frame, area)?;
 
     Ok(())
 }
@@ -99,36 +97,29 @@ fn render_search(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()
 }
 
 fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) -> AppResult<()> {
+    let dropdown_title = |label: String, active: bool| {
+        let style = if active {
+            home.config.theme.title
+        } else {
+            Style::default()
+        };
+        Line::from(format!(" ▼ {label} ").set_style(style)).right_aligned()
+    };
+
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(match home.focused {
             Focusable::Results => home.config.theme.accent_active,
             _ => Style::default(),
         })
-        .title(
-            Line::from(
-                format!(" ▼ {} ", home.scope_dropdown.get_selected()).set_style(
-                    if home.focused == Focusable::Scope {
-                        home.config.theme.title
-                    } else {
-                        Style::default()
-                    },
-                ),
-            )
-            .right_aligned(),
-        )
-        .title(
-            Line::from(
-                format!(" ▼ {} ", home.sort_dropdown.get_selected()).set_style(
-                    if home.focused == Focusable::Sort {
-                        home.config.theme.title
-                    } else {
-                        Style::default()
-                    },
-                ),
-            )
-            .right_aligned(),
-        );
+        .title(dropdown_title(
+            home.scope.to_string(),
+            matches!(home.overlay, Some(Overlay::Scope(_))),
+        ))
+        .title(dropdown_title(
+            home.sort.to_string(),
+            matches!(home.overlay, Some(Overlay::Sort(_))),
+        ));
 
     if let Some(results) = home.search_results.as_mut() {
         let selected_index = results.selected_index();

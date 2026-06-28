@@ -9,8 +9,6 @@ pub enum Focusable {
     Help,
     #[default]
     Search,
-    Sort,
-    Scope,
     Results,
     DocsButton,
     RepositoryButton,
@@ -39,13 +37,13 @@ mod tests {
     #[test]
     fn next_advances_and_wraps_past_the_last() {
         assert_eq!(Focusable::Help.next(), Focusable::Search);
-        assert_eq!(Focusable::Search.next(), Focusable::Sort);
+        assert_eq!(Focusable::Search.next(), Focusable::Results);
         assert_eq!(Focusable::LibRsButton.next(), Focusable::Help);
     }
 
     #[test]
     fn prev_retreats_and_wraps_past_the_first() {
-        assert_eq!(Focusable::Sort.prev(), Focusable::Search);
+        assert_eq!(Focusable::Results.prev(), Focusable::Search);
         assert_eq!(Focusable::Search.prev(), Focusable::Help);
         assert_eq!(Focusable::Help.prev(), Focusable::LibRsButton);
     }

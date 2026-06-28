@@ -1,124 +1,84 @@
-use async_trait::async_trait;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
-use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::text::Line;
-use ratatui::widgets::{Block, Clear, List, ListItem, ListState};
+use ratatui::layout::Rect;
+use ratatui::widgets::{List, ListItem, ListState};
 use std::fmt::Display;
+use std::marker::PhantomData;
 use strum::IntoEnumIterator;
 
-use crate::action::Action;
-use crate::app::Mode;
-use crate::components::Component;
+use crate::components::ux::{KeyOutcome, Popup};
 use crate::config::Config;
-use crate::errors::AppResult;
 
-/// A custom widget that renders a dropdown.
+/// A modal dropdown, rendered as a popup, listing every variant of `T`, with one highlighted
+/// as the selection.
 pub struct Dropdown<T> {
-    header: String,
     config: Config,
-    is_focused: bool,
+    header: String,
     state: ListState,
-    on_enter: Box<dyn Fn(&T) + Send + Sync>,
+    marker: PhantomData<T>,
 }
 
-impl<T: IntoEnumIterator + Default + Clone> Dropdown<T> {
-    pub fn new(
-        header: String,
-        selected_ix: usize,
-        on_enter: Box<dyn Fn(&T) + Send + Sync>,
-    ) -> Self {
-        Dropdown {
+impl<T: IntoEnumIterator + Display + PartialEq> Dropdown<T> {
+    /// Builds a dropdown over `T`'s variants with `selected` pre-highlighted.
+    pub fn new(config: Config, header: String, selected: T) -> Self {
+        let selected_ix = T::iter()
+            .position(|variant| variant == selected)
+            .unwrap_or(0);
+        Self {
+            config,
             header,
-            config: Config::default(),
-            is_focused: false,
             state: ListState::default().with_selected(Some(selected_ix)),
-            on_enter,
+            marker: PhantomData,
         }
     }
 
-    pub fn set_is_focused(&mut self, focused: bool) {
-        self.is_focused = focused;
+    /// The currently highlighted variant.
+    fn selected(&self) -> T {
+        self.state
+            .selected()
+            .and_then(|ix| T::iter().nth(ix))
+            .or_else(|| T::iter().next())
+            .expect("a dropdown is never built over a variant-less enum")
     }
 
-    pub fn get_selected(&self) -> T {
-        if let Some(ix) = self.state.selected()
-            && let Some(value) = T::iter().nth(ix)
-        {
-            return value.clone();
+    fn select_next(&mut self) {
+        let count = T::iter().count();
+        if count == 0 {
+            return;
         }
-        T::default()
-    }
-}
-
-#[async_trait]
-impl<T: IntoEnumIterator + Default + Display + Clone + 'static> Component for Dropdown<T> {
-    fn register_config_handler(&mut self, config: Config) -> AppResult<()> {
-        self.config = config;
-        Ok(())
+        let next = self.state.selected().map_or(0, |i| (i + 1).min(count - 1));
+        self.state.select(Some(next));
     }
 
-    fn handle_key_event(&mut self, key: KeyEvent) -> AppResult<Option<Action>> {
-        if !self.is_focused {
-            return Ok(None);
-        }
+    fn select_previous(&mut self) {
+        let prev = self.state.selected().map_or(0, |i| i.saturating_sub(1));
+        self.state.select(Some(prev));
+    }
 
+    pub fn handle_key(&mut self, key: KeyEvent) -> KeyOutcome<T> {
         match key.code {
-            KeyCode::Up => {
-                self.state.select_previous();
-            }
-            KeyCode::Down => {
-                self.state.select_next();
-            }
-            KeyCode::Enter => {
-                let selected_value = self.get_selected();
-                self.on_enter.as_ref()(&selected_value);
-            }
+            KeyCode::Esc => return KeyOutcome::Cancelled,
+            KeyCode::Enter => return KeyOutcome::Submitted(self.selected()),
+            KeyCode::Up => self.select_previous(),
+            KeyCode::Down => self.select_next(),
             _ => {}
         }
-
-        Ok(None)
+        KeyOutcome::Pending
     }
 
-    fn draw(&mut self, _: &Mode, frame: &mut Frame, area: Rect) -> AppResult<()> {
-        if !self.is_focused {
-            return Ok(());
-        }
+    pub fn draw(&mut self, frame: &mut Frame, area: Rect) {
+        let count = T::iter().count() as u16;
 
-        if self.state.selected().is_none() {
-            self.state.select_first();
-        }
+        let inner = Popup::new(35, count + 2)
+            .title(format!(" {}: ", self.header))
+            .footer(" Enter confirm · Esc cancel ")
+            .border_style(self.config.theme.accent)
+            .render(frame, area);
 
-        let [_, main, _] = Layout::horizontal([
-            Constraint::Length(1),
-            Constraint::Min(0),
-            Constraint::Length(1),
-        ])
-        .areas(area);
-
-        let [_, dropdown_wrapper_rect] =
-            Layout::vertical([Constraint::Length(4), Constraint::Length(8)]).areas(main);
-
-        let [_, dropdown_rect, _] = Layout::horizontal([
-            Constraint::Min(0),
-            Constraint::Length(35),
-            Constraint::Min(0),
-        ])
-        .areas(dropdown_wrapper_rect);
-
-        let dropdown = Block::bordered()
-            .title(Line::from(format!(" {0}: ", self.header)).centered())
-            .border_style(self.config.theme.accent);
-
-        frame.render_widget(Clear, dropdown_wrapper_rect);
-        frame.render_widget(&dropdown, dropdown_rect);
-
-        let list = List::new(T::iter().map(|x| ListItem::new(x.to_string())))
+        let list = List::new(T::iter().map(|variant| ListItem::new(variant.to_string())))
             .highlight_style(self.config.theme.accent.bold())
             .highlight_symbol("▶ ");
 
-        frame.render_stateful_widget(list, dropdown.inner(dropdown_rect), &mut self.state);
-
-        Ok(())
+        frame.render_stateful_widget(list, inner, &mut self.state);
     }
 }

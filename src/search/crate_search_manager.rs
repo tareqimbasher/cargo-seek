@@ -61,7 +61,6 @@ impl CrateSearchManager {
             }
 
             let term = options.term.unwrap_or_default().to_lowercase();
-            let search_all = options.scope == Scope::All;
             // Pages are 1-indexed
             let page = options.page.unwrap_or(1).max(1);
             let per_page = options.per_page.unwrap_or(DEFAULT_PER_PAGE);
@@ -73,7 +72,7 @@ impl CrateSearchManager {
                 let cargo_env = cargo_env.read().await;
 
                 // Search crates added to the current project
-                if (search_all || options.scope == Scope::Project)
+                if options.scope.includes(Scope::Project)
                     && let Some(project) = &cargo_env.project
                 {
                     let mut results = Self::search_project(&term, project);
@@ -96,7 +95,7 @@ impl CrateSearchManager {
                 }
 
                 // Search globally installed binaries
-                if search_all || options.scope == Scope::Installed {
+                if options.scope.includes(Scope::Installed) {
                     let mut results = Self::search_binaries(&term, &cargo_env);
                     search_results.total_count += results.len();
                     results = results
@@ -118,7 +117,7 @@ impl CrateSearchManager {
             }
 
             // Search the online registry
-            if search_all || options.scope == Scope::Online {
+            if options.scope.includes(Scope::Online) {
                 let registry = Self::search_registry(
                     crates_io_client,
                     &term,
