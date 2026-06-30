@@ -2,6 +2,7 @@
 //! into submodules.
 
 pub mod action_handler;
+pub mod cargo_request;
 pub mod draw;
 pub mod feature_selector;
 pub mod focusable;
@@ -21,13 +22,12 @@ use tokio::sync::mpsc::UnboundedSender;
 use tui_input::Input;
 
 use crate::cargo::CargoEnv;
-use crate::components::home::feature_selector::{FeatureIntent, FeatureSelector};
+use crate::components::home::cargo_request::{CargoIntent, PendingCargoRequest};
 use crate::components::home::focusable::Focusable;
 use crate::components::home::overlay::Overlay;
 use crate::components::home::{
     action_handler::handle_action, draw::render, key_handler::handle_key,
 };
-use crate::components::status_bar::StatusLevel;
 use crate::errors::AppResult;
 use crate::search::{Crate, CrateSearchManager, Scope, SearchCommand, SearchResults, Sort};
 use crate::tui::Tui;
@@ -39,6 +39,10 @@ pub enum HomeCommand {
     FocusNext,
     FocusPrevious,
     ToggleHelp,
+
+    /// Begin an add/install for the focused crate.
+    #[serde(skip)]
+    BeginCargoRequest(CargoIntent),
 
     OpenDocs,
     OpenReadme,
@@ -59,6 +63,7 @@ pub struct Home {
     sort: Sort,
     scope: Scope,
     overlay: Option<Overlay>,
+    pending_cargo_request: Option<PendingCargoRequest>,
     is_searching: bool,
     search_results: Option<SearchResults>,
     spinner_state: throbber_widgets_tui::ThrobberState,
@@ -84,6 +89,7 @@ impl Home {
             sort: Sort::default(),
             scope: Scope::default(),
             overlay: None,
+            pending_cargo_request: None,
             search_results: None,
             crate_search_manager: CrateSearchManager::new(action_tx.clone())?,
             is_searching: false,
@@ -98,11 +104,9 @@ impl Home {
     fn reset(&mut self) -> AppResult<()> {
         self.input.reset();
         self.search_results = None;
+        self.pending_cargo_request = None;
         self.action_tx
-            .send(Action::Status(StatusCommand::UpdateStatus(
-                StatusLevel::Info,
-                "Ready".into(),
-            )))?;
+            .send(Action::Status(StatusCommand::ResetStatus))?;
         Ok(())
     }
 
@@ -178,22 +182,34 @@ impl Home {
         }
     }
 
-    /// Builds a feature picker for the focused crate, or `None` when there is nothing to pick.
-    fn feature_picker_for(&self, intent: FeatureIntent) -> Option<FeatureSelector> {
-        let cr = self.get_focused_crate()?;
-        let features = cr.features.as_deref()?;
-        if features.is_empty() {
-            return None;
+    /// Reacts to the selected crate changing. Drops a deferred cargo request once the selection
+    /// leaves the crate it was waiting on, and prefetches metadata for the newly selected crate
+    /// when its features aren't known yet.
+    fn on_selection_changed(&mut self) {
+        let selected = self
+            .search_results
+            .as_ref()
+            .and_then(|results| results.selected())
+            .map(|cr| (cr.name.clone(), cr.features.is_none()));
+
+        // A deferred request is only valid while its crate stays focused.
+        let moved_off = self.pending_cargo_request.as_ref().is_some_and(|pending| {
+            selected.as_ref().map(|(name, _)| name.as_str()) != Some(pending.crate_name.as_str())
+        });
+        if moved_off {
+            self.pending_cargo_request = None;
+            self.action_tx
+                .send(Action::Status(StatusCommand::ResetStatus))
+                .ok();
         }
 
-        Some(FeatureSelector::new(
-            self.config.clone(),
-            cr.name.clone(),
-            cr.version.clone(),
-            intent,
-            features,
-            &cr.default_features,
-        ))
+        if let Some((name, needs_metadata)) = selected
+            && needs_metadata
+        {
+            self.crate_search_manager
+                .start_metadata_load(&name, true)
+                .ok();
+        }
     }
 
     fn should_show_docs_button(&self) -> bool {

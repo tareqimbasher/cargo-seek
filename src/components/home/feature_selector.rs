@@ -5,23 +5,16 @@ use ratatui::style::Stylize;
 use ratatui::text::Line;
 
 use crate::action::Action;
-use crate::cargo::CargoCommand;
+use crate::components::home::cargo_request::CargoIntent;
 use crate::components::ux::{KeyOutcome, MultiSelect, MultiSelectItem};
 use crate::config::Config;
-
-/// Which cargo action the picker dispatches once features are chosen.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FeatureIntent {
-    Add,
-    Install,
-}
 
 /// A multi-select checklist of a crate's features for the user to select from when adding or
 /// installing a crate.
 pub struct FeatureSelector {
     crate_name: String,
     version: String,
-    intent: FeatureIntent,
+    intent: CargoIntent,
     default_features: Vec<String>,
     selector: MultiSelect<String>,
 }
@@ -31,7 +24,7 @@ impl FeatureSelector {
         config: Config,
         crate_name: String,
         version: String,
-        intent: FeatureIntent,
+        intent: CargoIntent,
         features: &[String],
         default_features: &[String],
     ) -> Self {
@@ -44,15 +37,12 @@ impl FeatureSelector {
                 } else {
                     name.clone().into()
                 };
-                // Defaults start checked so confirming straight away matches a plain add.
+                // Default features start checked so confirming straight away matches a plain add.
                 MultiSelectItem::new(name.clone(), label, is_default)
             })
             .collect();
 
-        let verb = match intent {
-            FeatureIntent::Add => "Add",
-            FeatureIntent::Install => "Install",
-        };
+        let verb = intent.verb();
 
         Self {
             crate_name: crate_name.clone(),
@@ -85,24 +75,12 @@ impl FeatureSelector {
             .cloned()
             .collect();
 
-        let name = self.crate_name.clone();
-        let version = self.version.clone();
-
-        let command = match self.intent {
-            FeatureIntent::Add => CargoCommand::Add {
-                name,
-                version,
-                features,
-                no_default_features,
-            },
-            FeatureIntent::Install => CargoCommand::Install {
-                name,
-                version,
-                features,
-                no_default_features,
-            },
-        };
-        Action::Cargo(command)
+        self.intent.into_command(
+            self.crate_name.clone(),
+            self.version.clone(),
+            features,
+            no_default_features,
+        )
     }
 
     pub fn draw(&mut self, frame: &mut Frame, area: Rect) {
@@ -112,9 +90,10 @@ impl FeatureSelector {
 
 #[cfg(test)]
 mod tests {
-    use super::{FeatureIntent, FeatureSelector};
+    use super::FeatureSelector;
     use crate::action::Action;
     use crate::cargo::CargoCommand;
+    use crate::components::home::cargo_request::CargoIntent;
     use crate::components::ux::KeyOutcome;
     use crate::config::Config;
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -127,7 +106,7 @@ mod tests {
             Config::default(),
             "demo".into(),
             "1.0.0".into(),
-            FeatureIntent::Add,
+            CargoIntent::Add,
             &features,
             &defaults,
         )

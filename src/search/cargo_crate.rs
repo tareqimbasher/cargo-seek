@@ -90,19 +90,19 @@ impl Crate {
     }
 
     /// Fills in full metadata from a crates.io response (the lazy hydration of a selected crate).
-    pub fn hydrate(&mut self, response: Box<crates_io_api::CrateResponse>) {
-        let data = response.crate_data;
-        self.name = data.name;
-        self.description = data.description;
-        self.homepage = data.homepage;
-        self.documentation = data.documentation;
-        self.repository = data.repository;
+    pub fn hydrate(&mut self, response: &crates_io_api::CrateResponse) {
+        let data = &response.crate_data;
+        self.name = data.name.clone();
+        self.description = data.description.clone();
+        self.homepage = data.homepage.clone();
+        self.documentation = data.documentation.clone();
+        self.repository = data.repository.clone();
         self.version = data
             .max_stable_version
             .clone()
             .unwrap_or_else(|| data.max_version.clone());
-        self.max_version = Some(data.max_version);
-        self.max_stable_version = data.max_stable_version;
+        self.max_version = Some(data.max_version.clone());
+        self.max_stable_version = data.max_stable_version.clone();
         self.downloads = Some(data.downloads);
         self.recent_downloads = data.recent_downloads;
         if let Some(latest) = response.versions.first() {

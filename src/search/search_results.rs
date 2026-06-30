@@ -1,3 +1,4 @@
+use crates_io_api::CrateResponse;
 use indexmap::IndexMap;
 use ratatui::widgets::ListState;
 
@@ -109,6 +110,15 @@ impl SearchResults {
     pub fn select_last(&mut self) -> Option<&Crate> {
         let last = self.crates.len().saturating_sub(1);
         self.select_index(Some(last))
+    }
+
+    /// Hydrates the selected crate from a metadata response.
+    pub fn hydrate_selected(&mut self, response: &CrateResponse) {
+        if let Some(index) = self.selected_index()
+            && self.crates[index].name == response.crate_data.name
+        {
+            self.crates[index].hydrate(response);
+        }
     }
 
     /// Deduplicates the results, then annotates each with its project/installed version from the

@@ -3,13 +3,15 @@ use std::sync::Arc;
 
 use crate::action::Action;
 use crate::cargo::CargoEvent;
+use crate::components::home::cargo_request::{
+    FeatureStep, PendingCargoRequest, decide_feature_step,
+};
 use crate::components::home::focusable::Focusable;
+use crate::components::home::overlay::Overlay;
 use crate::components::home::{Home, HomeCommand};
 use crate::components::status_bar::{StatusCommand, StatusDuration, StatusLevel};
 use crate::errors::AppResult;
-use crate::search::{
-    CrateSearchManager, DEFAULT_PER_PAGE, SearchCommand, SearchEvent, SearchOptions, SearchResults,
-};
+use crate::search::{DEFAULT_PER_PAGE, SearchCommand, SearchEvent, SearchOptions};
 use crate::tui::Tui;
 
 pub async fn handle_action(
@@ -80,6 +82,12 @@ pub async fn handle_action(
                 } else {
                     Ok(Some(Action::Home(HomeCommand::Focus(Focusable::Help))))
                 };
+            }
+            HomeCommand::BeginCargoRequest(intent) => {
+                let step = decide_feature_step(home.get_focused_crate(), &home.config, *intent);
+                if let Some(step) = step {
+                    apply_feature_step(home, step)?;
+                }
             }
             HomeCommand::OpenReadme => {
                 // TODO setting if open in browser or cli
@@ -230,32 +238,35 @@ fn handle_search_command(home: &mut Home, command: &SearchCommand) -> AppResult<
         SearchCommand::NavLastPage => {
             home.go_to_last_page(home.input.value())?;
         }
-        _ => {
+        SearchCommand::SelectIndex(index) => {
             if let Some(results) = home.search_results.as_mut() {
-                match command {
-                    SearchCommand::SelectIndex(index) => {
-                        results.select_index(*index);
-                        load_metadata_if_needed(results, &mut home.crate_search_manager);
-                    }
-                    SearchCommand::SelectNext => {
-                        results.select_next();
-                        load_metadata_if_needed(results, &mut home.crate_search_manager);
-                    }
-                    SearchCommand::SelectPrev => {
-                        results.select_previous();
-                        load_metadata_if_needed(results, &mut home.crate_search_manager);
-                    }
-                    SearchCommand::SelectFirst => {
-                        results.select_first();
-                        load_metadata_if_needed(results, &mut home.crate_search_manager);
-                    }
-                    SearchCommand::SelectLast => {
-                        results.select_last();
-                        load_metadata_if_needed(results, &mut home.crate_search_manager);
-                    }
-                    _ => {}
-                }
+                results.select_index(*index);
             }
+            home.on_selection_changed();
+        }
+        SearchCommand::SelectNext => {
+            if let Some(results) = home.search_results.as_mut() {
+                results.select_next();
+            }
+            home.on_selection_changed();
+        }
+        SearchCommand::SelectPrev => {
+            if let Some(results) = home.search_results.as_mut() {
+                results.select_previous();
+            }
+            home.on_selection_changed();
+        }
+        SearchCommand::SelectFirst => {
+            if let Some(results) = home.search_results.as_mut() {
+                results.select_first();
+            }
+            home.on_selection_changed();
+        }
+        SearchCommand::SelectLast => {
+            if let Some(results) = home.search_results.as_mut() {
+                results.select_last();
+            }
+            home.on_selection_changed();
         }
     }
     Ok(None)
@@ -277,9 +288,9 @@ fn handle_search_event(home: &mut Home, event: &SearchEvent) -> AppResult<Option
             } else if results_len > 0 {
                 results.select_index(Some(0));
             }
-            load_metadata_if_needed(&mut results, &mut home.crate_search_manager);
 
             home.search_results = Some(results);
+            home.on_selection_changed();
 
             home.action_tx
                 .send(Action::Status(StatusCommand::UpdateStatusWithDuration(
@@ -301,22 +312,57 @@ fn handle_search_event(home: &mut Home, event: &SearchEvent) -> AppResult<Option
                 )))
                 .ok();
         }
-        SearchEvent::MetadataLoaded(data) => {
-            if let Some(results) = home.search_results.as_mut()
-                && let Some(index) = results.selected_index()
-            {
-                let cr = &mut results.crates[index];
-                if cr.id == data.crate_data.id {
-                    cr.hydrate(data.clone());
+        SearchEvent::MetadataLoaded { response } => {
+            if let Some(results) = home.search_results.as_mut() {
+                results.hydrate_selected(response);
+            }
+
+            // Resolve a deferred request only when this load is for the crate it was waiting on.
+            let awaited = home
+                .pending_cargo_request
+                .as_ref()
+                .is_some_and(|pending| pending.crate_name == response.crate_data.name);
+            if awaited {
+                let intent = home
+                    .pending_cargo_request
+                    .take()
+                    .expect("pending feature present per `awaited`")
+                    .intent;
+
+                home.action_tx
+                    .send(Action::Status(StatusCommand::ResetStatus))
+                    .ok();
+
+                // Drop the request if an overlay opened while it loaded (e.g. a sort/scope dropdown);
+                // popping the picker over it would replace something the user is interacting with.
+                let step = if home.overlay.is_none() {
+                    decide_feature_step(home.get_focused_crate(), &home.config, intent)
+                } else {
+                    None
+                };
+                if let Some(step) = step {
+                    apply_feature_step(home, step)?;
                 }
             }
         }
         SearchEvent::MetadataFailed { name, message } => {
+            // If we were waiting on this crate's features, drop the request and say so.
+            // Otherwise, it was a passive prefetch, so report it as a details-loading failure.
+            let waiting_on_features = home
+                .pending_cargo_request
+                .as_ref()
+                .is_some_and(|pending| pending.crate_name == *name);
+            let status = if waiting_on_features {
+                home.pending_cargo_request = None;
+                format!("Couldn't load features for {name}")
+            } else {
+                format!("Couldn't load details for {name}: {message}")
+            };
             home.action_tx
                 .send(Action::Status(StatusCommand::UpdateStatusWithDuration(
                     StatusLevel::Error,
                     StatusDuration::Short,
-                    format!("Couldn't load details for {name}: {message}"),
+                    status,
                 )))
                 .ok();
         }
@@ -324,13 +370,29 @@ fn handle_search_event(home: &mut Home, event: &SearchEvent) -> AppResult<Option
     Ok(None)
 }
 
-fn load_metadata_if_needed(
-    results: &mut SearchResults,
-    crate_search_manager: &mut CrateSearchManager,
-) {
-    if let Some(cr) = results.selected()
-        && !cr.is_metadata_loaded()
-    {
-        crate_search_manager.load_crate_metadata(&cr.name).ok();
+/// Acts on a [`FeatureStep`].
+fn apply_feature_step(home: &mut Home, step: FeatureStep) -> AppResult<()> {
+    match step {
+        FeatureStep::Pick(selector) => {
+            home.overlay = Some(Overlay::Features(*selector));
+        }
+        FeatureStep::Run(action) => {
+            home.action_tx.send(action)?;
+        }
+        FeatureStep::AwaitMetadata { intent, name } => {
+            home.pending_cargo_request = Some(PendingCargoRequest {
+                intent,
+                crate_name: name.clone(),
+            });
+            home.crate_search_manager
+                .start_metadata_load(&name, false)
+                .ok();
+            home.action_tx
+                .send(Action::Status(StatusCommand::UpdateStatus(
+                    StatusLevel::Progress,
+                    format!("Loading features for {name}…"),
+                )))?;
+        }
     }
+    Ok(())
 }

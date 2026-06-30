@@ -33,8 +33,10 @@ pub enum SearchEvent {
     Completed(SearchResults),
     /// A search failed with this message.
     Failed(String),
-    /// Full crate metadata finished loading (lazy hydration of the selected crate).
-    MetadataLoaded(Box<crates_io_api::CrateResponse>),
+    /// The selected crate's metadata finished loading.
+    MetadataLoaded {
+        response: Box<crates_io_api::CrateResponse>,
+    },
     /// Lazy hydration of the named crate's metadata failed with this message.
     MetadataFailed { name: String, message: String },
 }

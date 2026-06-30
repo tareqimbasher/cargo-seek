@@ -45,9 +45,13 @@ impl CrateSearchManager {
     }
 
     pub fn search(&mut self, options: SearchOptions, cargo_env: Arc<RwLock<CargoEnv>>) {
-        // Cancel previous search
+        // Cancel any in-flight search or hydrate operation.
         if let Some(cancel_search_tx) = self.cancel_search_tx.take() {
             let _ = cancel_search_tx.send(());
+        }
+
+        if let Some(cancel_hydrate_tx) = self.cancel_hydrate_tx.take() {
+            let _ = cancel_hydrate_tx.send(());
         }
 
         let (cancel_search_tx, mut cancel_search_rx) = oneshot::channel();
@@ -246,7 +250,17 @@ impl CrateSearchManager {
         *still_needed = per_page.saturating_sub(search_results.crates.len());
     }
 
-    pub fn load_crate_metadata(&mut self, name: &str) -> AppResult<()> {
+    /// Starts the fetching of metadata for the named crate and then fires
+    /// [`SearchEvent::MetadataLoaded`] or [`SearchEvent::MetadataFailed`].
+    ///
+    /// When `debounce` is [`true`] the load waits for a short period before fetching so that rapid
+    /// consecutive calls coalesce into a single request. When `debounce` is [`false`], metadata is
+    /// fetched immediately.
+    ///
+    /// Any previous in-flight load is canceled first. Both the wait and the request race
+    /// cancellation, so re-calling this function drops the pending work instead of running it to
+    /// completion.
+    pub fn start_metadata_load(&mut self, name: &str, debounce: bool) -> AppResult<()> {
         if let Some(cancel_hydrate_tx) = self.cancel_hydrate_tx.take() {
             let _ = cancel_hydrate_tx.send(());
         }
@@ -258,12 +272,12 @@ impl CrateSearchManager {
         let name = name.to_owned();
 
         tokio::spawn(async move {
-            // Debounce, then run the request both racing cancellation so reselecting quickly
-            // drops the pending work instead of running it to completion.
-            tokio::select! {
-                biased;
-                _ = &mut cancel_hydrate_rx => return,
-                _ = tokio::time::sleep(Duration::from_millis(700)) => {}
+            if debounce {
+                tokio::select! {
+                    biased;
+                    _ = &mut cancel_hydrate_rx => return,
+                    _ = tokio::time::sleep(Duration::from_millis(700)) => {}
+                }
             }
 
             let response = tokio::select! {
@@ -274,9 +288,9 @@ impl CrateSearchManager {
 
             match response {
                 Ok(response) => {
-                    tx.send(Action::SearchEvent(SearchEvent::MetadataLoaded(Box::new(
-                        response,
-                    ))))
+                    tx.send(Action::SearchEvent(SearchEvent::MetadataLoaded {
+                        response: Box::new(response),
+                    }))
                     .ok();
                 }
                 Err(err) => {

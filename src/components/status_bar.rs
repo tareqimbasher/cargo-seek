@@ -19,6 +19,7 @@ use crate::tui::Tui;
 
 #[derive(Debug, Clone, Display, Deserialize)]
 pub enum StatusCommand {
+    ResetStatus,
     UpdateStatus(StatusLevel, String),
     UpdateStatusWithDuration(StatusLevel, StatusDuration, String),
 }
@@ -188,6 +189,9 @@ impl Component for StatusBar {
                     StatusLevel::Success => self.success_with_duration(duration, message),
                     StatusLevel::Error => self.error_with_duration(duration, message),
                 }
+            }
+            Action::Status(StatusCommand::ResetStatus) => {
+                self.info("Ready");
             }
             _ => {}
         };

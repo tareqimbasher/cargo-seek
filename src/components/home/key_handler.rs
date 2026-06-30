@@ -3,7 +3,7 @@ use tui_input::backend::crossterm::EventHandler;
 
 use crate::action::Action;
 use crate::cargo::CargoCommand;
-use crate::components::home::feature_selector::FeatureIntent;
+use crate::components::home::cargo_request::CargoIntent;
 use crate::components::home::overlay::Overlay;
 use crate::components::home::{Focusable, Home, HomeCommand};
 use crate::components::ux::{Dropdown, KeyOutcome};
@@ -111,8 +111,10 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
             return Ok(None);
         }
         KeyCode::Char('a') => {
-            if let Some(action) = open_feature_picker_or_dispatch(home, FeatureIntent::Add) {
-                return Ok(Some(action));
+            if home.get_focused_crate().is_some() {
+                return Ok(Some(Action::Home(HomeCommand::BeginCargoRequest(
+                    CargoIntent::Add,
+                ))));
             }
         }
         KeyCode::Char('r') => {
@@ -123,8 +125,10 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
             }
         }
         KeyCode::Char('i') => {
-            if let Some(action) = open_feature_picker_or_dispatch(home, FeatureIntent::Install) {
-                return Ok(Some(action));
+            if home.get_focused_crate().is_some() {
+                return Ok(Some(Action::Home(HomeCommand::BeginCargoRequest(
+                    CargoIntent::Install,
+                ))));
             }
         }
         KeyCode::Char('u') => {
@@ -176,35 +180,6 @@ fn open_scope_overlay(home: &mut Home) {
         "Search in".into(),
         home.scope.clone(),
     )));
-}
-
-/// Opens the feature picker for the focused crate, or returns the add/install action directly when
-/// there are no features to choose.
-fn open_feature_picker_or_dispatch(home: &mut Home, intent: FeatureIntent) -> Option<Action> {
-    let cr = home.get_focused_crate()?;
-    let name = cr.name.clone();
-    let version = cr.version.clone();
-
-    if let Some(picker) = home.feature_picker_for(intent) {
-        home.overlay = Some(Overlay::Features(picker));
-        return None;
-    }
-
-    let command = match intent {
-        FeatureIntent::Add => CargoCommand::Add {
-            name,
-            version,
-            features: Vec::new(),
-            no_default_features: false,
-        },
-        FeatureIntent::Install => CargoCommand::Install {
-            name,
-            version,
-            features: Vec::new(),
-            no_default_features: false,
-        },
-    };
-    Some(Action::Cargo(command))
 }
 
 fn handle_search_focus(home: &mut Home, key: KeyEvent) -> AppResult<Option<Action>> {
