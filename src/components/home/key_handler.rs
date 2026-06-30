@@ -6,7 +6,7 @@ use crate::cargo::CargoCommand;
 use crate::components::home::cargo_request::CargoIntent;
 use crate::components::home::overlay::Overlay;
 use crate::components::home::{Focusable, Home, HomeCommand};
-use crate::components::ux::{Dropdown, KeyOutcome};
+use crate::components::ux::{Confirm, Dropdown, KeyOutcome};
 use crate::errors::AppResult;
 use crate::search::SearchCommand;
 
@@ -119,9 +119,18 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
         }
         KeyCode::Char('r') => {
             if let Some(selected) = home.get_focused_crate() {
-                return Ok(Some(Action::Cargo(CargoCommand::Remove(
-                    selected.name.clone(),
-                ))));
+                home.overlay = Some(Overlay::Confirm(
+                    Confirm::new(
+                        home.config.clone(),
+                        format!(
+                            "Are you sure you want to remove {} v{}?",
+                            selected.name, selected.version
+                        )
+                        .as_str(),
+                        true,
+                    ),
+                    Action::Cargo(CargoCommand::Remove(selected.name.clone())),
+                ));
             }
         }
         KeyCode::Char('i') => {
@@ -133,9 +142,18 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
         }
         KeyCode::Char('u') => {
             if let Some(selected) = home.get_focused_crate() {
-                return Ok(Some(Action::Cargo(CargoCommand::Uninstall(
-                    selected.name.clone(),
-                ))));
+                home.overlay = Some(Overlay::Confirm(
+                    Confirm::new(
+                        home.config.clone(),
+                        format!(
+                            "Are you sure you want to uninstall {} v{}?",
+                            selected.name, selected.version
+                        )
+                        .as_str(),
+                        true,
+                    ),
+                    Action::Cargo(CargoCommand::Uninstall(selected.name.clone())),
+                ));
             }
         }
         _ => {}
