@@ -70,6 +70,9 @@ pub struct Home {
     action_tx: UnboundedSender<Action>,
     vertical_help_scroll: usize,
     max_help_scroll: usize,
+    details_scroll: usize,
+    max_details_scroll: usize,
+    details_viewport_height: usize,
 }
 
 impl Home {
@@ -98,6 +101,9 @@ impl Home {
             config: Config::default(),
             vertical_help_scroll: 0,
             max_help_scroll: 0,
+            details_scroll: 0,
+            max_details_scroll: 0,
+            details_viewport_height: 0,
         })
     }
 
@@ -173,8 +179,7 @@ impl Home {
 
     fn get_focused_crate(&self) -> Option<&Crate> {
         if self.is_results_or_details_focused()
-            && let Some(search_results) = self.search_results.as_ref()
-            && let Some(selected) = search_results.selected()
+            && let Some(selected) = self.get_selected_search_result_item()
         {
             Some(selected)
         } else {
@@ -186,6 +191,8 @@ impl Home {
     /// leaves the crate it was waiting on, and prefetches metadata for the newly selected crate
     /// when its features aren't known yet.
     fn on_selection_changed(&mut self) {
+        self.details_scroll = 0;
+
         let selected = self
             .search_results
             .as_ref()
@@ -210,6 +217,26 @@ impl Home {
                 .start_metadata_load(&name, true)
                 .ok();
         }
+    }
+
+    /// Whether there is currently a selected search result item.
+    pub fn get_selected_search_result_item(&self) -> Option<&Crate> {
+        self.search_results
+            .as_ref()
+            .and_then(|results| results.selected())
+    }
+
+    /// Whether the crate details pane is on screen.
+    pub fn details_visible(&self) -> bool {
+        !self.show_help && self.get_selected_search_result_item().is_some()
+    }
+
+    /// Scrolls the details pane by one viewport (a page), clamped to the scrollable range. The
+    /// scroll bound is recomputed each frame in `draw`, so this reads the last rendered extent.
+    pub fn scroll_details_page(&mut self, direction: isize) {
+        let step = self.details_viewport_height.saturating_sub(1).max(1) as isize;
+        let target = self.details_scroll as isize + direction * step;
+        self.details_scroll = target.clamp(0, self.max_details_scroll as isize) as usize;
     }
 
     fn should_show_docs_button(&self) -> bool {

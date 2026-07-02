@@ -102,6 +102,14 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
                 home.vertical_help_scroll += 1;
             }
         }
+        KeyCode::PageDown if home.details_visible() => {
+            home.scroll_details_page(1);
+            return Ok(None);
+        }
+        KeyCode::PageUp if home.details_visible() => {
+            home.scroll_details_page(-1);
+            return Ok(None);
+        }
         KeyCode::Left if ctrl && home.left_column_width_percent >= 10 => {
             home.left_column_width_percent -= 10;
             return Ok(None);

@@ -47,14 +47,14 @@ impl Confirm {
 
     pub fn draw(&mut self, frame: &mut Frame, area: Rect) {
         let width = 60.min(area.width);
-        let inner_width = usize::from(width.saturating_sub(2).max(1));
-        let lines = self
-            .message
-            .chars()
-            .count()
-            .div_ceil(inner_width)
-            .clamp(1, 10);
-        let message_lines = u16::try_from(lines).unwrap_or(10);
+        let inner_width = width.saturating_sub(2).max(1);
+
+        let message = Paragraph::new(self.message.as_str())
+            .wrap(Wrap { trim: true })
+            .alignment(Alignment::Center);
+
+        // Cap the measured height so a very long message can't grow an oversized popup.
+        let message_lines = message.line_count(inner_width).clamp(1, 10) as u16;
         // border (2) + the centered message with a blank row above and below (2)
         // + the button row (1) + a trailing gap (1).
         let height = (message_lines + 6).min(area.height);
@@ -75,12 +75,7 @@ impl Confirm {
         let [message_area] = Layout::vertical([Constraint::Length(message_lines)])
             .flex(Flex::Center)
             .areas(message_area);
-        frame.render_widget(
-            Paragraph::new(self.message.as_str())
-                .wrap(Wrap { trim: true })
-                .alignment(Alignment::Center),
-            message_area,
-        );
+        frame.render_widget(message, message_area);
 
         let [_, cancel_area, _, confirm_area, _] = Layout::horizontal([
             Constraint::Length(4),

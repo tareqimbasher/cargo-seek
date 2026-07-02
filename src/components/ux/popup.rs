@@ -1,8 +1,10 @@
 use ratatui::Frame;
-use ratatui::layout::{Constraint, Flex, Layout, Rect};
+use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Clear};
+
+use crate::components::ux::center;
 
 /// The result of routing a key to an open popup.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,11 +69,15 @@ impl<'a> Popup<'a> {
     /// Dims the background, clears a margin around the popup, draws the block, and returns the
     /// inner content area for the caller to render into.
     pub fn render(self, frame: &mut Frame, area: Rect) -> Rect {
-        let popup = center(area, self.width, self.height);
+        let popup = center(
+            area,
+            Constraint::Length(self.width),
+            Constraint::Length(self.height),
+        );
         let clear = center(
             area,
-            self.width.saturating_add(4).min(area.width),
-            self.height.saturating_add(2).min(area.height),
+            Constraint::Length(self.width.saturating_add(4).min(area.width)),
+            Constraint::Length(self.height.saturating_add(2).min(area.height)),
         );
 
         let mut block = Block::bordered().border_style(self.border_style);
@@ -91,14 +97,4 @@ impl<'a> Popup<'a> {
         frame.render_widget(block, popup);
         inner
     }
-}
-
-fn center(area: Rect, width: u16, height: u16) -> Rect {
-    let [area] = Layout::horizontal([Constraint::Length(width)])
-        .flex(Flex::Center)
-        .areas(area);
-    let [area] = Layout::vertical([Constraint::Length(height)])
-        .flex(Flex::Center)
-        .areas(area);
-    area
 }

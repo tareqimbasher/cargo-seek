@@ -2,6 +2,16 @@ use chrono::{DateTime, Utc};
 
 use crate::cargo::{Dependency, InstalledBinary};
 
+const RECENT_VERSIONS_LIMIT: usize = 5;
+
+/// A trimmed-down record of one published version.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VersionSummary {
+    pub num: String,
+    pub created_at: DateTime<Utc>,
+    pub yanked: bool,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Crate {
     pub id: String,
@@ -20,14 +30,31 @@ pub struct Crate {
     pub features: Option<Vec<String>>,
     /// Names of the features enabled by the crate's `default` feature.
     pub default_features: Vec<String>,
+    pub license: Option<String>,
+    /// Minimum supported Rust version declared by the latest version, if any.
+    pub rust_version: Option<String>,
+    /// Download size of the latest version's `.crate` tarball, in bytes.
+    pub crate_size: Option<u64>,
+    /// Whether the latest version is yanked.
+    pub latest_yanked: bool,
+    /// Number of published versions. `0` until metadata is hydrated.
+    pub version_count: usize,
+    /// Publisher of the latest version, formatted as `name (login)` or `login`.
+    pub published_by: Option<String>,
+    /// The most recent versions, newest first, capped at [`RECENT_VERSIONS_LIMIT`].
+    pub recent_versions: Vec<VersionSummary>,
     pub categories: Option<Vec<String>>,
+    pub keywords: Option<Vec<String>>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
 
+    /// Whether this crate is an exact match for the user's search query.
     pub exact_match: bool,
     /// Whether full metadata has been hydrated for this crate (see [`Crate::is_metadata_loaded`]).
     pub metadata_loaded: bool,
+    /// The version of this crate that is added to the project at the current directory, otherwise `None`.
     pub project_version: Option<String>,
+    /// The version of this crate that is installed, otherwise `None`.
     pub installed_version: Option<String>,
 }
 
@@ -105,6 +132,27 @@ impl Crate {
         self.max_stable_version = data.max_stable_version.clone();
         self.downloads = Some(data.downloads);
         self.recent_downloads = data.recent_downloads;
+        self.version_count = response.versions.len();
+        self.keywords = Some(
+            response
+                .keywords
+                .iter()
+                .map(|k| k.keyword.clone())
+                .collect(),
+        );
+        self.recent_versions = response
+            .versions
+            .iter()
+            .take(RECENT_VERSIONS_LIMIT)
+            .map(|v| VersionSummary {
+                num: v.num.clone(),
+                created_at: v.created_at,
+                yanked: v.yanked,
+            })
+            .collect();
+
+        // License, MSRV, size, yank state and publisher are only meaningful per-version (the
+        // crate-level `license` is deprecated and always empty), so read them from the latest.
         if let Some(latest) = response.versions.first() {
             self.default_features = latest.features.get("default").cloned().unwrap_or_default();
             // Drop `default` since it isn't an individually selectable feature.
@@ -116,9 +164,20 @@ impl Crate {
                 .collect();
             features.sort();
             self.features = Some(features);
+
+            self.license = latest.license.clone();
+            self.rust_version = latest.rust_version.clone();
+            self.crate_size = latest.crate_size;
+            self.latest_yanked = latest.yanked;
+            self.published_by = latest.published_by.as_ref().map(format_publisher);
         } else {
             self.features = Some(Vec::new());
             self.default_features = Vec::new();
+            self.license = None;
+            self.rust_version = None;
+            self.crate_size = None;
+            self.latest_yanked = false;
+            self.published_by = None;
         }
         if self.categories.is_none() {
             self.categories = Some(
@@ -133,5 +192,13 @@ impl Crate {
         self.updated_at = Some(data.updated_at);
         self.exact_match = data.exact_match.unwrap_or_default();
         self.metadata_loaded = true;
+    }
+}
+
+/// Formats a version's publisher as `name (login)`, or just `login` when no display name is set.
+fn format_publisher(user: &crates_io_api::User) -> String {
+    match user.name.as_deref() {
+        Some(name) if !name.is_empty() => format!("{name} ({})", user.login),
+        _ => user.login.clone(),
     }
 }
