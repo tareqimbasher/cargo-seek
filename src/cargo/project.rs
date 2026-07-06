@@ -3,15 +3,15 @@ use std::fs;
 use std::fs::DirEntry;
 use std::path::{Path, PathBuf};
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use color_eyre::eyre::{WrapErr, bail};
 
-use crate::cargo::{Package, get_metadata};
+use crate::cargo::{DepKind, Package, get_metadata};
 use crate::errors::AppResult;
 
 /// A local cargo project.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct Project {
     pub manifest_file_path: PathBuf,
     pub packages: Vec<Package>,
@@ -72,6 +72,27 @@ impl Project {
             Some(reqs.into_iter().collect::<Vec<_>>().join(", "))
         }
     }
+
+    pub fn get_local_dep_kind(&self, package_name: &str) -> Option<DepKind> {
+        // A dependency can appear in multiple sections (ex: as a normal dep, and as a dev dep).
+        let kinds: Vec<DepKind> = self
+            .packages
+            .iter()
+            .flat_map(|package| &package.dependencies)
+            .filter(|dependency| dependency.name == package_name)
+            .map(|dependency| dependency.kind)
+            .collect();
+
+        if kinds.contains(&DepKind::Normal) {
+            Some(DepKind::Normal)
+        } else if kinds.contains(&DepKind::Dev) {
+            Some(DepKind::Dev)
+        } else if kinds.contains(&DepKind::Build) {
+            Some(DepKind::Build)
+        } else {
+            None
+        }
+    }
 }
 
 fn find_project_manifest(starting_dir_path: &Path) -> AppResult<Option<PathBuf>> {
@@ -111,7 +132,7 @@ fn find_project_manifest(starting_dir_path: &Path) -> AppResult<Option<PathBuf>>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cargo::Dependency;
+    use crate::cargo::{DepKind, Dependency};
     use pretty_assertions::assert_eq;
     use std::fs;
     use tempfile::TempDir;
@@ -120,7 +141,16 @@ mod tests {
         Dependency {
             name: name.into(),
             req: req.into(),
-            kind: None,
+            kind: DepKind::default(),
+            optional: false,
+        }
+    }
+
+    fn dep_kind(name: &str, kind: DepKind) -> Dependency {
+        Dependency {
+            name: name.into(),
+            req: "1".into(),
+            kind,
             optional: false,
         }
     }
@@ -218,5 +248,26 @@ mod tests {
             package("member_b", vec![dep("serde", "1.0")]),
         ]);
         assert_eq!(project.get_local_version("serde"), Some("1.0".to_string()));
+    }
+
+    #[test]
+    fn get_local_dep_kind_prefers_normal_then_dev_then_build() {
+        let project = project(vec![
+            package(
+                "member_a",
+                vec![
+                    dep_kind("serde", DepKind::Normal),
+                    dep_kind("criterion", DepKind::Dev),
+                    dep_kind("cc", DepKind::Build),
+                ],
+            ),
+            // serde is also a dev dep in another member; Normal must still win.
+            package("member_b", vec![dep_kind("serde", DepKind::Dev)]),
+        ]);
+
+        assert_eq!(project.get_local_dep_kind("serde"), Some(DepKind::Normal));
+        assert_eq!(project.get_local_dep_kind("criterion"), Some(DepKind::Dev));
+        assert_eq!(project.get_local_dep_kind("cc"), Some(DepKind::Build));
+        assert_eq!(project.get_local_dep_kind("rand"), None);
     }
 }

@@ -27,7 +27,7 @@ pub enum CargoCommand {
         /// Pass `--no-default-features` (set when the user unchecks a default feature).
         no_default_features: bool,
     },
-    Remove(String),
+    Remove(String, DepKind),
     // Update(String),
     // UpdateAll,
     Install {

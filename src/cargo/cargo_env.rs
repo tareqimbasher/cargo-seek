@@ -4,7 +4,7 @@ use tracing::warn;
 
 use crate::cargo::{InstalledBinary, Project, get_installed_binaries};
 
-/// The current cargo environment (installed binaries and current project, if any)
+/// The current cargo environment (installed binaries and current project, if any).
 pub struct CargoEnv {
     pub project: Option<Project>,
     pub installed_binaries: Vec<InstalledBinary>,

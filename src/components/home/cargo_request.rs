@@ -65,6 +65,8 @@ pub enum FeatureStep {
     Run(Action),
     /// Features aren't loaded yet, load them, then decide again.
     AwaitMetadata { intent: CargoIntent, name: String },
+    /// The action isn't valid for the focused crate's current state.
+    Blocked(String),
 }
 
 /// Decides the next [`FeatureStep`] for an add/install of the focused crate, or `None` when nothing
@@ -73,8 +75,23 @@ pub fn decide_feature_step(
     focused: Option<&Crate>,
     config: &Config,
     intent: CargoIntent,
+    has_project: bool,
 ) -> Option<FeatureStep> {
     let cr = focused?;
+
+    if intent == CargoIntent::Add {
+        if !has_project {
+            return Some(FeatureStep::Blocked(
+                "No Cargo project found to add to".to_string(),
+            ));
+        }
+        if cr.project_version.is_some() {
+            return Some(FeatureStep::Blocked(format!(
+                "{} is already a dependency of this project",
+                cr.name
+            )));
+        }
+    }
 
     let Some(features) = cr.features.as_deref() else {
         return Some(FeatureStep::AwaitMetadata {
@@ -119,13 +136,13 @@ mod tests {
 
     #[test]
     fn no_focus_yields_no_step() {
-        assert!(decide_feature_step(None, &Config::default(), CargoIntent::Add).is_none());
+        assert!(decide_feature_step(None, &Config::default(), CargoIntent::Add, true).is_none());
     }
 
     #[test]
     fn unloaded_features_await_metadata() {
         let cr = crate_with(None);
-        match decide_feature_step(Some(&cr), &Config::default(), CargoIntent::Install) {
+        match decide_feature_step(Some(&cr), &Config::default(), CargoIntent::Install, true) {
             Some(FeatureStep::AwaitMetadata { intent, name }) => {
                 assert_eq!(intent, CargoIntent::Install);
                 assert_eq!(name, "demo");
@@ -137,7 +154,7 @@ mod tests {
     #[test]
     fn no_features_runs_the_plain_command() {
         let cr = crate_with(Some(&[]));
-        match decide_feature_step(Some(&cr), &Config::default(), CargoIntent::Add) {
+        match decide_feature_step(Some(&cr), &Config::default(), CargoIntent::Add, true) {
             Some(FeatureStep::Run(Action::Cargo(CargoCommand::Add {
                 features,
                 no_default_features,
@@ -154,8 +171,39 @@ mod tests {
     fn known_features_open_the_picker() {
         let cr = crate_with(Some(&["derive", "std"]));
         assert!(matches!(
-            decide_feature_step(Some(&cr), &Config::default(), CargoIntent::Add),
+            decide_feature_step(Some(&cr), &Config::default(), CargoIntent::Add, true),
             Some(FeatureStep::Pick(_))
+        ));
+    }
+
+    #[test]
+    fn add_without_a_project_is_blocked() {
+        let cr = crate_with(Some(&[]));
+        match decide_feature_step(Some(&cr), &Config::default(), CargoIntent::Add, false) {
+            Some(FeatureStep::Blocked(reason)) => assert!(reason.contains("No Cargo project")),
+            _ => panic!("expected Blocked"),
+        }
+    }
+
+    #[test]
+    fn add_of_an_existing_dependency_is_blocked() {
+        let mut cr = crate_with(Some(&[]));
+        cr.project_version = Some("1.0".to_string());
+        match decide_feature_step(Some(&cr), &Config::default(), CargoIntent::Add, true) {
+            Some(FeatureStep::Blocked(reason)) => assert!(reason.contains("already a dependency")),
+            _ => panic!("expected Blocked"),
+        }
+    }
+
+    #[test]
+    fn install_ignores_the_project_and_duplicate_guards() {
+        // Install has no project/duplicate guards: with no project and already present, it still runs.
+        let mut cr = crate_with(Some(&[]));
+        cr.project_version = Some("1.0".to_string());
+        cr.installed_version = Some("1.0".to_string());
+        assert!(matches!(
+            decide_feature_step(Some(&cr), &Config::default(), CargoIntent::Install, false),
+            Some(FeatureStep::Run(_))
         ));
     }
 }

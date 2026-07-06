@@ -6,6 +6,7 @@ use crate::cargo::CargoCommand;
 use crate::components::home::cargo_request::CargoIntent;
 use crate::components::home::overlay::Overlay;
 use crate::components::home::{Focusable, Home, HomeCommand};
+use crate::components::status_bar::{StatusCommand, StatusDuration, StatusLevel};
 use crate::components::ux::{Confirm, Dropdown, KeyOutcome};
 use crate::errors::AppResult;
 use crate::search::SearchCommand;
@@ -127,17 +128,26 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
         }
         KeyCode::Char('r') => {
             if let Some(selected) = home.get_focused_crate() {
+                if selected.project_version.is_none() {
+                    let name = selected.name.clone();
+                    return Ok(Some(Action::Status(
+                        StatusCommand::UpdateStatusWithDuration(
+                            StatusLevel::Info,
+                            StatusDuration::Short,
+                            format!("{name} is not a dependency of this project"),
+                        ),
+                    )));
+                }
+                let name = selected.name.clone();
+                let version = selected.version.clone();
+                let kind = selected.project_dep_kind.unwrap_or_default();
                 home.overlay = Some(Overlay::Confirm(
                     Confirm::new(
                         home.config.clone(),
-                        format!(
-                            "Are you sure you want to remove {} v{}?",
-                            selected.name, selected.version
-                        )
-                        .as_str(),
+                        format!("Are you sure you want to remove {name} v{version}?").as_str(),
                         true,
                     ),
-                    Action::Cargo(CargoCommand::Remove(selected.name.clone())),
+                    Action::Cargo(CargoCommand::Remove(name, kind)),
                 ));
             }
         }
@@ -150,17 +160,25 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
         }
         KeyCode::Char('u') => {
             if let Some(selected) = home.get_focused_crate() {
+                if selected.installed_version.is_none() {
+                    let name = selected.name.clone();
+                    return Ok(Some(Action::Status(
+                        StatusCommand::UpdateStatusWithDuration(
+                            StatusLevel::Info,
+                            StatusDuration::Short,
+                            format!("{name} is not installed"),
+                        ),
+                    )));
+                }
+                let name = selected.name.clone();
+                let version = selected.version.clone();
                 home.overlay = Some(Overlay::Confirm(
                     Confirm::new(
                         home.config.clone(),
-                        format!(
-                            "Are you sure you want to uninstall {} v{}?",
-                            selected.name, selected.version
-                        )
-                        .as_str(),
+                        format!("Are you sure you want to uninstall {name} v{version}?").as_str(),
                         true,
                     ),
-                    Action::Cargo(CargoCommand::Uninstall(selected.name.clone())),
+                    Action::Cargo(CargoCommand::Uninstall(name)),
                 ));
             }
         }

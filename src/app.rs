@@ -18,7 +18,7 @@ use crate::cargo::{CargoCommand, CargoEnv, CargoError, CargoEvent, OutputMode};
 use crate::components::app_id::AppId;
 use crate::components::fps::FpsCounter;
 use crate::components::home::Home;
-use crate::components::status_bar::{StatusBar, StatusCommand, StatusLevel};
+use crate::components::status_bar::{StatusBar, StatusCommand, StatusDuration, StatusLevel};
 use crate::components::{Component, Placement};
 use crate::config::Config;
 use crate::errors::AppResult;
@@ -204,7 +204,8 @@ impl App {
                         .send(Action::Status(StatusCommand::UpdateStatus(
                             StatusLevel::Error,
                             message.clone(),
-                        )))?;
+                        )))
+                        .ok();
                 }
                 _ => {}
             }
@@ -232,6 +233,17 @@ impl App {
                 features,
                 no_default_features,
             } => {
+                let Some(manifest_path) = self.get_manifest_path().await else {
+                    self.action_tx
+                        .send(Action::Status(StatusCommand::UpdateStatusWithDuration(
+                            StatusLevel::Error,
+                            StatusDuration::Short,
+                            format!("Cannot add {name}: no Cargo project found"),
+                        )))
+                        .ok();
+                    return Ok(());
+                };
+
                 let progress = format!("Adding {name} v{version}");
                 let success = format!("Added {name} v{version}");
                 let failure = format!("Failed to add {name}");
@@ -242,12 +254,30 @@ impl App {
                     success,
                     failure,
                     move |out| {
-                        cargo::add(&name, Some(version), &features, no_default_features, out)
+                        cargo::add(
+                            &manifest_path,
+                            &name,
+                            Some(version),
+                            &features,
+                            no_default_features,
+                            out,
+                        )
                     },
                 )
                 .await?;
             }
-            CargoCommand::Remove(name) => {
+            CargoCommand::Remove(name, kind) => {
+                let Some(manifest_path) = self.get_manifest_path().await else {
+                    self.action_tx
+                        .send(Action::Status(StatusCommand::UpdateStatusWithDuration(
+                            StatusLevel::Error,
+                            StatusDuration::Short,
+                            format!("Cannot remove {name}: no Cargo project found"),
+                        )))
+                        .ok();
+                    return Ok(());
+                };
+
                 let progress = format!("Removing {name}");
                 let success = format!("Removed {name}");
                 let failure = format!("Failed to remove {name}");
@@ -257,7 +287,7 @@ impl App {
                     progress,
                     success,
                     failure,
-                    move |out| cargo::remove(name, out),
+                    move |out| cargo::remove(&manifest_path, name, kind, out),
                 )
                 .await?;
             }
@@ -324,6 +354,14 @@ impl App {
         Ok(())
     }
 
+    async fn get_manifest_path(&self) -> Option<PathBuf> {
+        let cargo_env = self.cargo_env.read().await;
+        cargo_env
+            .project
+            .as_ref()
+            .map(|p| p.manifest_file_path.clone())
+    }
+
     /// Runs a cargo command, reporting progress/success/failure to the status bar and refreshing
     /// the cargo environment on success. A second command is rejected while one is running.
     ///
@@ -349,7 +387,8 @@ impl App {
                 .send(Action::Status(StatusCommand::UpdateStatus(
                     StatusLevel::Info,
                     "A cargo command is already running".into(),
-                )))?;
+                )))
+                .ok();
             return Ok(());
         }
 
@@ -357,7 +396,8 @@ impl App {
             .send(Action::Status(StatusCommand::UpdateStatus(
                 StatusLevel::Info,
                 progress,
-            )))?;
+            )))
+            .ok();
 
         let tx = self.action_tx.clone();
         let busy = self.cargo_busy.clone();

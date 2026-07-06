@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 
-use crate::cargo::{Dependency, InstalledBinary};
+use crate::cargo::{DepKind, Dependency, InstalledBinary};
 
 const RECENT_VERSIONS_LIMIT: usize = 5;
 
@@ -52,8 +52,10 @@ pub struct Crate {
     pub exact_match: bool,
     /// Whether full metadata has been hydrated for this crate (see [`Crate::is_metadata_loaded`]).
     pub metadata_loaded: bool,
-    /// The version of this crate that is added to the project at the current directory, otherwise `None`.
+    /// The version of this crate that is added to the current project, otherwise `None`.
     pub project_version: Option<String>,
+    /// The type of dependency this crate is added as to the current project, otherwise `None`.
+    pub project_dep_kind: Option<DepKind>,
     /// The version of this crate that is installed, otherwise `None`.
     pub installed_version: Option<String>,
 }

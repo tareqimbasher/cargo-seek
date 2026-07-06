@@ -84,7 +84,13 @@ pub async fn handle_action(
                 };
             }
             HomeCommand::BeginCargoRequest(intent) => {
-                let step = decide_feature_step(home.get_focused_crate(), &home.config, *intent);
+                let has_project = home.cargo_env.read().await.project.is_some();
+                let step = decide_feature_step(
+                    home.get_focused_crate(),
+                    &home.config,
+                    *intent,
+                    has_project,
+                );
                 if let Some(step) = step {
                     apply_feature_step(home, step)?;
                 }
@@ -144,7 +150,7 @@ pub async fn handle_action(
 
         Action::Search(command) => return handle_search_command(home, command),
 
-        Action::SearchEvent(event) => return handle_search_event(home, event),
+        Action::SearchEvent(event) => return handle_search_event(home, event).await,
 
         Action::CargoEvent(event) => match event {
             CargoEvent::Refreshed => {
@@ -272,7 +278,7 @@ fn handle_search_command(home: &mut Home, command: &SearchCommand) -> AppResult<
     Ok(None)
 }
 
-fn handle_search_event(home: &mut Home, event: &SearchEvent) -> AppResult<Option<Action>> {
+async fn handle_search_event(home: &mut Home, event: &SearchEvent) -> AppResult<Option<Action>> {
     match event {
         SearchEvent::Completed(results) => {
             let mut results = results.clone();
@@ -336,7 +342,8 @@ fn handle_search_event(home: &mut Home, event: &SearchEvent) -> AppResult<Option
                 // Drop the request if an overlay opened while it loaded (e.g. a sort/scope dropdown);
                 // popping the picker over it would replace something the user is interacting with.
                 let step = if home.overlay.is_none() {
-                    decide_feature_step(home.get_focused_crate(), &home.config, intent)
+                    let has_project = home.cargo_env.read().await.project.is_some();
+                    decide_feature_step(home.get_focused_crate(), &home.config, intent, has_project)
                 } else {
                     None
                 };
@@ -391,6 +398,14 @@ fn apply_feature_step(home: &mut Home, step: FeatureStep) -> AppResult<()> {
                 .send(Action::Status(StatusCommand::UpdateStatus(
                     StatusLevel::Progress,
                     format!("Loading features for {name}…"),
+                )))?;
+        }
+        FeatureStep::Blocked(reason) => {
+            home.action_tx
+                .send(Action::Status(StatusCommand::UpdateStatusWithDuration(
+                    StatusLevel::Info,
+                    StatusDuration::Short,
+                    reason,
                 )))?;
         }
     }

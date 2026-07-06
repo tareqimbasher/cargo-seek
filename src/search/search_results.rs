@@ -129,6 +129,7 @@ impl SearchResults {
         for cr in &mut self.crates {
             if let Some(proj) = &cargo_env.project {
                 cr.project_version = proj.get_local_version(&cr.name);
+                cr.project_dep_kind = proj.get_local_dep_kind(&cr.name);
             }
             cr.installed_version = cargo_env.get_installed_version(&cr.name);
         }
