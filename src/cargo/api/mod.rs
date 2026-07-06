@@ -10,10 +10,10 @@ use crate::cargo::CargoError;
 use crate::errors::AppResult;
 
 mod installed_binary;
-mod manifest_metadata;
+mod manifest;
 
 pub use installed_binary::*;
-pub use manifest_metadata::*;
+pub use manifest::*;
 
 /// Reads workspace metadata for the manifest at `manifest_path`.
 ///
