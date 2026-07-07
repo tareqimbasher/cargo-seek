@@ -187,7 +187,8 @@ fn render_results(home: &mut Home, frame: &mut Frame, area: Rect) {
                 block
                     .title(format!(
                         " {}/{} ",
-                        selected_item_num_in_total, results.total_count
+                        selected_item_num_in_total,
+                        results.total_count()
                     ))
                     .title_bottom(
                         Line::from(format!(

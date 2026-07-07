@@ -5,36 +5,55 @@ use ratatui::widgets::ListState;
 use crate::cargo::CargoEnv;
 use crate::search::Crate;
 
-/// Number of results requested per page.
+/// The default number of results requested per page.
 pub const DEFAULT_PER_PAGE: usize = 100;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SearchResults {
+    /// Current page crate results.
     pub crates: Vec<Crate>,
-    pub total_count: usize,
-    pub list_state: ListState,
+    /// Total results matching the query across all pages.
+    total_count: usize,
+    /// The current active results page. 1-indexed.
     current_page: usize,
+    /// The max number of results included in a single results page.
     per_page: usize,
+    /// Highest page the backing source will actually serve. crates.io caps deep pagination, so
+    /// `total_count` can far exceed what is reachable; page navigation clamps to this instead.
+    max_page: usize,
+    pub list_state: ListState,
 }
 
 impl SearchResults {
-    pub fn new(page: usize, per_page: usize) -> Self {
+    pub fn new(
+        crates: Vec<Crate>,
+        total_count: usize,
+        current_page: usize,
+        per_page: usize,
+        max_page: usize,
+    ) -> Self {
         SearchResults {
-            crates: Vec::default(),
-            total_count: 0,
-            current_page: page,
+            crates,
+            total_count,
+            current_page,
             per_page,
+            max_page,
             list_state: ListState::default(),
         }
     }
 
     pub fn page_count(&self) -> usize {
         debug_assert!(self.per_page > 0, "per_page must be non-zero");
-        self.total_count.div_ceil(self.per_page)
+        self.total_count.div_ceil(self.per_page).min(self.max_page)
     }
 
     pub fn current_page(&self) -> usize {
         self.current_page
+    }
+
+    /// Total results matching the query across all pages.
+    pub fn total_count(&self) -> usize {
+        self.total_count
     }
 
     /// Resolves a navigation request to the page that should be loaded, or `None` when there is
@@ -60,7 +79,7 @@ impl SearchResults {
     }
 
     pub fn has_next_page(&self) -> bool {
-        self.current_page * self.per_page < self.total_count
+        self.current_page < self.page_count()
     }
 
     pub fn has_prev_page(&self) -> bool {
@@ -157,20 +176,35 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     fn results_with(total_count: usize, current_page: usize, crates: usize) -> SearchResults {
-        let mut r = SearchResults::new(current_page, DEFAULT_PER_PAGE);
-        r.total_count = total_count;
-        r.crates = (0..crates)
+        let crates = (0..crates)
             .map(|i| Crate {
                 id: i.to_string(),
                 ..Default::default()
             })
             .collect();
-        r
+        SearchResults::new(
+            crates,
+            total_count,
+            current_page,
+            DEFAULT_PER_PAGE,
+            usize::MAX,
+        )
+    }
+
+    /// A results set with an explicit registry page cap and no crates, for pagination-cap tests.
+    fn results_capped(total_count: usize, current_page: usize, max_page: usize) -> SearchResults {
+        SearchResults::new(
+            Vec::new(),
+            total_count,
+            current_page,
+            DEFAULT_PER_PAGE,
+            max_page,
+        )
     }
 
     #[test]
     fn page_count_rounds_up() {
-        assert_eq!(SearchResults::new(1, DEFAULT_PER_PAGE).page_count(), 0);
+        assert_eq!(results_with(0, 1, 0).page_count(), 0);
         assert_eq!(results_with(1, 1, 0).page_count(), 1);
         assert_eq!(results_with(100, 1, 0).page_count(), 1);
         assert_eq!(results_with(101, 1, 0).page_count(), 2);
@@ -178,13 +212,33 @@ mod tests {
     }
 
     #[test]
+    fn page_count_is_clamped_to_max_page() {
+        // crates.io reports a huge total but only serves the first 200 pages; the count the UI
+        // shows and navigates by must be the reachable one, not total/per_page.
+        assert_eq!(results_capped(295_273, 1, 200).page_count(), 200);
+
+        // The cap never invents pages when the true count is smaller.
+        assert_eq!(results_capped(250, 1, 200).page_count(), 3);
+    }
+
+    #[test]
     fn resolve_page_is_none_when_there_are_no_results() {
         // A 0-result search has page_count() == 0; navigation must not emit page 0, which would
         // underflow the search task's `(page - 1)` skip math.
-        let empty = SearchResults::new(1, DEFAULT_PER_PAGE);
+        let empty = results_with(0, 1, 0);
         assert_eq!(empty.resolve_page(0), None);
         assert_eq!(empty.resolve_page(1), None);
         assert_eq!(empty.resolve_page(5), None);
+    }
+
+    #[test]
+    fn resolve_page_clamps_to_max_page() {
+        // 295k results would be 2953 pages, but only 200 are reachable. Any jump past the cap
+        // must resolve to the last reachable page.
+        let r = results_capped(295_273, 1, 200);
+        assert_eq!(r.resolve_page(2953), Some(200));
+        assert_eq!(r.resolve_page(201), Some(200));
+        assert_eq!(r.resolve_page(200), Some(200));
     }
 
     #[test]
@@ -204,6 +258,14 @@ mod tests {
         assert!(results_with(250, 1, 0).has_next_page());
         assert!(results_with(250, 2, 0).has_next_page());
         assert!(!results_with(250, 3, 0).has_next_page());
+    }
+
+    #[test]
+    fn has_next_page_stops_at_max_page() {
+        // The last reachable page must not advertise a next page even though total_count
+        // says there is more.
+        assert!(!results_capped(295_273, 200, 200).has_next_page());
+        assert!(results_capped(295_273, 199, 200).has_next_page());
     }
 
     #[test]
@@ -276,8 +338,8 @@ mod tests {
 
     #[test]
     fn deduplicate_prefers_the_hydrated_copy() {
-        let mut results = SearchResults::new(1, DEFAULT_PER_PAGE);
-        results.crates = vec![cr("a", false), cr("a", true), cr("b", false)];
+        let crates = vec![cr("a", false), cr("a", true), cr("b", false)];
+        let mut results = SearchResults::new(crates, 0, 1, DEFAULT_PER_PAGE, usize::MAX);
         results.deduplicate();
         assert_eq!(results.crates.len(), 2);
         let a = results.crates.iter().find(|c| c.id == "a").unwrap();
@@ -286,9 +348,9 @@ mod tests {
 
     #[test]
     fn deduplicate_keeps_the_already_hydrated_entry() {
-        let mut results = SearchResults::new(1, DEFAULT_PER_PAGE);
         // Hydrated copy first, then an unhydrated duplicate: keep the hydrated one.
-        results.crates = vec![cr("a", true), cr("a", false)];
+        let crates = vec![cr("a", true), cr("a", false)];
+        let mut results = SearchResults::new(crates, 0, 1, DEFAULT_PER_PAGE, usize::MAX);
         results.deduplicate();
         assert_eq!(results.crates.len(), 1);
         assert!(results.crates[0].is_metadata_loaded());
