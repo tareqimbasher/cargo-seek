@@ -10,7 +10,7 @@ use ratatui::style::{Color, Modifier, Style};
 use serde::{Deserialize, de::Deserializer};
 use std::sync::LazyLock;
 use std::{collections::HashMap, env, path::PathBuf};
-use tracing::error;
+use tracing::debug;
 
 use crate::{action::Action, app::Mode};
 
@@ -108,7 +108,7 @@ impl Config {
             }
         }
         if !found_config {
-            error!("No configuration file found. Application may not behave as expected");
+            debug!("No user configuration file found, using built-in defaults");
         }
 
         let mut cfg: RawConfig = builder.build()?.try_deserialize()?;
@@ -382,7 +382,6 @@ fn parse_style(line: &str) -> Style {
 fn process_color_string(color_str: &str) -> (String, Modifier) {
     let color = color_str
         .replace("grey", "gray")
-        .replace("bright ", "")
         .replace("bold ", "")
         .replace("underline ", "")
         .replace("inverse ", "");
@@ -402,16 +401,17 @@ fn process_color_string(color_str: &str) -> (String, Modifier) {
 }
 
 fn parse_color(s: &str) -> Option<Color> {
-    let s = s.trim_start();
-    let s = s.trim_end();
-    if s.contains("bright color") {
-        let s = s.trim_start_matches("bright ");
-        let c = s
-            .trim_start_matches("color")
-            .parse::<u8>()
-            .unwrap_or_default();
-        Some(Color::Indexed(c.wrapping_shl(8)))
-    } else if s.contains("color") {
+    let s = s.trim();
+    // "bright <color>" selects the high-intensity variant. Shift standard indices 0-7 into the
+    // bright range 8-15 (so "bright red" resolves to index 9), while colors already outside that
+    // range are returned unchanged.
+    if let Some(base) = s.strip_prefix("bright ") {
+        return match parse_color(base)? {
+            Color::Indexed(n) if n < 8 => Some(Color::Indexed(n + 8)),
+            other => Some(other),
+        };
+    }
+    if s.contains("color") {
         let c = s
             .trim_start_matches("color")
             .parse::<u8>()
@@ -530,6 +530,18 @@ mod tests {
         let color = parse_color("rgb123");
         let expected = 16 + 36 + 2 * 6 + 3;
         assert_eq!(color, Some(Color::Indexed(expected)));
+    }
+
+    #[test]
+    fn parse_color_bright_shifts_into_high_intensity_range() {
+        // "bright" moves standard colors 0..=7 into the bright range 8..=15, by name or index.
+        assert_eq!(parse_color("bright red"), Some(Color::Indexed(9)));
+        assert_eq!(parse_color("bright white"), Some(Color::Indexed(15)));
+        assert_eq!(parse_color("bright color1"), Some(Color::Indexed(9)));
+        // Colors already outside 0..=7 are left untouched.
+        assert_eq!(parse_color("bright color8"), Some(Color::Indexed(8)));
+        // The prefix must survive `process_color_string` to reach `parse_color` at all.
+        assert_eq!(parse_style("bright blue").fg, Some(Color::Indexed(12)));
     }
 
     #[test]

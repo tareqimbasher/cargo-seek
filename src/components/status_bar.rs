@@ -5,10 +5,8 @@ use ratatui::style::{Styled, Stylize};
 use ratatui::text::{Line, Text};
 use ratatui::widgets::Paragraph;
 use serde::Deserialize;
-use std::cmp::PartialEq;
+use std::time::{Duration, Instant};
 use strum::Display;
-use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::oneshot;
 
 use crate::action::Action;
 use crate::app::Mode;
@@ -41,9 +39,6 @@ pub enum StatusDuration {
     Seconds(u64),
     /// Stays on screen till next status update
     Sticky,
-    /// Stays on screen till next status update. Unless next status update is also "Annoying",
-    /// this status will appear after next status duration elapses.
-    Annoying,
 }
 
 #[derive(Debug, Clone)]
@@ -55,20 +50,16 @@ struct StatusMessage {
 /// The statusbar component.
 pub struct StatusBar {
     status: Option<StatusMessage>,
-    last_annoying: Option<StatusMessage>,
+    clear_after: Option<Instant>,
     config: Config,
-    cancel_tx: Option<oneshot::Sender<()>>,
-    action_tx: UnboundedSender<Action>,
 }
 
 impl StatusBar {
-    pub fn new(action_tx: UnboundedSender<Action>) -> Self {
+    pub fn new() -> Self {
         StatusBar {
             status: None,
-            last_annoying: None,
+            clear_after: None,
             config: Config::default(),
-            cancel_tx: None,
-            action_tx,
         }
     }
 
@@ -78,50 +69,33 @@ impl StatusBar {
         level: StatusLevel,
         duration: StatusDuration,
     ) {
-        let text = status.into();
-        let message = StatusMessage {
+        self.status = Some(StatusMessage {
             level,
-            message: text.clone(),
+            message: status.into(),
+        });
+
+        let now = Instant::now();
+        self.clear_after = match duration {
+            StatusDuration::None => Some(now),
+            StatusDuration::Short => Some(now + Duration::from_secs(3)),
+            StatusDuration::Long => Some(now + Duration::from_secs(10)),
+            StatusDuration::Seconds(s) => Some(now + Duration::from_secs(s)),
+            StatusDuration::Sticky => None,
         };
+    }
 
-        if duration == StatusDuration::Annoying {
-            self.last_annoying = Some(message.clone());
-        } else if text.is_empty() && self.last_annoying.is_some() {
-            self.status = self.last_annoying.clone();
-        } else {
-            self.status = Some(message);
+    /// Sets the idle, sticky "Ready" message shown when nothing else is happening.
+    fn ready(&mut self) {
+        self.set_status("Ready", StatusLevel::Info, StatusDuration::Sticky);
+    }
 
-            // Cancel any clear task currently pending
-            if let Some(cancel_tx) = self.cancel_tx.take() {
-                let _ = cancel_tx.send(());
-                self.cancel_tx = None;
-            }
-
-            let sleep_seconds: Option<u64> = match duration {
-                StatusDuration::None => Some(0),
-                StatusDuration::Short => Some(3),
-                StatusDuration::Long => Some(10),
-                StatusDuration::Seconds(s) => Some(s),
-                _ => None,
-            };
-
-            if let Some(sleep_seconds) = sleep_seconds {
-                let (cancel_tx, mut cancel_rx) = oneshot::channel();
-                self.cancel_tx = Some(cancel_tx);
-
-                let tx = self.action_tx.clone();
-                tokio::spawn(async move {
-                    tokio::time::sleep(tokio::time::Duration::from_secs(sleep_seconds)).await;
-                    if cancel_rx.try_recv().is_ok() {
-                        return;
-                    }
-                    tx.send(Action::Status(StatusCommand::UpdateStatus(
-                        StatusLevel::Info,
-                        "Ready".into(),
-                    )))
-                    .ok();
-                });
-            }
+    /// Reverts a timed status to "Ready" once its deadline has passed. Called on every `Tick`.
+    fn clear_if_expired(&mut self) {
+        if self
+            .clear_after
+            .is_some_and(|deadline| Instant::now() >= deadline)
+        {
+            self.ready();
         }
     }
 
@@ -167,13 +141,14 @@ impl Component for StatusBar {
 
     fn init(&mut self, tui: &mut Tui) -> AppResult<()> {
         let _ = tui; // to appease clippy
-        self.info("Ready");
+        self.ready();
         Ok(())
     }
 
     async fn update(&mut self, action: &Action, tui: &mut Tui) -> AppResult<Option<Action>> {
         let _ = tui;
         match action {
+            Action::Tick => self.clear_if_expired(),
             Action::Status(StatusCommand::UpdateStatus(level, message)) => match level {
                 StatusLevel::Info => self.info(message.as_str()),
                 StatusLevel::Progress => self.progress(message.as_str()),
@@ -190,9 +165,7 @@ impl Component for StatusBar {
                     StatusLevel::Error => self.error_with_duration(duration, message),
                 }
             }
-            Action::Status(StatusCommand::ResetStatus) => {
-                self.info("Ready");
-            }
+            Action::Status(StatusCommand::ResetStatus) => self.ready(),
             _ => {}
         };
 

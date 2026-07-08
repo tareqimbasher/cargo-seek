@@ -60,7 +60,7 @@ fn handle_global_shortcuts(home: &mut Home, key: KeyEvent) -> AppResult<Option<A
             open_scope_overlay(home);
             return Ok(None);
         }
-        KeyCode::Char('/') => {
+        KeyCode::Char('/') if home.focused != Focusable::Search => {
             return Ok(Some(Action::Home(HomeCommand::Focus(Focusable::Search))));
         }
         KeyCode::BackTab => {

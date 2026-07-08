@@ -1,7 +1,10 @@
 //! Small shared formatting helpers.
 
+use crate::errors::AppResult;
 use chrono::{DateTime, Utc};
+use color_eyre::eyre::Context;
 use num_format::{Locale, ToFormattedStr, ToFormattedString};
+use reqwest::Url;
 use std::str::FromStr;
 use std::sync::LazyLock;
 use sys_locale::get_locale;
@@ -13,17 +16,30 @@ static LOCALE: LazyLock<Locale> = LazyLock::new(|| {
 
 /// Gets the elapsed time between two times as a human-readable string.
 pub fn get_relative_time(date_time: DateTime<Utc>, since: DateTime<Utc>) -> String {
-    let delta = since.signed_duration_since(date_time);
+    let seconds = since.signed_duration_since(date_time).num_seconds().max(0);
 
-    if delta.num_days() > 1 {
-        format!("{} days ago", delta.num_days())
-    } else if delta.num_hours() > 1 {
-        format!("{} hours ago", delta.num_hours())
-    } else if delta.num_seconds() > 1 {
-        format!("{} minutes ago", delta.num_minutes())
+    const MINUTE: i64 = 60;
+    const HOUR: i64 = 60 * MINUTE;
+    const DAY: i64 = 24 * HOUR;
+    const MONTH: i64 = 30 * DAY;
+    const YEAR: i64 = 365 * DAY;
+
+    let (count, unit) = if seconds >= YEAR {
+        (seconds / YEAR, "year")
+    } else if seconds >= MONTH {
+        (seconds / MONTH, "month")
+    } else if seconds >= DAY {
+        (seconds / DAY, "day")
+    } else if seconds >= HOUR {
+        (seconds / HOUR, "hour")
+    } else if seconds >= MINUTE {
+        (seconds / MINUTE, "minute")
     } else {
-        format!("{} seconds ago", delta.num_seconds())
-    }
+        (seconds, "second")
+    };
+
+    let plural = if count == 1 { "" } else { "s" };
+    format!("{count} {unit}{plural} ago")
 }
 
 /// Formats an age as a compact string (e.g. `26d`, `3mo`, `2y`, `today`) for dense listings where
@@ -74,6 +90,12 @@ pub fn format_size(bytes: Option<u64>) -> String {
     }
 }
 
+/// Opens a URL in the user's default browser without blocking.
+pub fn open_in_browser(url: &Url) -> AppResult<()> {
+    open::that_detached(url.to_string())
+        .wrap_err_with(|| format!("Couldn't open {url} in a browser"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -110,10 +132,26 @@ mod tests {
         let now = DateTime::from_timestamp(1_000_000_000, 0).unwrap();
         let before = |secs: i64| now - chrono::Duration::seconds(secs);
 
-        assert_eq!(get_relative_time(before(5 * 86_400), now), "5 days ago");
-        assert_eq!(get_relative_time(before(3 * 3_600), now), "3 hours ago");
-        assert_eq!(get_relative_time(before(5 * 60), now), "5 minutes ago");
         assert_eq!(get_relative_time(before(0), now), "0 seconds ago");
+        assert_eq!(get_relative_time(before(1), now), "1 second ago");
+        assert_eq!(get_relative_time(before(59), now), "59 seconds ago");
+        assert_eq!(get_relative_time(before(60), now), "1 minute ago");
+        assert_eq!(get_relative_time(before(5 * 60), now), "5 minutes ago");
+        assert_eq!(get_relative_time(before(3_600), now), "1 hour ago");
+        assert_eq!(get_relative_time(before(3 * 3_600), now), "3 hours ago");
+        assert_eq!(get_relative_time(before(86_400), now), "1 day ago");
+        assert_eq!(get_relative_time(before(5 * 86_400), now), "5 days ago");
+        assert_eq!(get_relative_time(before(45 * 86_400), now), "1 month ago");
+        assert_eq!(get_relative_time(before(400 * 86_400), now), "1 year ago");
+        assert_eq!(
+            get_relative_time(before(3650 * 86_400), now),
+            "10 years ago"
+        );
+        // A future timestamp clamps rather than going negative.
+        assert_eq!(
+            get_relative_time(now + chrono::Duration::days(3), now),
+            "0 seconds ago"
+        );
     }
 
     #[test]

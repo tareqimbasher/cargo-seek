@@ -33,7 +33,7 @@ impl CrateSearchManager {
                 .default_headers(headers)
                 .timeout(Duration::from_secs(10))
                 .build()?,
-            Duration::from_millis(1100),
+            Duration::from_millis(1050),
         );
 
         Ok(CrateSearchManager {

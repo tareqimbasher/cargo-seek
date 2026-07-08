@@ -13,6 +13,7 @@ use crate::components::status_bar::{StatusCommand, StatusDuration, StatusLevel};
 use crate::errors::AppResult;
 use crate::search::{DEFAULT_PER_PAGE, SearchCommand, SearchEvent, SearchOptions};
 use crate::tui::Tui;
+use crate::util::open_in_browser;
 
 pub async fn handle_action(
     home: &mut Home,
@@ -104,7 +105,7 @@ pub async fn handle_action(
                     .and_then(|cr| cr.repository.as_ref())
                     .and_then(|docs| Url::parse(docs).ok())
                 {
-                    open::that(url.to_string())?;
+                    open_in_browser(&url)?;
                 }
             }
             HomeCommand::RenderReadme(_) => {
@@ -119,7 +120,7 @@ pub async fn handle_action(
                     .and_then(|cr| cr.documentation.as_ref())
                     .and_then(|docs| Url::parse(docs).ok())
                 {
-                    open::that(url.to_string())?;
+                    open_in_browser(&url)?;
                 }
             }
             HomeCommand::OpenCratesIo => {
@@ -131,7 +132,7 @@ pub async fn handle_action(
                         Url::parse(format!("https://crates.io/crates/{}", cr.id).as_str()).ok()
                     })
                 {
-                    open::that(url.to_string())?;
+                    open_in_browser(&url)?;
                 }
             }
             HomeCommand::OpenLibRs => {
@@ -143,7 +144,7 @@ pub async fn handle_action(
                         Url::parse(format!("https://lib.rs/crates/{}", cr.id).as_str()).ok()
                     })
                 {
-                    open::that(url.to_string())?;
+                    open_in_browser(&url)?;
                 }
             }
         },

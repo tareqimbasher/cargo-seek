@@ -64,7 +64,7 @@ impl App {
                 cargo_env.clone(),
                 action_tx.clone(),
             )?),
-            Box::new(StatusBar::new(action_tx.clone())),
+            Box::new(StatusBar::new()),
             Box::new(AppId::new()), // Should be after other components so it gets drawn on top of them
         ];
 
@@ -211,9 +211,19 @@ impl App {
             }
 
             for component in self.components.iter_mut() {
-                if let Some(sub_action) = component.update(&action, tui).await? {
-                    self.action_tx.send(sub_action)?
-                };
+                match component.update(&action, tui).await {
+                    Ok(Some(sub_action)) => self.action_tx.send(sub_action)?,
+                    Ok(None) => {}
+                    Err(report) => {
+                        error!("Error executing {action:?}: {report:?}");
+                        self.action_tx
+                            .send(Action::Status(StatusCommand::UpdateStatus(
+                                StatusLevel::Error,
+                                format!("{report:#}"),
+                            )))
+                            .ok();
+                    }
+                }
             }
         }
         Ok(())
