@@ -1,61 +1,21 @@
-# VHS documentation
+# cargo-seek demo — rendered with VHS (https://github.com/charmbracelet/vhs).
 #
-# Output:
-#   Output <path>.gif               Create a GIF output at the given <path>
-#   Output <path>.mp4               Create an MP4 output at the given <path>
-#   Output <path>.webm              Create a WebM output at the given <path>
+# Build the current version first, then record from the repository root:
 #
-# Require:
-#   Require <string>                Ensure a program is on the $PATH to proceed
+#   cargo build --release
+#   vhs docs/demo.tape
 #
-# Settings:
-#   Set FontSize <number>           Set the font size of the terminal
-#   Set FontFamily <string>         Set the font family of the terminal
-#   Set Height <number>             Set the height of the terminal
-#   Set Width <number>              Set the width of the terminal
-#   Set LetterSpacing <float>       Set the font letter spacing (tracking)
-#   Set LineHeight <float>          Set the font line height
-#   Set LoopOffset <float>%         Set the starting frame offset for the GIF loop
-#   Set Theme <json|string>         Set the theme of the terminal
-#   Set Padding <number>            Set the padding of the terminal
-#   Set Framerate <number>          Set the framerate of the recording
-#   Set PlaybackSpeed <float>       Set the playback speed of the recording
-#   Set MarginFill <file|#000000>   Set the file or color the margin will be filled with.
-#   Set Margin <number>             Set the size of the margin. Has no effect if MarginFill isn't set.
-#   Set BorderRadius <number>       Set terminal border radius, in pixels.
-#   Set WindowBar <string>          Set window bar type. (one of: Rings, RingsRight, Colorful, ColorfulRight)
-#   Set WindowBarSize <number>      Set window bar size, in pixels. Default is 40.
-#   Set TypingSpeed <time>          Set the typing speed of the terminal. Default is 50ms.
+# The tape prepends ./target/release to PATH (in a hidden step) so `cargo seek` runs the
+# freshly built binary instead of any globally installed copy, and it runs against this
+# project's Cargo.toml so serde/serde_json show up as dependencies. The GIF is written to
+# docs/preview.gif.
 #
-# Sleep:
-#   Sleep <time>                    Sleep for a set amount of <time> in seconds
-#
-# Type:
-#   Type[@<time>] "<characters>"    Type <characters> into the terminal with a
-#                                   <time> delay between each character
-#
-# Keys:
-#   Escape[@<time>] [number]        Press the Escape key
-#   Backspace[@<time>] [number]     Press the Backspace key
-#   Delete[@<time>] [number]        Press the Delete key
-#   Insert[@<time>] [number]        Press the Insert key
-#   Down[@<time>] [number]          Press the Down key
-#   Enter[@<time>] [number]         Press the Enter key
-#   Space[@<time>] [number]         Press the Space key
-#   Tab[@<time>] [number]           Press the Tab key
-#   Left[@<time>] [number]          Press the Left Arrow key
-#   Right[@<time>] [number]         Press the Right Arrow key
-#   Up[@<time>] [number]            Press the Up Arrow key
-#   Down[@<time>] [number]          Press the Down Arrow key
-#   PageUp[@<time>] [number]        Press the Page Up key
-#   PageDown[@<time>] [number]      Press the Page Down key
-#   Ctrl+<key>                      Press the Control key + <key> (e.g. Ctrl+C)
-#
-# Display:
-#   Hide                            Hide the subsequent commands from the output
-#   Show                            Show the subsequent commands in the output
+# The walkthrough only opens overlays and cancels them, so recording never modifies Cargo.toml.
 
-Output preview.gif
+Require cargo
+
+Output docs/preview.gif
+
 Set FontSize 14
 Set Width 1200
 Set Height 700
@@ -63,43 +23,63 @@ Set Padding 0
 Set Margin 20
 Set CursorBlink true
 Set WindowBar Colorful
-#Set PlaybackSpeed 0.5
+Set TypingSpeed 90ms
+
+# Use the locally built binary rather than a globally installed cargo-seek.
+Hide
+Type "export PATH=$PWD/target/release:$PATH" Enter
+Type "clear" Enter
+Show
 
 Type "cargo seek" Enter
-Sleep 1s
+Sleep 1.5s
 
+# Search: the exact match auto-selects "serde" and focuses the results list.
 Type "serde"
 Enter
 Sleep 2s
 
+# Rich details pane: versions, license, MSRV, size, features.
+Sleep 2.5s
+
+# Sort results.
 Ctrl+S
 Sleep 1s
-Down@200ms 2
+Down@250ms 3
 Sleep 1s
-Enter
-Sleep 2s
-
 Escape
-Sleep 0.5s
-Escape
-Sleep 1s
+Sleep 0.75s
 
+# Change the search scope.
 Ctrl+A
 Sleep 1s
-Up
+Down@250ms 2
 Sleep 1s
-Enter
-Enter
-Sleep 2s
+Escape
+Sleep 0.75s
 
-Tab
-Down@50ms 50
-Sleep 1s
-Right
+# Confirmation prompt before removing a project dependency (serde is a dependency here).
+Type "r"
 Sleep 2s
-Down@100ms 10
-Sleep 1s
-Tab
-Sleep 1s
-Tab
+Escape
+Sleep 0.75s
+
+# Feature picker: search for a crate that isn't a dependency yet, then add it and choose features.
+# Add ("a") only opens the picker for a crate that isn't already a dependency, hence the fresh
+# search for "rand" rather than reusing serde.
+Escape
+Sleep 0.5s
+Backspace 8
+Type "rand"
+Enter
 Sleep 2s
+Type "a"
+Sleep 1.5s
+Down@300ms 2
+Space
+Sleep 0.75s
+Down@300ms 1
+Space
+Sleep 1.5s
+Escape
+Sleep 1.5s

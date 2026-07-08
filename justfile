@@ -38,6 +38,10 @@ test *args:
 doc:
     RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --document-private-items --all-features --workspace --examples
 
+# Record the demo GIF to docs/preview.gif
+vhs: build-release
+    vhs docs/demo.tape
+
 # Run every CI gate — do this before pushing
 ci: format-check clippy test doc
 
