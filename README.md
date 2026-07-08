@@ -65,6 +65,13 @@
 
     cargo install --locked cargo-seek
 
+### Arch Linux (AUR)
+
+Community-maintained package on the AUR: [`cargo-seek`](https://aur.archlinux.org/packages/cargo-seek).
+Install it with an AUR helper:
+
+    yay -S cargo-seek   # or: paru -S cargo-seek
+
 ### Prebuilt binaries
 
 Download a prebuilt binary for your platform from the

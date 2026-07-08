@@ -102,22 +102,12 @@ jobs:
           BINARY_NAME=$BIN_NAME${{ matrix.binary-postfix }}
           RELEASE_NAME=$BIN_NAME-${GITHUB_REF_NAME}-${{ matrix.os-name }}-${{ matrix.architecture }}
 
-          ########## create tar.gz ##########
           tar czvf $RELEASE_NAME.tar.gz $BINARY_NAME
-
-          ########## create sha256 ##########
-          if [[ ${{ runner.os }} == 'Windows' ]]; then
-            certutil -hashfile $RELEASE_NAME.tar.gz sha256 | grep -E [A-Fa-f0-9]{64} > $RELEASE_NAME.sha256
-          else
-            shasum -a 256 $RELEASE_NAME.tar.gz > $RELEASE_NAME.sha256
-          fi
       - name: Upload build artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ matrix.os-name }}-${{ matrix.architecture }}
-          path: |
-            target/${{ matrix.target }}/release/*.tar.gz
-            target/${{ matrix.target }}/release/*.sha256
+          path: target/${{ matrix.target }}/release/*.tar.gz
           if-no-files-found: error
           retention-days: 1
 
