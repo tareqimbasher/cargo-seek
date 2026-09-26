@@ -149,6 +149,10 @@ impl SearchResults {
             if let Some(proj) = &cargo_env.project {
                 cr.project_version = proj.get_local_version(&cr.name);
                 cr.project_dep_kind = proj.get_local_dep_kind(&cr.name);
+                cr.project_features = proj
+                    .get_local_features(&cr.name)
+                    .map(|features| features.into_iter().map(String::from).collect());
+                cr.project_default_features = proj.get_local_default_features(&cr.name);
             }
             cr.installed_version = cargo_env.get_installed_version(&cr.name);
         }

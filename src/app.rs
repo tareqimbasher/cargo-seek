@@ -242,6 +242,7 @@ impl App {
                 version,
                 features,
                 no_default_features,
+                requires_remove,
             } => {
                 let Some(manifest_path) = self.get_manifest_path().await else {
                     self.action_tx
@@ -253,6 +254,31 @@ impl App {
                         .ok();
                     return Ok(());
                 };
+
+                if requires_remove {
+                    let progress = format!("Removing {name}");
+                    let success = format!("Removed {name}");
+                    let failure = format!("Failed to remove {name}");
+                    let manifest_path = manifest_path.clone();
+                    let name = name.clone();
+
+                    let _ = self
+                        .run_cargo_action(
+                            tui,
+                            OutputMode::Capture,
+                            progress,
+                            success,
+                            failure,
+                            move |out| {
+                                cargo::remove(&manifest_path, &name, cargo::DepKind::Normal, out)
+                            },
+                        )
+                        .await;
+                }
+
+                while self.cargo_busy.load(Ordering::SeqCst) {
+                    std::hint::spin_loop();
+                }
 
                 let progress = format!("Adding {name} v{version}");
                 let success = format!("Added {name} v{version}");
@@ -297,7 +323,7 @@ impl App {
                     progress,
                     success,
                     failure,
-                    move |out| cargo::remove(&manifest_path, name, kind, out),
+                    move |out| cargo::remove(&manifest_path, &name, kind, out),
                 )
                 .await?;
             }

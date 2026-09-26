@@ -58,6 +58,10 @@ pub struct Crate {
     pub project_dep_kind: Option<DepKind>,
     /// The version of this crate that is installed, otherwise `None`.
     pub installed_version: Option<String>,
+    /// Enabled features of this crate that is added to the current project, otherwise `None`.
+    pub project_features: Option<Vec<String>>,
+    /// default-features of this crate that is added to the current project, otherwise `None`.
+    pub project_default_features: Option<bool>,
 }
 
 impl Crate {

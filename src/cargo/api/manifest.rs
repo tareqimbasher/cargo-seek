@@ -37,6 +37,10 @@ pub struct Dependency {
     pub kind: DepKind,
     /// Whether the dependency is optional (i.e. feature-gated).
     pub optional: bool,
+    /// The enabled features of a dependency
+    pub features: Vec<String>,
+    /// State of default-features of a dependency
+    pub uses_default_features: bool,
 }
 
 /// Which `Cargo.toml` section a dependency belongs to.

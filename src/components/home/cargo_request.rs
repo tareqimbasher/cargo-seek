@@ -1,6 +1,8 @@
 //! The add/install request lifecycle: deciding whether a crate's features must be chosen before
 //! running cargo, and deferring that decision until feature metadata has loaded.
 
+use std::collections::BTreeSet;
+
 use crate::action::Action;
 use crate::cargo::CargoCommand;
 use crate::components::home::feature_selector::FeatureSelector;
@@ -30,6 +32,7 @@ impl CargoIntent {
         version: String,
         features: Vec<String>,
         no_default_features: bool,
+        requires_remove: bool,
     ) -> Action {
         let command = match self {
             CargoIntent::Add => CargoCommand::Add {
@@ -37,6 +40,7 @@ impl CargoIntent {
                 version,
                 features,
                 no_default_features,
+                requires_remove,
             },
             CargoIntent::Install => CargoCommand::Install {
                 name,
@@ -85,12 +89,6 @@ pub fn decide_feature_step(
                 "No Cargo project found to add to".to_string(),
             ));
         }
-        if cr.project_version.is_some() {
-            return Some(FeatureStep::Blocked(format!(
-                "{} is already a dependency of this project",
-                cr.name
-            )));
-        }
     }
 
     let Some(features) = cr.features.as_deref() else {
@@ -101,13 +99,38 @@ pub fn decide_feature_step(
     };
 
     if features.is_empty() {
+        if intent == CargoIntent::Add && cr.project_version.is_some() {
+            return Some(FeatureStep::Blocked(format!(
+                "{} is already a dependency of this project",
+                cr.name
+            )));
+        }
+
         return Some(FeatureStep::Run(intent.into_command(
             cr.name.clone(),
             cr.version.clone(),
             Vec::new(),
             false,
+            false,
         )));
     }
+
+    let selected_features = cr.project_features.as_ref().map(|x| {
+        x.iter()
+            .map(|feature| feature.as_str())
+            .chain(
+                cr.project_default_features
+                    .is_some_and(|x| x)
+                    .then(|| cr.default_features.iter().map(|feature| feature.as_str()))
+                    .into_iter()
+                    .flatten(),
+            )
+            // Deduplicate features
+            .collect::<BTreeSet<&str>>()
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>()
+    });
 
     Some(FeatureStep::Pick(Box::new(FeatureSelector::new(
         config.clone(),
@@ -116,6 +139,7 @@ pub fn decide_feature_step(
         intent,
         features,
         &cr.default_features,
+        selected_features.as_deref(),
     ))))
 }
 
@@ -186,12 +210,19 @@ mod tests {
     }
 
     #[test]
-    fn add_of_an_existing_dependency_is_blocked() {
+    fn add_of_an_existing_dependency_with_no_features_is_blocked() {
         let mut cr = crate_with(Some(&[]));
         cr.project_version = Some("1.0".to_string());
         match decide_feature_step(Some(&cr), &Config::default(), CargoIntent::Add, true) {
             Some(FeatureStep::Blocked(reason)) => assert!(reason.contains("already a dependency")),
             _ => panic!("expected Blocked"),
+        }
+
+        let mut cr = crate_with(Some(&["foo"]));
+        cr.project_version = Some("1.0".to_string());
+        match decide_feature_step(Some(&cr), &Config::default(), CargoIntent::Add, true) {
+            Some(FeatureStep::Pick(_)) => {}
+            _ => panic!("expected Pick"),
         }
     }
 
