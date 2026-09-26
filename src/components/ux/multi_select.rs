@@ -30,6 +30,7 @@ pub struct MultiSelect<T> {
     title: String,
     items: Vec<MultiSelectItem<T>>,
     state: ListState,
+    last_inner_height: Option<u16>,
 }
 
 impl<T: Clone> MultiSelect<T> {
@@ -40,6 +41,7 @@ impl<T: Clone> MultiSelect<T> {
             title,
             items,
             state: ListState::default().with_selected(selected),
+            last_inner_height: None,
         }
     }
 
@@ -58,6 +60,8 @@ impl<T: Clone> MultiSelect<T> {
             KeyCode::Enter => return KeyOutcome::Submitted(self.checked()),
             KeyCode::Up => self.select_previous(),
             KeyCode::Down => self.select_next(),
+            KeyCode::PageUp => self.page_previous(),
+            KeyCode::PageDown => self.page_next(),
             KeyCode::Char(' ') => self.toggle_selected(),
             _ => {}
         }
@@ -71,7 +75,7 @@ impl<T: Clone> MultiSelect<T> {
         let next = self
             .state
             .selected()
-            .map_or(0, |i| (i + 1).min(self.items.len() - 1));
+            .map_or(0, |i| (i.saturating_add(1)).min(self.items.len() - 1));
         self.state.select(Some(next));
     }
 
@@ -80,6 +84,38 @@ impl<T: Clone> MultiSelect<T> {
             return;
         }
         let prev = self.state.selected().map_or(0, |i| i.saturating_sub(1));
+        self.state.select(Some(prev));
+    }
+
+    fn page_jump_height(&self) -> Option<usize> {
+        let last_inner_height = self.last_inner_height?;
+        Some(usize::from(last_inner_height.saturating_sub(1)))
+    }
+
+    fn page_next(&mut self) {
+        if self.items.is_empty() {
+            return;
+        }
+        let Some(jump) = self.page_jump_height() else {
+            return;
+        };
+
+        let next = self
+            .state
+            .selected()
+            .map_or(0, |i| (i.saturating_add(jump)).min(self.items.len() - 1));
+        self.state.select(Some(next));
+    }
+
+    fn page_previous(&mut self) {
+        if self.items.is_empty() {
+            return;
+        }
+        let Some(jump) = self.page_jump_height() else {
+            return;
+        };
+
+        let prev = self.state.selected().map_or(0, |i| i.saturating_sub(jump));
         self.state.select(Some(prev));
     }
 
@@ -94,6 +130,7 @@ impl<T: Clone> MultiSelect<T> {
     pub fn draw(&mut self, frame: &mut Frame, area: Rect) {
         // Cap the popup to the available area; the list scrolls via its state when it overflows.
         let inner_height = (self.items.len() as u16).clamp(1, area.height.saturating_sub(4).max(1));
+        self.last_inner_height = Some(inner_height);
 
         let list_items: Vec<ListItem> = self
             .items
