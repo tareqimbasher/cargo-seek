@@ -26,6 +26,7 @@ pub enum CargoCommand {
         features: Vec<String>,
         /// Pass `--no-default-features` (set when the user unchecks a default feature).
         no_default_features: bool,
+        requires_remove: bool,
     },
     Remove(String, DepKind),
     // Update(String),

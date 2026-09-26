@@ -182,7 +182,7 @@ fn add_args(
 /// Returns [`CargoError::Failed`] with cargo's stderr if the subprocess exits with a non-zero code.
 pub fn remove(
     manifest_path: &Path,
-    crate_name: String,
+    crate_name: &str,
     kind: DepKind,
     out: OutputMode,
 ) -> AppResult<()> {

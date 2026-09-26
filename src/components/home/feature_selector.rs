@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use crossterm::event::KeyEvent;
 use ratatui::Frame;
 use ratatui::layout::Rect;
@@ -16,6 +18,7 @@ pub struct FeatureSelector {
     version: String,
     intent: CargoIntent,
     default_features: Vec<String>,
+    checked_features: Option<Vec<String>>,
     selector: MultiSelect<String>,
 }
 
@@ -27,6 +30,7 @@ impl FeatureSelector {
         intent: CargoIntent,
         features: &[String],
         default_features: &[String],
+        checked_features: Option<&[String]>,
     ) -> Self {
         let items = features
             .iter()
@@ -37,8 +41,15 @@ impl FeatureSelector {
                 } else {
                     name.clone().into()
                 };
-                // Default features start checked so confirming straight away matches a plain add.
-                MultiSelectItem::new(name.clone(), label, is_default)
+
+                // Upon first add/install default features start checked so confirming straight away matches a plain add.
+                let checked = if let Some(checked_features) = checked_features {
+                    checked_features.iter().any(|d| d == name)
+                } else {
+                    is_default
+                };
+
+                MultiSelectItem::new(name.clone(), label, checked)
             })
             .collect();
 
@@ -49,6 +60,7 @@ impl FeatureSelector {
             version,
             intent,
             default_features: default_features.to_vec(),
+            checked_features: checked_features.map(|x| x.to_vec()),
             selector: MultiSelect::new(config, format!(" {verb} {crate_name} — features "), items),
         }
     }
@@ -67,6 +79,18 @@ impl FeatureSelector {
     /// extra (non-default) selections are passed. If the user unchecked any default, the defaults
     /// are turned off (`--no-default-features`) and the full kept set is passed explicitly.
     fn command(&self, checked: &[String]) -> Action {
+        // If nothing changed print out a status message
+        if self.checked_features.as_ref().is_some_and(|x| {
+            let a = x.iter().map(|x| x.as_str()).collect::<BTreeSet<_>>();
+            let b = checked.iter().map(|x| x.as_str()).collect::<BTreeSet<_>>();
+            a == b
+        }) {
+            return Action::Status(crate::components::status_bar::StatusCommand::UpdateStatus(
+                crate::components::status_bar::StatusLevel::Info,
+                "No features changed, ignoring".into(),
+            ));
+        }
+
         let no_default_features = self.default_features.iter().any(|d| !checked.contains(d));
 
         let features: Vec<String> = checked
@@ -75,11 +99,32 @@ impl FeatureSelector {
             .cloned()
             .collect();
 
+        // If any feature was unchecked we require a remove command
+        let unchecked_features = self
+            .checked_features
+            .as_ref()
+            .is_some_and(|checked_features| {
+                checked_features
+                    .iter()
+                    .any(|feature| !checked.contains(feature))
+            });
+
+        let default_features_reenabled = !no_default_features
+            && self
+                .checked_features
+                .as_ref()
+                .is_some_and(|previously_checked_features| {
+                    self.default_features
+                        .iter()
+                        .any(|d| !previously_checked_features.contains(d))
+                });
+
         self.intent.into_command(
             self.crate_name.clone(),
             self.version.clone(),
             features,
             no_default_features,
+            unchecked_features || default_features_reenabled,
         )
     }
 
@@ -109,6 +154,7 @@ mod tests {
             CargoIntent::Add,
             &features,
             &defaults,
+            None,
         )
     }
 

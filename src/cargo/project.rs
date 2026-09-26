@@ -93,6 +93,45 @@ impl Project {
             None
         }
     }
+
+    fn get_local_included(&self, package_name: &str) -> bool {
+        self.packages
+            .iter()
+            .flat_map(|package| &package.dependencies)
+            .any(|dependency| dependency.name == package_name)
+    }
+
+    pub fn get_local_default_features(&self, package_name: &str) -> Option<bool> {
+        if !self.get_local_included(package_name) {
+            return None;
+        }
+
+        Some(
+            self.packages
+                .iter()
+                .flat_map(|package| &package.dependencies)
+                .filter(|dependency| dependency.name == package_name)
+                .map(|dependency| &dependency.uses_default_features)
+                .any(|default_features| *default_features),
+        )
+    }
+
+    pub fn get_local_features(&self, package_name: &str) -> Option<Vec<&str>> {
+        if !self.get_local_included(package_name) {
+            return None;
+        }
+
+        let features = self
+            .packages
+            .iter()
+            .flat_map(|package| &package.dependencies)
+            .filter(|dependency| dependency.name == package_name)
+            .flat_map(|dependency| &dependency.features)
+            .map(|feature| feature.as_str())
+            .collect::<BTreeSet<&str>>();
+
+        Some(features.into_iter().collect())
+    }
 }
 
 fn find_project_manifest(starting_dir_path: &Path) -> AppResult<Option<PathBuf>> {
@@ -143,6 +182,8 @@ mod tests {
             req: req.into(),
             kind: DepKind::default(),
             optional: false,
+            features: vec![],
+            uses_default_features: true,
         }
     }
 
@@ -152,6 +193,19 @@ mod tests {
             req: "1".into(),
             kind,
             optional: false,
+            features: vec![],
+            uses_default_features: true,
+        }
+    }
+
+    fn dep_features(name: &str, features: Vec<&str>, uses_default_features: bool) -> Dependency {
+        Dependency {
+            name: name.into(),
+            req: "1".into(),
+            kind: DepKind::default(),
+            optional: false,
+            features: features.into_iter().map(String::from).collect(),
+            uses_default_features,
         }
     }
 
@@ -269,5 +323,29 @@ mod tests {
         assert_eq!(project.get_local_dep_kind("criterion"), Some(DepKind::Dev));
         assert_eq!(project.get_local_dep_kind("cc"), Some(DepKind::Build));
         assert_eq!(project.get_local_dep_kind("rand"), None);
+    }
+
+    #[test]
+    fn get_local_features_conbine() {
+        let project = project(vec![
+            package(
+                "member_a",
+                vec![dep_features("derive_more", vec!["from", "into"], true)],
+            ),
+            package(
+                "member_b",
+                vec![dep_features("derive_more", vec!["try_from", "into"], false)],
+            ),
+        ]);
+
+        assert_eq!(
+            project.get_local_features("derive_more"),
+            Some(vec!["from", "into", "try_from"]),
+        );
+
+        assert_eq!(
+            project.get_local_default_features("derive_more"),
+            Some(true),
+        );
     }
 }
